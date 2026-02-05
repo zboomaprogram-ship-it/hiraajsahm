@@ -5,6 +5,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
+import '../../../vendor/presentation/widgets/vendor_upgrade_sheet.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../vendor/presentation/screens/vendor_dashboard_screen.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -224,7 +225,7 @@ class ProfileScreen extends StatelessWidget {
               duration: const Duration(milliseconds: 400),
               child: state.user.isVendor
                   ? _buildVendorDashboardBanner(context)
-                  : _buildBecomeVendorBanner(context),
+                  : _buildBecomeVendorBanner(context, state),
             ),
           ),
 
@@ -469,12 +470,15 @@ class ProfileScreen extends StatelessWidget {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
             decoration: BoxDecoration(
-              color: _getTierColor(state.user.tier).withOpacity(0.2),
+              gradient: _getTierGradient(state.user.tier),
               borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(
-                color: _getTierColor(state.user.tier).withOpacity(0.5),
-                width: 1,
-              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _getTierColor(state.user.tier).withOpacity(0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Text(
               _getTierName(state.user.tier),
@@ -482,6 +486,13 @@ class ProfileScreen extends StatelessWidget {
                 fontSize: 12.sp,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
               ),
             ),
           ),
@@ -515,10 +526,13 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBecomeVendorBanner(BuildContext context) {
+  Widget _buildBecomeVendorBanner(
+    BuildContext context,
+    AuthAuthenticated state,
+  ) {
     return GestureDetector(
       onTap: () {
-        AppRouter.navigateTo(context, Routes.vendorSubscription);
+        _showUpgradeToVendorDialog(context, state.user);
       },
       child: Container(
         margin: EdgeInsets.all(20.w),
@@ -559,7 +573,7 @@ class ProfileScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'كن بائعاً معنا',
+                    'ترقية لحساب تاجر',
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.bold,
@@ -584,6 +598,21 @@ class ProfileScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showUpgradeToVendorDialog(
+    BuildContext context,
+    UserModel currentUsers,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => VendorUpgradeSheet(
+        userId: currentUsers.id,
+        userPhone: currentUsers.phone ?? '',
       ),
     );
   }
@@ -810,12 +839,36 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  LinearGradient _getTierGradient(UserTier tier) {
+    switch (tier) {
+      case UserTier.gold:
+        return const LinearGradient(
+          colors: [Color(0xFFFFD700), Color(0xFFFDB931)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case UserTier.silver:
+        return const LinearGradient(
+          colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case UserTier.bronze:
+        return const LinearGradient(
+          colors: [Color(0xFFCD7F32), Color(0xFFA0522D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+    }
+  }
+
   Color _getTierColor(UserTier tier) {
+    // Fallback color for borders/shadows (using first color of gradient)
     switch (tier) {
       case UserTier.gold:
         return const Color(0xFFFFD700);
       case UserTier.silver:
-        return const Color(0xFFC0C0C0);
+        return const Color(0xFFE0E0E0);
       case UserTier.bronze:
         return const Color(0xFFCD7F32);
     }

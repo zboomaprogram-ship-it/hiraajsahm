@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:dio/dio.dart';
-import '../di/injection_container.dart';
+// import '../di/injection_container.dart';
 import '../routes/routes.dart';
 
 /// ✅ GLOBAL NAVIGATOR KEY
@@ -123,26 +123,39 @@ class NotificationService {
     }
   }
 
-  /// Send push subscription ID to WordPress backend
-  Future<void> _sendTokenToBackend(
-    String subscriptionId,
-    String userAuthToken,
-  ) async {
+  /// Send subscription ID to backend
+  Future<void> _sendTokenToBackend(String id, String token) async {
     try {
-      final dio = sl<Dio>();
+      final dio = Dio();
       await dio.post(
         _saveTokenEndpoint,
-        data: {'fcm_token': subscriptionId},
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $userAuthToken',
-            'Content-Type': 'application/json',
-          },
-        ),
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        data: {'fcm_token': id}, // Backend expects 'fcm_token' key
       );
-      print('✅ Push subscription ID saved to backend');
+      print('✅ Push subscription ID sent to backend');
     } catch (e) {
-      print('❌ Error sending subscription ID to backend: $e');
+      print('⚠️ Failed to send push ID to backend: $e');
+    }
+  }
+
+  /// Update User Tags for Targeted Notifications
+  Future<void> updateUserTags(dynamic user) async {
+    try {
+      if (!_isInitialized) return;
+
+      // user corresponds to UserModel, using dynamic to avoid import loop if possible,
+      // but better to rely on caller.
+
+      final tags = {
+        'role': user.role,
+        'tier': user.tier.name,
+        'user_id': user.id.toString(),
+      };
+
+      await OneSignal.User.addTags(tags);
+      print('🏷️ OneSignal Tags Updated: $tags');
+    } catch (e) {
+      print('❌ Failed to update OneSignal tags: $e');
     }
   }
 

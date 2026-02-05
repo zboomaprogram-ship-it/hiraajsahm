@@ -5,7 +5,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
@@ -15,8 +14,7 @@ import '../../data/models/product_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../presentation/cubit/product_details_cubit.dart';
-import '../../presentation/cubit/qna_cubit.dart'; // Add import
-
+import '../../presentation/cubit/qna_cubit.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 
 /// Product Details Screen
@@ -408,7 +406,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   decoration: BoxDecoration(
                     color: _currentImageIndex == index
                         ? AppColors.primary
-                        : Colors.white.withValues(alpha: 0.5),
+                        : Colors.grey.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(4.r),
                   ),
                 ),

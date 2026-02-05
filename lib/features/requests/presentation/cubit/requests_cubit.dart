@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../data/models/request_model.dart';
@@ -38,11 +39,33 @@ class RequestsCubit extends Cubit<RequestsState> {
     : _requestsService = requestsService,
       super(const RequestsInitial());
 
-  Future<void> submitRequest(RequestModel request) async {
-    emit(RequestsLoading());
+  Future<void> submitRequest(RequestModel request, [File? imageFile]) async {
+    emit(const RequestsLoading());
     try {
-      await _requestsService.submitRequest(request);
-      emit(RequestsSuccess());
+      RequestModel finalRequest = request;
+
+      if (imageFile != null) {
+        final imageUrl = await _requestsService.uploadImage(imageFile);
+
+        // Re-create model since fields are final and no copyWith
+        finalRequest = RequestModel(
+          livestockType: request.livestockType,
+          ownerPrice: request.ownerPrice,
+          pricePerKg: request.pricePerKg,
+          address: request.address,
+          phone: request.phone,
+          type: request.type,
+          carrierName: request.carrierName,
+          city: request.city,
+          region: request.region,
+          plateNumber: request.plateNumber,
+          transferType: request.transferType,
+          vehicleImage: imageUrl,
+        );
+      }
+
+      await _requestsService.submitRequest(finalRequest);
+      emit(const RequestsSuccess());
     } catch (e) {
       emit(RequestsError(e.toString()));
     }

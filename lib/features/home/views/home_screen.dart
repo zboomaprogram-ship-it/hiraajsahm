@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'هراج سهم',
+                        'حراج سهم',
                         style: TextStyle(
                           fontSize: 22.sp,
                           fontWeight: FontWeight.w900,
@@ -257,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(width: 12.w),
                   _buildHeaderIcon(
-                    Icons.shopping_cart_outlined,
+                    Icons.shopping_bag_outlined,
                     onTap: () {
                       AppRouter.navigateTo(context, Routes.cart);
                     },

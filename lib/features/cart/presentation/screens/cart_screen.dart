@@ -29,11 +29,10 @@ class CartScreen extends StatelessWidget {
           ),
         ),
         title: Text(
-          'سلة التسوق',
+          'طلباتي',
           style: TextStyle(
-            fontSize: 20.sp,
+            color: isDark ? Colors.white : Colors.black,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
           ),
         ),
         centerTitle: true,
@@ -119,14 +118,14 @@ class CartScreen extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.shopping_cart_outlined,
+                Icons.shopping_bag_outlined,
                 size: 60.sp,
                 color: AppColors.primary,
               ),
             ),
             SizedBox(height: 24.h),
             Text(
-              'السلة فارغة',
+              'الطلبات فارغة',
               style: TextStyle(
                 fontSize: 24.sp,
                 fontWeight: FontWeight.bold,
@@ -135,7 +134,7 @@ class CartScreen extends StatelessWidget {
             ),
             SizedBox(height: 12.h),
             Text(
-              'لم تقم بإضافة أي منتجات إلى السلة بعد',
+              'لم تقم بإضافة أي منتجات إلى الطلبات بعد',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16.sp, color: AppColors.textSecondary),
             ),
@@ -455,8 +454,8 @@ class CartScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('مسح السلة'),
-        content: const Text('هل أنت متأكد من مسح جميع المنتجات من السلة؟'),
+        title: const Text('مسح الطلبات'),
+        content: const Text('هل أنت متأكد من مسح جميع المنتجات من الطلبات؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

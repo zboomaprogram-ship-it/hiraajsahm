@@ -38,6 +38,8 @@ class AppConfig {
   static const String wcOrdersEndpoint = '/wc/v3/orders';
   static const String wcCustomersEndpoint = '/wc/v3/customers';
   static const String wpUsersEndpoint = '/wp/v2/users';
+  static const String customVendorUpgradeEndpoint =
+      '/custom/v1/register-vendor'; // Custom Endpoint
 
   // Dokan Endpoints
   static const String dokanVendorsEndpoint = '/dokan/v1/vendors';

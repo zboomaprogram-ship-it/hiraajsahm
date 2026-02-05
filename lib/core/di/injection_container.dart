@@ -26,6 +26,10 @@ import '../../features/vendor/presentation/cubit/add_product_cubit.dart';
 import '../../features/shop/presentation/cubit/qna_cubit.dart';
 // ✅ 1. Add Import
 import '../../features/notifications/presentation/cubit/notifications_cubit.dart';
+import '../../features/vendor/data/datasources/vendor_remote_datasource.dart';
+import '../../features/vendor/data/repositories/vendor_repository_impl.dart';
+import '../../features/vendor/domain/repositories/vendor_repository.dart';
+import '../../features/vendor/presentation/cubit/vendor_upgrade_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -120,7 +124,7 @@ Future<void> init() async {
   sl.registerFactory(() => VendorProfileCubit(dio: sl<Dio>()));
 
   // Requests Cubit
-  sl.registerFactory(() => RequestsService(sl<Dio>()));
+  sl.registerFactory(() => RequestsService(sl<Dio>(), sl<StorageService>()));
   sl.registerFactory(
     () => RequestsCubit(requestsService: sl<RequestsService>()),
   );
@@ -148,10 +152,25 @@ Future<void> init() async {
   // e.g., () => NotificationsCubit(dio: sl<Dio>())
   sl.registerFactory(() => NotificationsCubit());
 
+  // Vendor Upgrade Cubit
+  sl.registerFactory(
+    () => VendorUpgradeCubit(vendorRepository: sl<VendorRepository>()),
+  );
+
   // ============ DATA SOURCES ============
 
   // Auth Remote Data Source
   sl.registerLazySingleton(() => AuthRemoteDataSource(dio: sl<Dio>()));
+
+  // Vendor Data Sources
+  sl.registerLazySingleton<VendorRemoteDataSource>(
+    () => VendorRemoteDataSourceImpl(sl<Dio>()),
+  );
+
+  // Vendor Repositories
+  sl.registerLazySingleton<VendorRepository>(
+    () => VendorRepositoryImpl(remoteDataSource: sl<VendorRemoteDataSource>()),
+  );
 }
 
 /// Reset all singletons

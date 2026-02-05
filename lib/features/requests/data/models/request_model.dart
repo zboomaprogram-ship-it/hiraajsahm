@@ -6,6 +6,14 @@ class RequestModel {
   final String phone;
   final String type; // 'inspection' or 'delivery'
 
+  // New fields
+  final String? carrierName;
+  final String? city;
+  final String? region;
+  final String? plateNumber;
+  final String? transferType; // Internal / External
+  final String? vehicleImage;
+
   RequestModel({
     required this.livestockType,
     required this.ownerPrice,
@@ -13,6 +21,12 @@ class RequestModel {
     required this.address,
     required this.phone,
     required this.type,
+    this.carrierName,
+    this.city,
+    this.region,
+    this.plateNumber,
+    this.transferType,
+    this.vehicleImage,
   });
 
   Map<String, dynamic> toJson() {
@@ -23,6 +37,12 @@ class RequestModel {
       'address': address,
       'phone': phone,
       'request_type': type,
+      'carrier_name': carrierName,
+      'city': city,
+      'region': region,
+      'plate_number': plateNumber,
+      'transfer_type': transferType,
+      'vehicle_image': vehicleImage,
     };
   }
 }

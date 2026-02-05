@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,6 +7,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_field.dart';
+import '../../../../core/widgets/location_picker_screen.dart'; // Added
 import '../cubit/requests_cubit.dart';
 import '../../data/models/request_model.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
@@ -22,11 +25,19 @@ class _RequestsScreenState extends State<RequestsScreen>
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
-  final _livestockTypeController = TextEditingController();
-  final _ownerPriceController = TextEditingController();
-  final _pricePerKgController = TextEditingController();
-  final _addressController = TextEditingController();
+  // Controllers
   final _phoneController = TextEditingController();
+
+  // New Controllers
+  final _carrierNameController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _regionController = TextEditingController();
+  final _plateNumberController = TextEditingController();
+
+  // New State variables
+  String _transferType = 'internal'; // 'internal' or 'external'
+  File? _vehicleImage;
+  final ImagePicker _picker = ImagePicker();
 
   // Track selected request type
   String _selectedRequestType = 'inspection';
@@ -84,28 +95,58 @@ class _RequestsScreenState extends State<RequestsScreen>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _livestockTypeController.dispose();
-    _ownerPriceController.dispose();
-    _pricePerKgController.dispose();
-    _addressController.dispose();
     _phoneController.dispose();
+    _carrierNameController.dispose();
+    _cityController.dispose();
+    _regionController.dispose();
+    _plateNumberController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _vehicleImage = File(image.path);
+      });
+    }
+  }
+
+  // New: Pick Location
+  Future<void> _pickLocation() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        _cityController.text =
+            result['city'] ?? result['address'].split(',').last;
+        _regionController.text = result['region'] ?? '';
+      });
+    }
   }
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
       final request = RequestModel(
-        livestockType: _livestockTypeController.text,
-        ownerPrice: _ownerPriceController.text,
-        pricePerKg: _selectedRequestType == 'delivery'
-            ? _pricePerKgController.text
-            : null,
-        address: _addressController.text,
+        livestockType: 'N/A', // Removed from UI
+        ownerPrice: '0', // Removed from UI
+        pricePerKg: null, // Removed from UI
+        address:
+            '${_cityController.text} - ${_regionController.text}', // Map City/Region to Address
         phone: _phoneController.text,
         type: _selectedRequestType,
+        carrierName: _carrierNameController.text,
+        city: _cityController.text,
+        region: _regionController.text,
+        plateNumber: _plateNumberController.text,
+        transferType: _transferType,
+        // vehicleImage will be set by Cubit after upload
       );
 
-      context.read<RequestsCubit>().submitRequest(request);
+      context.read<RequestsCubit>().submitRequest(request, _vehicleImage);
     }
   }
 
@@ -218,11 +259,15 @@ class _RequestsScreenState extends State<RequestsScreen>
             ),
           );
           // Clear form fields
-          _livestockTypeController.clear();
-          _ownerPriceController.clear();
-          _pricePerKgController.clear();
-          _addressController.clear();
           _phoneController.clear();
+          _carrierNameController.clear();
+          _cityController.clear();
+          _regionController.clear();
+          _plateNumberController.clear();
+          setState(() {
+            _vehicleImage = null;
+            _transferType = 'internal';
+          });
         } else if (state is RequestsError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -234,7 +279,12 @@ class _RequestsScreenState extends State<RequestsScreen>
       },
       builder: (context, state) {
         return SingleChildScrollView(
-          padding: EdgeInsets.all(16.w),
+          padding: EdgeInsets.only(
+            left: 16.w,
+            right: 16.w,
+            top: 16.w,
+            bottom: 100.h, // Added padding to avoid navbar overlay
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -277,37 +327,46 @@ class _RequestsScreenState extends State<RequestsScreen>
                   child: Column(
                     children: [
                       CustomTextField(
-                        controller: _livestockTypeController,
-                        hint: 'نوع الذبيحة',
-                        prefixIcon: const Icon(Icons.pets),
+                        controller: _carrierNameController,
+                        hint: 'اسم الناقل / المعاين',
+                        prefixIcon: const Icon(Icons.person),
                         validator: (v) => v!.isEmpty ? 'مطلوب' : null,
                       ),
                       SizedBox(height: 16.h),
 
-                      CustomTextField(
-                        controller: _ownerPriceController,
-                        hint: 'السعر المطلوب من المالك',
-                        prefixIcon: const Icon(Icons.attach_money),
-                        keyboardType: TextInputType.number,
-                        validator: (v) => v!.isEmpty ? 'مطلوب' : null,
-                      ),
-                      SizedBox(height: 16.h),
-
-                      if (_selectedRequestType == 'delivery') ...[
-                        CustomTextField(
-                          controller: _pricePerKgController,
-                          hint: 'السعر للكيلو',
-                          prefixIcon: const Icon(Icons.scale),
-                          keyboardType: TextInputType.number,
-                          validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                      // 2. City & Region (Map Picker)
+                      GestureDetector(
+                        onTap: _pickLocation,
+                        child: AbsorbPointer(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: _cityController,
+                                  hint: 'المدينة (اضغط للتحديد)',
+                                  prefixIcon: const Icon(Icons.location_city),
+                                  validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                                ),
+                              ),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: _regionController,
+                                  hint: 'المنطقة',
+                                  prefixIcon: const Icon(Icons.map),
+                                  validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        SizedBox(height: 16.h),
-                      ],
+                      ),
+                      SizedBox(height: 16.h),
 
                       CustomTextField(
-                        controller: _addressController,
-                        hint: 'العنوان',
-                        prefixIcon: const Icon(Icons.location_on),
+                        controller: _plateNumberController,
+                        hint: 'رقم اللوحة',
+                        prefixIcon: const Icon(Icons.directions_car),
                         validator: (v) => v!.isEmpty ? 'مطلوب' : null,
                       ),
                       SizedBox(height: 16.h),
@@ -318,6 +377,96 @@ class _RequestsScreenState extends State<RequestsScreen>
                         prefixIcon: const Icon(Icons.phone),
                         keyboardType: TextInputType.phone,
                         validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                      ),
+                      SizedBox(height: 16.h),
+
+                      // Transfer Type Dropdown
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12.w),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.inputBackDark
+                              : AppColors.inputBack,
+                          borderRadius: BorderRadius.circular(12.r),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.transparent
+                                : Colors.grey.withOpacity(0.2),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _transferType,
+                            isExpanded: true,
+                            dropdownColor: isDark
+                                ? AppColors.cardDark
+                                : Colors.white,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'internal',
+                                child: Text('نقل داخلي'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'external',
+                                child: Text('نقل خارجي'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _transferType = val;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+
+                      // Vehicle Image Picker
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          height: 150.h,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.inputBackDark
+                                : AppColors.inputBack,
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.transparent
+                                  : Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: _vehicleImage != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  child: Image.file(
+                                    _vehicleImage!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_a_photo,
+                                      size: 40.sp,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    SizedBox(height: 8.h),
+                                    Text(
+                                      'صورة المركبة',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 14.sp,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
                       ),
                       SizedBox(height: 32.h),
 

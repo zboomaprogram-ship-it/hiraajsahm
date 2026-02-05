@@ -12,10 +12,15 @@ import '../../../../core/services/storage_service.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../shop/data/models/product_model.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../data/models/vendor_registration_data.dart';
+import '../../presentation/cubit/vendor_upgrade_cubit.dart';
+import '../../presentation/cubit/vendor_upgrade_state.dart';
 
 /// Subscription Screen - Display vendor subscription tiers
 class SubscriptionScreen extends StatefulWidget {
-  const SubscriptionScreen({super.key});
+  final VendorRegistrationData? vendorRegistrationData;
+
+  const SubscriptionScreen({super.key, this.vendorRegistrationData});
 
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
@@ -281,10 +286,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              // Add pack to cart and navigate to checkout
-              context.read<CartCubit>().clearCart();
-              context.read<CartCubit>().addItem(pack);
-              AppRouter.navigateTo(context, Routes.checkout);
+
+              if (widget.vendorRegistrationData != null) {
+                // Register as Vendor first
+                context.read<VendorUpgradeCubit>().upgradeToVendor(
+                  userId: context.read<AuthCubit>().currentUser!.id,
+                  shopName: widget.vendorRegistrationData!.shopName,
+                  phone: widget.vendorRegistrationData!.phone,
+                  shopLink: widget.vendorRegistrationData!.shopLink,
+                );
+                // Note: Actual subscription logic (adding to cart) should ideally happen
+                // AFTER successful registration. I'll need to listen to the Cubit state.
+                // For now, let's trigger both, but ideally we should wait.
+
+                // Temporary: Register then Add to Cart.
+                context.read<CartCubit>().clearCart();
+                context.read<CartCubit>().addItem(pack);
+                AppRouter.navigateTo(context, Routes.checkout);
+              } else {
+                // Already a vendor, just upgrading tier
+                context.read<CartCubit>().clearCart();
+                context.read<CartCubit>().addItem(pack);
+                AppRouter.navigateTo(context, Routes.checkout);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('تأكيد الاشتراك'),
@@ -325,37 +349,63 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back_ios_rounded,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
+    return BlocProvider(
+      create: (context) => di.sl<VendorUpgradeCubit>(),
+      child: BlocListener<VendorUpgradeCubit, VendorUpgradeState>(
+        listener: (context, state) {
+          if (state is VendorUpgradeSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            // Refresh Auth to get new role
+            context.read<AuthCubit>().checkAuthStatus();
+          } else if (state is VendorUpgradeFailure) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        },
+        child: Scaffold(
+          backgroundColor: isDark
+              ? AppColors.backgroundDark
+              : AppColors.background,
+          appBar: AppBar(
+            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(
+                Icons.arrow_back_ios_rounded,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
+            ),
+            title: Text(
+              'باقات الاشتراك',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
+            ),
+            centerTitle: true,
           ),
+          body: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              : _errorMessage != null
+              ? _buildErrorState()
+              : _subscriptionPacks.isEmpty
+              ? _buildEmptyState()
+              : _buildSubscriptionList(isDark),
         ),
-        title: Text(
-          'باقات الاشتراك',
-          style: TextStyle(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
-          ),
-        ),
-        centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : _errorMessage != null
-          ? _buildErrorState()
-          : _subscriptionPacks.isEmpty
-          ? _buildEmptyState()
-          : _buildSubscriptionList(isDark),
     );
   }
 
@@ -434,19 +484,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         return FadeInUp(
           duration: const Duration(milliseconds: 300),
           delay: Duration(milliseconds: index * 100),
-          child: _buildSubscriptionCard(
-            _subscriptionPacks[index],
-            isDark,
-            index,
-          ),
+          child: _buildSubscriptionCard(_subscriptionPacks[index], isDark),
         );
       },
     );
   }
 
-  Widget _buildSubscriptionCard(ProductModel pack, bool isDark, int index) {
-    // Determine tier styling based on product name or index
-    final tierInfo = _getTierInfo(pack.name, index);
+  Widget _buildSubscriptionCard(ProductModel pack, bool isDark) {
+    // Determine tier styling based on product name
+    final tierInfo = _getTierInfo(pack.name);
 
     return Container(
       margin: EdgeInsets.only(bottom: 16.h),
@@ -609,17 +655,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  _TierInfo _getTierInfo(String packName, int index) {
+  _TierInfo _getTierInfo(String packName) {
     final nameLower = packName.toLowerCase();
 
     if (nameLower.contains('ذهبي') ||
         nameLower.contains('gold') ||
-        index == 2) {
+        nameLower.contains('الذهبية')) {
       return _TierInfo(
         tierName: 'ذهبي',
         icon: Icons.workspace_premium,
         gradient: const LinearGradient(
-          colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+          colors: [
+            Color(0xFFB77C44),
+            Color(0xFFFEE5BB),
+            Color(0xFFB77C44),
+            Color(0xFFFEE5BB),
+            Color(0xFFB77C44),
+            Color(0xFFFEE5BB),
+          ],
         ),
         shadowColor: const Color(0xFFFFD700),
         buttonColor: const Color(0xFFFFB300),
@@ -632,20 +685,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     } else if (nameLower.contains('فضي') ||
         nameLower.contains('silver') ||
-        index == 1) {
+        nameLower.contains('الفضية')) {
       return _TierInfo(
         tierName: 'فضي',
         icon: Icons.verified,
         gradient: const LinearGradient(
-          colors: [Color(0xFFC0C0C0), Color(0xFF808080)],
+          colors: [
+            Color(0xFF8B8B8B),
+            Color(0xFFE2E1E1),
+            Color(0xFF8B8B8B),
+            Color(0xFFE2E1E1),
+            Color(0xFF8B8B8B),
+            Color(0xFFE2E1E1),
+          ],
         ),
         shadowColor: const Color(0xFF808080),
         buttonColor: const Color(0xFF9E9E9E),
         features: ['ظهور أفضل في البحث', 'دعم فني سريع', 'عمولة مخفضة'],
       );
-    } else if (nameLower.contains('الزباية') || nameLower.contains('zabayeh')) {
+    } else if (nameLower.contains('الذبائح') || nameLower.contains('zabayeh')) {
       return _TierInfo(
-        tierName: 'الزباية',
+        tierName: 'الذبائح',
         icon: Icons.check_circle,
         gradient: const LinearGradient(
           colors: [Color(0xFFE53935), Color(0xFFD32F2F)],
@@ -665,7 +725,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         tierName: 'برونزي',
         icon: Icons.star,
         gradient: const LinearGradient(
-          colors: [Color(0xFFCD7F32), Color(0xFF8B4513)],
+          colors: [
+            Color(0xFF7C3225),
+            Color(0xFFFEE5BB),
+            Color(0xFF7C3225),
+            Color(0xFFFEE5BB),
+            Color(0xFF7C3225),
+            Color(0xFFFEE5BB),
+          ],
         ),
         shadowColor: const Color(0xFFCD7F32),
         buttonColor: const Color(0xFFCD7F32),

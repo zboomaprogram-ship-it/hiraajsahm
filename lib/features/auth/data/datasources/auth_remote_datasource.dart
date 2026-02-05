@@ -460,8 +460,53 @@ class AuthRemoteDataSource {
     }
   }
 
+  /// Upgrade User to Vendor
+  Future<Either<Failure, bool>> upgradeToVendor({
+    required int userId,
+    required String shopName,
+    required String phone,
+    String? shopLink,
+  }) async {
+    try {
+      // 1. Update User Role and Meta
+      final response = await _dio.post(
+        '${AppConfig.wcCustomersEndpoint}/$userId',
+        data: {
+          'role': 'seller', // WCFM uses 'seller' or 'wcfm_vendor'
+          'billing': {'phone': phone, 'company': shopName},
+          'meta_data': [
+            {'key': 'store_name', 'value': shopName},
+            {
+              'key': 'wcfm_vendor_verification_data',
+              'value': {'shop_name': shopName, 'phone': phone},
+            },
+            if (shopLink != null) {'key': 'store_slug', 'value': shopLink},
+            {
+              'key': 'wc_memberships_active_memberships',
+              'value': '29026',
+            }, // Force Bronze Membership ID
+          ],
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return const Right(true);
+      }
+
+      return Left(
+        ServerFailure(
+          message: response.data['message'] ?? 'Start vendor upgrade failed',
+        ),
+      );
+    } on DioException catch (e) {
+      return Left(_handleDioError(e));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
   /// Delete user (used when cancelling registration)
-  Future<Either<Failure, void>> deleteUser(int id) async {
+  Future<Either<Failure, bool>> deleteUser(int userId) async {
     try {
       final cleanDio = Dio(
         BaseOptions(
@@ -474,7 +519,7 @@ class AuthRemoteDataSource {
           '${AppConfig.baseUrl}${AppConfig.wcCustomersEndpoint}/$id?consumer_key=${AppConfig.wcConsumerKey}&consumer_secret=${AppConfig.wcConsumerSecret}&force=true';
 
       await cleanDio.delete(wcUrl);
-      return const Right(null);
+      return const Right(true);
     } on DioException catch (e) {
       return Left(_handleDioError(e));
     } catch (e) {

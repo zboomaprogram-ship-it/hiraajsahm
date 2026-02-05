@@ -11,7 +11,8 @@ import '../../../../core/services/storage_service.dart';
 import '../cubit/checkout_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 
-/// Checkout Screen - Shipping & Payment
+import '../../../../core/widgets/location_picker_screen.dart'; // Added
+
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -62,6 +63,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       authCubit: context.read<AuthCubit>(), // Pass AuthCubit
       storageService: sl<StorageService>(),
     );
+
+    // Auto-fill User Data
+    final authState = context.read<AuthCubit>().state;
+    if (authState is AuthAuthenticated) {
+      final user = authState.user;
+
+      // Parse Name
+      final nameParts = user.displayName.split(' ');
+      if (nameParts.isNotEmpty) {
+        _firstNameController.text = nameParts.first;
+        if (nameParts.length > 1) {
+          _lastNameController.text = nameParts.sublist(1).join(' ');
+        }
+      }
+
+      _phoneController.text = user.phone ?? '';
+      _emailController.text = user.email;
+      _addressController.text = user.address ?? '';
+    }
   }
 
   @override
@@ -107,6 +127,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentType: calculatedPaymentType,
         notes: _notesController.text.trim(),
       );
+    }
+  }
+
+  // New: Pick Location
+  Future<void> _pickLocation() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        _cityController.text =
+            result['city'] ?? result['address'].split(',').last;
+        _addressController.text = result['address'] ?? '';
+      });
     }
   }
 
@@ -520,17 +556,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         if (!isVirtual) ...[
           SizedBox(height: 16.h),
-          _buildTextField(
-            controller: _cityController,
-            label: 'المدينة',
-            isDark: isDark,
+          GestureDetector(
+            onTap: _pickLocation,
+            child: AbsorbPointer(
+              child: _buildTextField(
+                controller: _cityController,
+                label: 'المدينة (اضغط للتحديد)',
+                isDark: isDark,
+              ),
+            ),
           ),
           SizedBox(height: 16.h),
-          _buildTextField(
-            controller: _addressController,
-            label: 'العنوان بالتفصيل',
-            maxLines: 2,
-            isDark: isDark,
+          GestureDetector(
+            onTap: _pickLocation,
+            child: AbsorbPointer(
+              child: _buildTextField(
+                controller: _addressController,
+                label: 'العنوان (اضغط للتحديد)',
+                maxLines: 2,
+                isDark: isDark,
+              ),
+            ),
           ),
         ],
       ],

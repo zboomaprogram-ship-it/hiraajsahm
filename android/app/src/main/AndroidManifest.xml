@@ -4,6 +4,8 @@
 <uses-permission android:name="android.permission.WAKE_LOCK"/>
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 <uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
   <!-- <application android:label="hiraajsahm" android:name="${applicationName}" android:icon="@mipmap/launcher_icon"> -->
    <application
         android:label="حراج السهم"
@@ -21,6 +23,9 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="high_importance_channel"/>
+
+        <uses-library android:name="org.apache.http.legacy" android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,11 +50,15 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyD2nMf6REHhlMWqGkYdd3vuGmoUGgjTqek" />
+
     </application>
   <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
-
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
   <queries>
     <intent>

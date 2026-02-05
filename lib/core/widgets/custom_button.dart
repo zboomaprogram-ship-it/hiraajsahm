@@ -69,7 +69,7 @@ class CustomButton extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 18,
+        fontSize: 14,
         fontWeight: FontWeight.w900,
         color: isOutlined ? AppColors.primary : Colors.white,
       ),

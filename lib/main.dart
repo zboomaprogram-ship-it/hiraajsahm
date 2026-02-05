@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 // ✅ Correct Import for Global Navigator Key
 import 'core/services/notification_service.dart';
@@ -122,10 +123,15 @@ class MyApp extends StatelessWidget {
                 initialRoute: Routes.splash,
                 onGenerateRoute: AppRouter.generateRoute,
 
-                // Localization
-                localizationsDelegates: context.localizationDelegates,
-                supportedLocales: context.supportedLocales,
-                locale: context.locale,
+                // Localization - Force RTL with Arabic
+                locale: const Locale('ar'),
+                supportedLocales: const [Locale('ar')],
+                localizationsDelegates: [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                  ...context.localizationDelegates,
+                ],
 
                 // Scroll behavior for smoother scrolling
                 scrollBehavior: const MaterialScrollBehavior().copyWith(

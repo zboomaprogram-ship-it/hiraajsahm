@@ -12,6 +12,7 @@ import '../../../shop/data/models/category_model.dart';
 
 /// Add Product Screen - For Vendors
 import '../../../shop/data/models/product_model.dart';
+import '../../../../core/widgets/location_picker_screen.dart'; // Added
 
 class AddProductScreen extends StatefulWidget {
   final ProductModel? productToEdit;
@@ -239,6 +240,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
+  Future<void> _pickLocation() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        _locationController.text = result['address'];
+      });
+    }
+  }
+
   void _submitProduct() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -445,17 +459,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   SizedBox(height: 16.h),
 
-                  // Product Location (New Field)
+                  // Product Location (New Field - Map Picker)
                   FadeInUp(
                     delay: const Duration(milliseconds: 325),
                     duration: const Duration(milliseconds: 300),
-                    child: _buildTextField(
-                      controller: _locationController,
-                      label: 'عنوان المنتج (مطلوب)',
-                      hint: 'مثال: الرياض، حي الملقا',
-                      icon: Icons.location_on_outlined,
-                      isDark: isDark,
-                      isRequired: true,
+                    child: GestureDetector(
+                      onTap: _pickLocation,
+                      child: AbsorbPointer(
+                        child: _buildTextField(
+                          controller: _locationController,
+                          label: 'عنوان المنتج (مطلوب)',
+                          hint: 'اختر الموقع من الخريطة',
+                          icon: Icons.location_on_outlined,
+                          isDark: isDark,
+                          isRequired: true,
+                        ),
+                      ),
                     ),
                   ),
 

@@ -84,6 +84,9 @@ dependencies:
   curved_navigation_bar: ^1.0.6
   video_player: ^2.8.0
   chewie: ^1.7.0
+  google_maps_flutter: ^2.14.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -111,4 +114,17 @@ flutter:
     - assets/lang/
     - assets/fonts/
     - assets/icons/
-    - shorebird.yaml
+
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo/static/Cairo-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Cairo/static/Cairo-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Cairo/static/Cairo-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Cairo/static/Cairo-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Cairo/static/Cairo-ExtraBold.ttf
+          weight: 800

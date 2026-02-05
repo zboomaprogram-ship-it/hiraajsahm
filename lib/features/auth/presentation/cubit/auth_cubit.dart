@@ -423,6 +423,59 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
+  /// Upgrade User to Vendor (Bronze Tier)
+  Future<void> upgradeToVendor({
+    required String shopName,
+    required String phone,
+    String? shopLink,
+  }) async {
+    if (_currentUser == null) return;
+
+    emit(const AuthLoading());
+
+    // 1. Call API to update role and meta
+    final result = await _authRemoteDataSource.upgradeToVendor(
+      userId: _currentUser!.id,
+      shopName: shopName,
+      phone: phone,
+      shopLink: shopLink,
+    );
+
+    result.fold(
+      (failure) {
+        // Re-emit authenticated state with error message, but keep user logged in
+        emit(
+          AuthAuthenticated(
+            user: _currentUser!,
+            token: _currentToken!,
+            message: failure.message, // Or separate error handling
+          ),
+        );
+        // Also could emit AuthFailure but that might log them out visually depending on UI.
+        // Better to show snackbar via listener on message change.
+      },
+      (success) async {
+        // 2. Update local user model
+        final updatedUser = _currentUser!.copyWith(
+          role: 'seller', // WP role
+          isVendor: true,
+          subscriptionPackId: 29026, // Bronze/Free ID
+        );
+
+        _currentUser = updatedUser;
+
+        // 3. Update storage
+        await _saveUserData(updatedUser);
+
+        // 4. Update Notifications tags if needed
+        await NotificationService().updateUserTags(updatedUser);
+
+        // 5. Emit success
+        emit(AuthAuthenticated(user: updatedUser, token: _currentToken!));
+      },
+    );
+  }
+
   /// Complete registration (mark as not pending)
   Future<void> completeRegistration() async {
     await _storageService.setRegistrationPending(false);

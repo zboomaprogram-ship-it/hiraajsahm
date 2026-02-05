@@ -14,6 +14,7 @@ class UserModel extends Equatable {
   final String? firstName;
   final String? lastName;
   final String? phone; // Added
+  final String? address; // Added for Autofill
   final String? avatarUrl;
   final String role;
   final bool isVendor;
@@ -29,6 +30,7 @@ class UserModel extends Equatable {
     this.firstName,
     this.lastName,
     this.phone,
+    this.address,
     this.avatarUrl,
     required this.role,
     this.isVendor = false,
@@ -93,6 +95,12 @@ class UserModel extends Equatable {
       alZabayeh = verifiedItem != null;
     }
 
+    // Parse Address (billing.address_1)
+    String? address;
+    if (json['billing'] != null && json['billing']['address_1'] != null) {
+      address = json['billing']['address_1'];
+    }
+
     // DEBUG: Print parsed subscription info
     print('🔍 UserModel.fromJson DEBUG:');
     print('   role: $role');
@@ -110,13 +118,16 @@ class UserModel extends Equatable {
     }
 
     return UserModel(
-      id: json['id'] ?? 0,
+      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       email: json['email'] ?? '',
-      displayName: json['display_name'] ?? json['name'] ?? '',
-      firstName: json['first_name'],
-      lastName: json['last_name'],
-      phone: phone,
-      avatarUrl: json['avatar_url'] ?? _extractAvatarUrl(json),
+      displayName:
+          json['username'] ?? json['display_name'] ?? json['name'] ?? '',
+      firstName: json['first_name'] ?? json['firstname'],
+      lastName: json['last_name'] ?? json['lastname'],
+      phone: json['billing']?['phone'] ?? json['phone'],
+      address: address, // Added
+      avatarUrl:
+          json['avatar_url'] ?? json['avatar'] ?? _extractAvatarUrl(json),
       role: role,
       isVendor: isVendor,
       vendorInfo: isVendor && json['store'] is Map
@@ -146,6 +157,7 @@ class UserModel extends Equatable {
       'first_name': firstName,
       'last_name': lastName,
       'phone': phone,
+      'address': address,
       'avatar_url': avatarUrl,
       'role': role,
       'is_vendor': isVendor,
@@ -163,11 +175,13 @@ class UserModel extends Equatable {
     String? firstName,
     String? lastName,
     String? phone,
+    String? address, // Added
     String? avatarUrl,
     String? role,
     bool? isVendor,
     VendorInfo? vendorInfo,
     int? subscriptionPackId,
+    String? subscriptionEndDate,
     bool? hasAlZabayehTier,
   }) {
     return UserModel(
@@ -177,12 +191,13 @@ class UserModel extends Equatable {
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
+      address: address ?? this.address, // Added
       avatarUrl: avatarUrl ?? this.avatarUrl,
       role: role ?? this.role,
       isVendor: isVendor ?? this.isVendor,
       vendorInfo: vendorInfo ?? this.vendorInfo,
       subscriptionPackId: subscriptionPackId ?? this.subscriptionPackId,
-      subscriptionEndDate: subscriptionEndDate ?? subscriptionEndDate,
+      subscriptionEndDate: subscriptionEndDate ?? this.subscriptionEndDate,
       hasAlZabayehTier: hasAlZabayehTier ?? this.hasAlZabayehTier,
     );
   }

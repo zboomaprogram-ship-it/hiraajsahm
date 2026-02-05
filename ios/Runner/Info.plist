@@ -137,5 +137,7 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<key>GMSApiKey</key>
+	<string>AIzaSyD2nMf6REHhlMWqGkYdd3vuGmoUGgjTqek</string>
 </dict>
 </plist>

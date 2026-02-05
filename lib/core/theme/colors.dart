@@ -32,6 +32,10 @@ class AppColors {
   static const Color surfaceVariantDark = Color(0xFF2C2C2C);
   static const Color cardDark = Color(0xFF1E1E1E);
 
+  // ============ INPUT COLORS ============
+  static const Color inputBack = Color(0xFFF9FAFB);
+  static const Color inputBackDark = Color(0xFF2C2C2C);
+
   // ============ TEXT COLORS ============
   // Light Theme Text
   static const Color textPrimary = Color(0xFF1A1A1A);
