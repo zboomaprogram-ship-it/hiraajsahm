@@ -202,7 +202,7 @@ class _VendorOrdersTabState extends State<VendorOrdersTab> {
             SizedBox(height: 4.h),
             Text(
               // Assuming logic for item count if needed, logic is in OrderModel
-              '${order.itemCount} منتجات',
+              '${order.itemCount} اعلانات',
               style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary),
             ),
           ],

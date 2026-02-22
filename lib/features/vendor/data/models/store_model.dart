@@ -28,7 +28,13 @@ class StoreModel extends Equatable {
   final StoreAddress? address;
   final StoreSocial? social;
   final String? paymentMethod;
+  final String? biography;
+  final String? location;
+  final bool isVerified;
   final bool trusted;
+  final String vendorTier;
+  final int publishedProducts;
+  final int remainingProducts;
 
   const StoreModel({
     required this.id,
@@ -58,6 +64,12 @@ class StoreModel extends Equatable {
     this.social,
     this.paymentMethod,
     this.trusted = false,
+    this.biography,
+    this.location,
+    this.isVerified = false,
+    this.vendorTier = 'bronze',
+    this.publishedProducts = 0,
+    this.remainingProducts = -1, // -1 means unlimited or unknown
   });
 
   factory StoreModel.fromJson(Map<String, dynamic> json) {
@@ -76,7 +88,7 @@ class StoreModel extends Equatable {
       lastName: json['last_name'] ?? '',
       email: json['email'] ?? '',
       phone: json['phone'] ?? '',
-      showEmail: json['show_email'] ?? false,
+      showEmail: _parseBool(json['show_email']),
       banner: json['banner'],
       bannerId: json['banner_id'],
       gravatar: json['gravatar'],
@@ -86,24 +98,104 @@ class StoreModel extends Equatable {
       storeUrl: json['store_url'] ?? json['url'] ?? json['shop_url'],
       // Map storeSlug from 'store_slug' or 'slug'
       storeSlug: json['store_slug'] ?? json['slug'],
-      productsPerPage: json['products_per_page'] == 1,
-      showMoreProductTab: json['show_more_product_tab'] ?? false,
-      tocEnabled: json['toc_enabled'] ?? false,
+      productsPerPage:
+          json['products_per_page'] == 1 || json['products_per_page'] == true,
+      showMoreProductTab: _parseBool(json['show_more_product_tab']),
+      tocEnabled: _parseBool(json['toc_enabled']),
       storeToc: json['store_toc'],
-      featured: json['featured'] ?? false,
+      featured: _parseBool(json['featured']),
       rating: rating,
       ratingCount: ratingCount,
-      enabled: json['enabled'] ?? true,
+      enabled: _parseBool(json['enabled'], defaultValue: true),
       registered: json['registered'],
-      address: json['address'] != null
-          ? StoreAddress.fromJson(json['address'])
+      address: (json['address'] is Map)
+          ? StoreAddress.fromJson(Map<String, dynamic>.from(json['address']))
           : null,
-      social: json['social'] != null
-          ? StoreSocial.fromJson(json['social'])
+      social: (json['social'] is Map)
+          ? StoreSocial.fromJson(Map<String, dynamic>.from(json['social']))
           : null,
       paymentMethod: _parsePaymentMethod(json['payment']),
-      trusted: json['trusted'] ?? false,
+      trusted: _parseBool(json['trusted']),
+      biography: json['vendor_biography']?.toString(),
+      location: json['location']?.toString(),
+      isVerified: _parseBool(json['is_verified']),
+      vendorTier: _parseVendorTier(json),
+      publishedProducts: _parseInt(json['published_products']),
+      remainingProducts: _parseInt(
+        json['remaining_products'],
+        defaultValue: -1,
+      ),
     );
+  }
+
+  static int _parseInt(dynamic value, {int defaultValue = 0}) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    if (value is num) return value.toInt();
+    return defaultValue;
+  }
+
+  static String _parseVendorTier(Map<String, dynamic> json) {
+    // Helper to check ID
+    String checkId(String? id) {
+      if (id == null) return '';
+      final cleanId = id.trim();
+      if (cleanId == '29030') return 'gold';
+      if (cleanId == '29028') return 'silver';
+      if (cleanId == '29026') return 'bronze';
+      return '';
+    }
+
+    // 1. Check direct 'vendor_tier' field (if exists from custom API)
+    if (json['vendor_tier'] != null) {
+      final res = checkId(json['vendor_tier'].toString());
+      if (res.isNotEmpty) return res;
+      final val = json['vendor_tier'].toString().toLowerCase();
+      if (val == 'gold' || val == 'silver' || val == 'bronze') return val;
+    }
+
+    // 2. Check 'current_subscription' object from Dokan API
+    final sub = json['current_subscription'];
+    if (sub != null && sub is Map) {
+      final res = checkId(sub['name']?.toString());
+      if (res.isNotEmpty) return res;
+
+      // Check Label
+      final label = sub['label']?.toString();
+      if (label != null) {
+        if (label.contains('Gold') || label.contains('ذهبية')) return 'gold';
+        if (label.contains('Silver') || label.contains('فضية')) return 'silver';
+        if (label.contains('Bronze') || label.contains('برونزية'))
+          return 'bronze';
+      }
+    }
+
+    // 3. Check 'assigned_subscription' (Direct Value)
+    if (json['assigned_subscription'] != null) {
+      if (json['assigned_subscription'] is! Map) {
+        final res = checkId(json['assigned_subscription'].toString());
+        if (res.isNotEmpty) return res;
+      }
+    }
+
+    // 4. Check 'assigned_subscription_info'
+    final info = json['assigned_subscription_info'];
+    if (info != null && info is Map) {
+      final res = checkId(info['subscription_id']?.toString());
+      if (res.isNotEmpty) return res;
+    }
+
+    // Default
+    return 'bronze';
+  }
+
+  static bool _parseBool(dynamic value, {bool defaultValue = false}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is String) return value.toLowerCase() == 'true' || value == '1';
+    if (value is num) return value == 1;
+    return defaultValue;
   }
 
   static String? _parsePaymentMethod(dynamic payment) {
@@ -121,13 +213,8 @@ class StoreModel extends Equatable {
     return null;
   }
 
-  String get displayName {
-    if (storeName.isNotEmpty) return storeName;
-    if (firstName.isNotEmpty || lastName.isNotEmpty) {
-      return '$firstName $lastName'.trim();
-    }
-    return 'متجر';
-  }
+  // Requested: Only show store_name
+  String get displayName => storeName.isNotEmpty ? storeName : 'متجر';
 
   /// Helper to get the best available link
   String get permalink => storeUrl ?? shopUrl ?? '';
@@ -145,6 +232,12 @@ class StoreModel extends Equatable {
     address,
     storeUrl,
     storeSlug,
+    biography,
+    location,
+    isVerified,
+    vendorTier,
+    publishedProducts,
+    remainingProducts,
   ];
 }
 
@@ -168,12 +261,12 @@ class StoreAddress extends Equatable {
 
   factory StoreAddress.fromJson(Map<String, dynamic> json) {
     return StoreAddress(
-      street1: json['street_1'],
-      street2: json['street_2'],
-      city: json['city'],
-      zip: json['zip'],
-      state: json['state'],
-      country: json['country'],
+      street1: json['street_1']?.toString(),
+      street2: json['street_2']?.toString(),
+      city: json['city']?.toString(),
+      zip: json['zip']?.toString(),
+      state: json['state']?.toString(),
+      country: json['country']?.toString(),
     );
   }
 
@@ -212,13 +305,13 @@ class StoreSocial extends Equatable {
 
   factory StoreSocial.fromJson(Map<String, dynamic> json) {
     return StoreSocial(
-      facebook: json['fb'],
-      twitter: json['twitter'],
-      pinterest: json['pinterest'],
-      linkedin: json['linkedin'],
-      youtube: json['youtube'],
-      instagram: json['instagram'],
-      flickr: json['flickr'],
+      facebook: json['fb']?.toString(),
+      twitter: json['twitter']?.toString(),
+      pinterest: json['pinterest']?.toString(),
+      linkedin: json['linkedin']?.toString(),
+      youtube: json['youtube']?.toString(),
+      instagram: json['instagram']?.toString(),
+      flickr: json['flickr']?.toString(),
     );
   }
 

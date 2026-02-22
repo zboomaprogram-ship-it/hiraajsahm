@@ -2,85 +2,111 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/colors.dart';
 import '../../data/models/order_model.dart';
+import '../cubit/orders_cubit.dart';
 
 /// Order Details Screen
-class OrderDetailsScreen extends StatelessWidget {
+class OrderDetailsScreen extends StatefulWidget {
   final OrderModel order;
 
   const OrderDetailsScreen({super.key, required this.order});
 
   @override
+  State<OrderDetailsScreen> createState() => _OrderDetailsScreenState();
+}
+
+class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
+  late OrderModel _order;
+
+  @override
+  void initState() {
+    super.initState();
+    _order = widget.order;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final order = _order;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back_ios_rounded,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
-          ),
-        ),
         title: Text(
           'تفاصيل الطلب #${order.id}',
           style: TextStyle(
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            color: Colors.white,
           ),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Order Status Card
-            FadeInUp(
-              duration: const Duration(milliseconds: 300),
-              child: _buildStatusCard(isDark),
-            ),
-            SizedBox(height: 20.h),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Trigger a refresh of the order details
+          final updatedOrder = await context.read<OrdersCubit>().fetchOrder(
+            _order.id,
+          );
+          if (updatedOrder != null && mounted) {
+            setState(() {
+              _order = updatedOrder;
+            });
+          }
+        },
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics:
+              const AlwaysScrollableScrollPhysics(), // Ensure scroll for refresh
+          padding: EdgeInsets.all(20.w),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Order Status Card
+              FadeInUp(
+                duration: const Duration(milliseconds: 300),
+                child: _buildStatusCard(isDark),
+              ),
+              SizedBox(height: 20.h),
 
-            // Products Section
-            FadeInUp(
-              delay: const Duration(milliseconds: 100),
-              duration: const Duration(milliseconds: 300),
-              child: _buildProductsSection(isDark),
-            ),
-            SizedBox(height: 20.h),
+              // Products Section
+              FadeInUp(
+                delay: const Duration(milliseconds: 100),
+                duration: const Duration(milliseconds: 300),
+                child: _buildProductsSection(isDark),
+              ),
+              SizedBox(height: 20.h),
 
-            // Shipping Address
-            FadeInUp(
-              delay: const Duration(milliseconds: 200),
-              duration: const Duration(milliseconds: 300),
-              child: _buildAddressSection(isDark),
-            ),
-            SizedBox(height: 20.h),
+              // Shipping Address
+              FadeInUp(
+                delay: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 300),
+                child: _buildAddressSection(isDark),
+              ),
+              SizedBox(height: 20.h),
 
-            // Payment Info
-            FadeInUp(
-              delay: const Duration(milliseconds: 300),
-              duration: const Duration(milliseconds: 300),
-              child: _buildPaymentSection(isDark),
-            ),
-            SizedBox(height: 20.h),
+              // Payment Info
+              FadeInUp(
+                delay: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 300),
+                child: _buildPaymentSection(isDark),
+              ),
+              SizedBox(height: 20.h),
 
-            // Order Summary
-            FadeInUp(
-              delay: const Duration(milliseconds: 400),
-              duration: const Duration(milliseconds: 300),
-              child: _buildSummarySection(isDark),
-            ),
-            SizedBox(height: 32.h),
-          ],
+              // Order Summary
+              FadeInUp(
+                delay: const Duration(milliseconds: 400),
+                duration: const Duration(milliseconds: 300),
+                child: _buildSummarySection(isDark),
+              ),
+              SizedBox(height: 32.h),
+            ],
+          ),
         ),
       ),
     );
@@ -105,12 +131,12 @@ class OrderDetailsScreen extends StatelessWidget {
             width: 60.w,
             height: 60.w,
             decoration: BoxDecoration(
-              color: _getStatusColor(order.status).withValues(alpha: 0.1),
+              color: _getStatusColor(_order.status).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _getStatusIcon(order.status),
-              color: _getStatusColor(order.status),
+              _getStatusIcon(_order.status),
+              color: _getStatusColor(_order.status),
               size: 30.sp,
             ),
           ),
@@ -120,16 +146,16 @@ class OrderDetailsScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  order.statusText,
+                  _order.statusText,
                   style: TextStyle(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
-                    color: _getStatusColor(order.status),
+                    color: _getStatusColor(_order.status),
                   ),
                 ),
                 SizedBox(height: 4.h),
                 Text(
-                  'تاريخ الطلب: ${order.formattedDate}',
+                  'تاريخ الطلب: ${_order.formattedDate}',
                   style: TextStyle(
                     fontSize: 14.sp,
                     color: AppColors.textSecondary,
@@ -145,11 +171,11 @@ class OrderDetailsScreen extends StatelessWidget {
 
   Widget _buildProductsSection(bool isDark) {
     return _buildSection(
-      title: 'المنتجات',
+      title: 'الاعلانات',
       icon: Icons.shopping_bag_outlined,
       isDark: isDark,
       child: Column(
-        children: order.lineItems
+        children: _order.lineItems
             .map((item) => _buildProductItem(item, isDark))
             .toList(),
       ),
@@ -227,9 +253,9 @@ class OrderDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildAddressSection(bool isDark) {
-    final shipping = order.shipping;
+    final shipping = _order.shipping;
     final hasShipping = shipping.fullAddress.isNotEmpty;
-    final address = hasShipping ? shipping : order.billing;
+    // Removed unused variable address
 
     return _buildSection(
       title: 'عنوان التوصيل',
@@ -247,7 +273,7 @@ class OrderDetailsScreen extends StatelessWidget {
               ),
               SizedBox(width: 8.w),
               Text(
-                hasShipping ? shipping.fullName : order.billing.fullName,
+                hasShipping ? shipping.fullName : _order.billing.fullName,
                 style: TextStyle(
                   fontSize: 15.sp,
                   color: isDark ? AppColors.textLight : AppColors.textPrimary,
@@ -268,7 +294,7 @@ class OrderDetailsScreen extends StatelessWidget {
                 child: Text(
                   hasShipping
                       ? shipping.fullAddress
-                      : order.billing.fullAddress,
+                      : _order.billing.fullAddress,
                   style: TextStyle(
                     fontSize: 15.sp,
                     color: isDark ? AppColors.textLight : AppColors.textPrimary,
@@ -287,7 +313,7 @@ class OrderDetailsScreen extends StatelessWidget {
               ),
               SizedBox(width: 8.w),
               Text(
-                order.billing.phone,
+                _order.billing.phone,
                 style: TextStyle(
                   fontSize: 15.sp,
                   color: isDark ? AppColors.textLight : AppColors.textPrimary,
@@ -308,14 +334,14 @@ class OrderDetailsScreen extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            _getPaymentIcon(order.paymentMethod),
+            _getPaymentIcon(_order.paymentMethod),
             size: 24.sp,
             color: AppColors.primary,
           ),
           SizedBox(width: 12.w),
           Text(
-            order.paymentMethodTitle.isNotEmpty
-                ? order.paymentMethodTitle
+            _order.paymentMethodTitle.isNotEmpty
+                ? _order.paymentMethodTitle
                 : 'غير محدد',
             style: TextStyle(
               fontSize: 15.sp,
@@ -334,13 +360,17 @@ class OrderDetailsScreen extends StatelessWidget {
       isDark: isDark,
       child: Column(
         children: [
-          _buildSummaryRow('عدد المنتجات', '${order.lineItems.length}', isDark),
+          _buildSummaryRow(
+            'عدد الاعلانات',
+            '${_order.lineItems.length}',
+            isDark,
+          ),
           SizedBox(height: 12.h),
           Divider(color: AppColors.border),
           SizedBox(height: 12.h),
           _buildSummaryRow(
             'الإجمالي',
-            '${order.total} ر.س',
+            '${_order.total} ر.س',
             isDark,
             isTotal: true,
           ),

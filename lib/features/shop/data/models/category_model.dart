@@ -46,6 +46,34 @@ class CategoryModel extends Equatable {
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
   bool get hasProducts => count > 0;
 
+  CategoryModel copyWith({
+    int? id,
+    String? name,
+    String? slug,
+    int? parent,
+    String? description,
+    String? imageUrl,
+    int? count,
+  }) {
+    return CategoryModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      slug: slug ?? this.slug,
+      parent: parent ?? this.parent,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      count: count ?? this.count,
+    );
+  }
+
   @override
   List<Object?> get props => [id, name, slug, parent, count];
+
+  /// Get subcategories for a given parent ID from a list of categories
+  static List<CategoryModel> getSubCategories(
+    List<CategoryModel> categories,
+    int parentId,
+  ) {
+    return categories.where((cat) => cat.parent == parentId).toList();
+  }
 }

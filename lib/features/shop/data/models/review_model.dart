@@ -16,13 +16,34 @@ class ReviewModel {
   });
 
   factory ReviewModel.fromJson(Map<String, dynamic> json) {
+    // Handle both Product reviews (WC) and Store reviews (Dokan)
+    String content =
+        json['review'] ??
+        json['content'] ??
+        json['comment_content'] ??
+        (json['content'] is Map ? json['content']['rendered'] : '');
+
+    // Dokan author name/email
+    String name = json['reviewer'] ?? '';
+    if (name.isEmpty && json['author'] != null && json['author'] is Map) {
+      name = json['author']['name'] ?? '';
+    }
+
+    String email = json['reviewer_email'] ?? '';
+    if (email.isEmpty && json['author'] != null && json['author'] is Map) {
+      email = json['author']['email'] ?? '';
+    }
+
     return ReviewModel(
       id: json['id'] ?? 0,
-      review: json['review'] ?? '',
-      rating: json['rating'] ?? 0,
-      reviewer: json['reviewer'] ?? '',
-      reviewerEmail: json['reviewer_email'] ?? '',
-      dateCreated: json['date_created'] ?? '',
+      review: content,
+      rating: json['rating'] is int
+          ? json['rating']
+          : int.tryParse(json['rating']?.toString() ?? '0') ?? 0,
+      reviewer: name,
+      reviewerEmail: email,
+      dateCreated:
+          json['date_created'] ?? json['post_date'] ?? json['date'] ?? '',
     );
   }
 

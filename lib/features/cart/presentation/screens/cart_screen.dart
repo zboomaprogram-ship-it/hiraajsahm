@@ -7,6 +7,7 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import '../cubit/cart_cubit.dart';
+import '../../../../core/widgets/custom_button.dart';
 
 /// Cart Screen - Shows cart items and checkout
 class CartScreen extends StatelessWidget {
@@ -19,23 +20,10 @@ class CartScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back_ios_rounded,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
-          ),
-        ),
-        title: Text(
-          'طلباتي',
-          style: TextStyle(
-            color: isDark ? Colors.white : Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('طلباتي'),
         centerTitle: true,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         actions: [
           BlocBuilder<CartCubit, CartState>(
             builder: (context, state) {
@@ -125,7 +113,7 @@ class CartScreen extends StatelessWidget {
             ),
             SizedBox(height: 24.h),
             Text(
-              'الطلبات فارغة',
+              'طلباتي فارغة',
               style: TextStyle(
                 fontSize: 24.sp,
                 fontWeight: FontWeight.bold,
@@ -134,7 +122,7 @@ class CartScreen extends StatelessWidget {
             ),
             SizedBox(height: 12.h),
             Text(
-              'لم تقم بإضافة أي منتجات إلى الطلبات بعد',
+              'لم تقم بإضافة أي اعلان إلى طلباتي بعد',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16.sp, color: AppColors.textSecondary),
             ),
@@ -152,7 +140,7 @@ class CartScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.shopping_bag_outlined),
               label: Text(
-                'تصفح المنتجات',
+                'تصفح الاعلانات',
                 style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
               ),
             ),
@@ -241,7 +229,9 @@ class CartScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4.r),
                     ),
                     child: Text(
-                      item.isDeposit ? 'معاينة (10%)' : 'شراء كامل',
+                      item.isDeposit
+                          ? 'معاينة (${(item.depositPercentage * 100).toStringAsFixed(0)}%)'
+                          : 'شراء كامل',
                       style: TextStyle(
                         fontSize: 10.sp,
                         color: item.isDeposit
@@ -371,51 +361,11 @@ class CartScreen extends StatelessWidget {
             SizedBox(height: 20.h),
 
             // Checkout Button
-            Container(
-              width: double.infinity,
-              height: 56.h,
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(16.r),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  AppRouter.navigateTo(context, Routes.checkout);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'إتمام الطلب',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.white,
-                      size: 20.sp,
-                    ),
-                  ],
-                ),
-              ),
+            CustomButton(
+              text: 'إتمام الطلب',
+              onPressed: () {
+                AppRouter.navigateTo(context, Routes.checkout);
+              },
             ),
           ],
         ),
@@ -454,8 +404,8 @@ class CartScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('مسح الطلبات'),
-        content: const Text('هل أنت متأكد من مسح جميع المنتجات من الطلبات؟'),
+        title: const Text('مسح طلباتي'),
+        content: const Text('هل أنت متأكد من مسح جميع الاعلانات من طلباتي؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

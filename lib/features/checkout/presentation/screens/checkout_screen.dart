@@ -12,6 +12,7 @@ import '../cubit/checkout_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 
 import '../../../../core/widgets/location_picker_screen.dart'; // Added
+import '../../../../core/widgets/mini_map_preview.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -29,6 +30,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _cityController = TextEditingController();
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
+  String? _selectedLatLong;
 
   String _selectedPaymentMethod = 'cod';
 
@@ -81,6 +83,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _phoneController.text = user.phone ?? '';
       _emailController.text = user.email;
       _addressController.text = user.address ?? '';
+      _cityController.text = user.city ?? '';
     }
   }
 
@@ -110,8 +113,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
 
       // Determine Payment Type from Cart Items (Inspection vs Full)
+      final depositItem = cartState.items.firstWhere(
+        (item) => item.isDeposit,
+        orElse: () => cartState.items.first, // Dummy fallback
+      );
+
       if (cartState.items.any((item) => item.isDeposit)) {
-        calculatedPaymentType = 'deposit_10';
+        if (depositItem.depositPercentage == 0.01) {
+          calculatedPaymentType = 'deposit_1';
+        } else {
+          calculatedPaymentType = 'deposit_10';
+        }
       }
     }
 
@@ -140,8 +152,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (result != null && result is Map) {
       setState(() {
         _cityController.text =
-            result['city'] ?? result['address'].split(',').last;
+            result['city'] ?? result['address']?.split(',').last ?? '';
         _addressController.text = result['address'] ?? '';
+        if (result['lat'] != null && result['lng'] != null) {
+          _selectedLatLong = "${result['lat']},${result['lng']}";
+        }
       });
     }
   }
@@ -305,7 +320,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                               return Container(
                                 width: double.infinity,
-                                height: 56.h,
+                                height: 64.h,
                                 decoration: BoxDecoration(
                                   gradient: AppColors.primaryGradient,
                                   borderRadius: BorderRadius.circular(16.r),
@@ -381,14 +396,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'عدد المنتجات',
+                      'عدد الاعلانات',
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: AppColors.textSecondary,
                       ),
                     ),
                     Text(
-                      '${state.totalItems} منتج',
+                      '${state.totalItems} اعلان',
                       style: TextStyle(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w600,
@@ -458,16 +473,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      state.items.any((i) => i.isDeposit)
-                          ? 'المبلغ المستحق الآن (10%)'
-                          : 'الإجمالي',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.textLight
-                            : AppColors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        state.items.any((i) => i.isDeposit)
+                            ? 'المبلغ المستحق الآن (${(state.items.firstWhere((i) => i.isDeposit).depositPercentage * 100).toStringAsFixed(0)}%)'
+                            : 'الإجمالي',
+                        style: TextStyle(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.textLight
+                              : AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     Text(
@@ -484,12 +501,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 if (state.items.any((i) => i.isDeposit)) ...[
                   SizedBox(height: 8.h),
-                  Text(
-                    'المتبقي عند الاستلام: ${(state.total * 9).toStringAsFixed(2)} ر.س',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      color: AppColors.textSecondary,
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final depItem = state.items.firstWhere(
+                        (i) => i.isDeposit,
+                      );
+                      final totalPrice =
+                          depItem.product.priceAsDouble * depItem.quantity;
+                      final remaining = totalPrice - state.total;
+                      return Text(
+                        'المتبقي عند الاستلام: ${remaining.toStringAsFixed(2)} ر.س',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          color: AppColors.textSecondary,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ],
@@ -556,15 +583,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         if (!isVirtual) ...[
           SizedBox(height: 16.h),
-          GestureDetector(
-            onTap: _pickLocation,
-            child: AbsorbPointer(
-              child: _buildTextField(
-                controller: _cityController,
-                label: 'المدينة (اضغط للتحديد)',
-                isDark: isDark,
-              ),
-            ),
+          _buildTextField(
+            controller: _cityController,
+            label: 'المدينة',
+            isDark: isDark,
           ),
           SizedBox(height: 16.h),
           GestureDetector(
@@ -578,6 +600,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
           ),
+          if (_selectedLatLong != null) ...[
+            SizedBox(height: 12.h),
+            MiniMapPreview(
+              latLong: _selectedLatLong,
+              isDark: isDark,
+              height: 120,
+              onTap: _pickLocation,
+            ),
+          ],
         ],
       ],
     );

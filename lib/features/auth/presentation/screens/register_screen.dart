@@ -9,6 +9,7 @@ import '../cubit/auth_cubit.dart';
 import '../../data/models/subscription_pack_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../shop/data/models/product_model.dart';
+import '../../../../core/widgets/location_picker_screen.dart';
 
 /// Register Screen with Vendor Registration Support
 class RegisterScreen extends StatefulWidget {
@@ -26,11 +27,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
 
-  // Vendor Fields
+  // Registration Fields
   final _storeNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _storeUrlController = TextEditingController();
   final _addressController = TextEditingController(); // Added
+  final _cityController = TextEditingController(); // Added
+  final _regionController = TextEditingController(); // Added
+  final _locationController =
+      TextEditingController(); // Added (to show coordinates)
+
+  String? _lat;
+  String? _lng;
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -48,6 +56,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _storeNameController.dispose();
     _phoneController.dispose();
     _storeUrlController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _regionController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -72,54 +84,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         listener: (context, state) {
           if (state is AuthRegistrationSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('تم التسجيل بنجاح! يرجى تسجيل الدخول'),
+              const SnackBar(
+                content: Text(
+                  'تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.',
+                ),
                 backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
             AppRouter.navigateAndReplace(context, Routes.login);
           } else if (state is VendorRegisteredWithPack) {
-            // Vendor registered with subscription pack
-            final isFreePack = state.packId == 29026 || state.packId == 1;
-
-            if (isFreePack) {
-              // Free/Bronze: No checkout needed.
-              context.read<AuthCubit>().completeRegistration();
-              // Logout to force user to login manually (as requested)
-              context.read<AuthCubit>().logout();
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('تم التسجيل بنجاح! يرجى تسجيل الدخول'),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                Routes.login,
-                (route) => false,
-              );
-            } else {
-              // Paid: Go to Checkout
-              // Create a temporary product to add to cart
-              final packProduct = ProductModel(
-                id: state.packId,
-                name: 'باقة الاشتراك',
-                price: '0', // Price will be fetched from product
-                regularPrice: '0',
-                salePrice: '',
-                description: '',
-                shortDescription: '',
-                images: [],
-                categories: [],
-              );
-
-              // Add to cart and navigate to checkout
-              context.read<CartCubit>().addItem(packProduct, quantity: 1);
-              Navigator.pushReplacementNamed(context, Routes.checkout);
-            }
+            final packProduct = ProductModel(
+              id: state.packId,
+              name: 'باقة الاشتراك',
+              price: '0',
+              regularPrice: '0',
+              salePrice: '',
+              description: '',
+              shortDescription: '',
+              images: [],
+              categories: [],
+            );
+            context.read<CartCubit>().addItem(packProduct, quantity: 1);
+            Navigator.pushReplacementNamed(context, Routes.checkout);
           } else if (state is AuthFailure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -139,72 +126,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header
                     _buildHeader(isDark),
-                    SizedBox(height: 32.h),
-
-                    // Basic Fields
+                    // SizedBox(height: 32.h),
+                    // _buildVendorToggle(context, isDark),
+                    SizedBox(height: 24.h),
+                    if (_isVendor) ...[
+                      _buildVendorFields(isDark),
+                      SizedBox(height: 24.h),
+                    ],
                     _buildBasicFields(isDark),
                     SizedBox(height: 24.h),
-
-                    // Terms Checkbox
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _acceptTerms,
-                          onChanged: (value) {
-                            setState(() {
-                              _acceptTerms = value ?? false;
-                            });
-                          },
-                          activeColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4.r),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            'أوافق على الشروط والأحكام وسياسة الخصوصية',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: isDark
-                                  ? AppColors.textLightSecondary
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildLocationFields(isDark),
                     SizedBox(height: 24.h),
-
-                    // Submit Button
-                    if (state is AuthLoading)
-                      const Center(child: CircularProgressIndicator())
-                    else
-                      _buildRegisterButton(context, state),
-
+                    _buildTermsCheckbox(isDark),
+                    SizedBox(height: 32.h),
+                    _buildRegisterButton(context, state),
                     SizedBox(height: 24.h),
-
-                    // Login Link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'لديك حساب بالفعل؟',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.textLightSecondary
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            AppRouter.navigateAndReplace(context, Routes.login);
-                          },
-                          child: const Text('تسجيل الدخول'),
-                        ),
-                      ],
-                    ),
+                    _buildLoginLink(context, isDark),
                   ],
                 ),
               ),
@@ -236,61 +174,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Widget _buildVendorToggle(BuildContext context, bool isDark) { // Removed
+  // Widget _buildVendorToggle(BuildContext context, bool isDark) {
   //   return Container(
-  //     padding: EdgeInsets.all(20.w),
+  //     padding: EdgeInsets.all(16.w),
   //     decoration: BoxDecoration(
-  //       gradient: _isVendor
-  //           ? LinearGradient(
-  //               colors: [
-  //                 AppColors.secondary.withValues(alpha: 0.1),
-  //                 AppColors.secondary.withValues(alpha: 0.05),
-  //               ],
-  //             )
-  //           : null,
-  //       color: _isVendor
-  //           ? null
-  //           : (isDark ? AppColors.cardDark : AppColors.card),
-  //       borderRadius: BorderRadius.circular(20.r),
+  //       color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
+  //       borderRadius: BorderRadius.circular(16.r),
   //       border: Border.all(
-  //         color: _isVendor ? AppColors.secondary : AppColors.border,
-  //         width: _isVendor ? 2 : 1,
+  //         color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey[200]!,
   //       ),
   //     ),
   //     child: Row(
   //       children: [
   //         Container(
-  //           padding: EdgeInsets.all(12.w),
+  //           padding: EdgeInsets.all(10.w),
   //           decoration: BoxDecoration(
   //             color: _isVendor
-  //                 ? AppColors.secondary.withValues(alpha: 0.2)
-  //                 : AppColors.primary.withValues(alpha: 0.1),
+  //                 ? AppColors.secondary.withOpacity(0.1)
+  //                 : AppColors.primary.withOpacity(0.1),
   //             borderRadius: BorderRadius.circular(12.r),
   //           ),
   //           child: Icon(
   //             _isVendor ? Icons.store_rounded : Icons.person_rounded,
   //             color: _isVendor ? AppColors.secondary : AppColors.primary,
-  //             size: 28.sp,
+  //             size: 24.sp,
   //           ),
   //         ),
-  //         SizedBox(width: 16.w),
+  //         SizedBox(width: 12.w),
   //         Expanded(
   //           child: Column(
   //             crossAxisAlignment: CrossAxisAlignment.start,
   //             children: [
   //               Text(
-  //                 'هل تريد التسجيل كبائع؟',
+  //                 'التسجيل كبائع',
   //                 style: TextStyle(
   //                   fontSize: 16.sp,
-  //                   fontWeight: FontWeight.w600,
+  //                   fontWeight: FontWeight.bold,
   //                   color: isDark ? AppColors.textLight : AppColors.textPrimary,
   //                 ),
   //               ),
-  //               SizedBox(height: 4.h),
   //               Text(
-  //                 _isVendor ? 'سيتم إنشاء متجرك الخاص' : 'تسجيل كمشتري فقط',
+  //                 'هل ترغب في بيع اعلاناتك معنا؟',
   //                 style: TextStyle(
-  //                   fontSize: 13.sp,
+  //                   fontSize: 12.sp,
   //                   color: AppColors.textSecondary,
   //                 ),
   //               ),
@@ -307,12 +233,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
   //               context.read<AuthCubit>().fetchSubscriptionPacks();
   //             }
   //           },
-  //           activeThumbColor: AppColors.secondary,
+  //           activeColor: AppColors.secondary,
   //         ),
   //       ],
   //     ),
   //   );
   // }
+
+  Widget _buildVendorFields(bool isDark) {
+    return Column(
+      children: [
+        _buildTextField(
+          controller: _storeNameController,
+          label: 'اسم السوق',
+          hint: 'أدخل اسم سوقك',
+          icon: Icons.storefront_outlined,
+          isDark: isDark,
+          validator: (value) {
+            if (_isVendor && (value == null || value.isEmpty)) {
+              return 'الرجاء إدخال اسم السوق';
+            }
+            return null;
+          },
+        ),
+        SizedBox(height: 20.h),
+        _buildTextField(
+          controller: _phoneController,
+          label: 'رقم الهاتف',
+          hint: 'أدخل رقم هاتفك',
+          icon: Icons.phone_outlined,
+          isDark: isDark,
+          keyboardType: TextInputType.phone,
+          validator: (value) {
+            if (_isVendor && (value == null || value.isEmpty)) {
+              return 'الرجاء إدخال رقم الهاتف';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
 
   Widget _buildBasicFields(bool isDark) {
     return Column(
@@ -450,6 +411,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     TextInputType? keyboardType,
     Widget? suffixIcon,
     int maxLines = 1, // Added
+    bool readOnly = false, // Added
+    VoidCallback? onTap, // Added
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -469,6 +432,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           obscureText: obscureText,
           keyboardType: keyboardType,
           maxLines: maxLines, // Added
+          readOnly: readOnly, // Added
+          onTap: onTap, // Added
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 22.sp),
@@ -478,6 +443,86 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildLocationFields(bool isDark) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildTextField(
+                controller: _cityController,
+                label: 'المدينة',
+                hint: 'أدخل المدينة',
+                icon: Icons.location_city_rounded,
+                isDark: isDark,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'مطلوب';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            SizedBox(width: 16.w),
+            Expanded(
+              child: _buildTextField(
+                controller: _regionController,
+                label: 'المنطقة',
+                hint: 'أدخل المنطقة',
+                icon: Icons.map_rounded,
+                isDark: isDark,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'مطلوب';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 20.h),
+        _buildTextField(
+          controller: _locationController,
+          label: 'الموقع على الخريطة',
+          hint: 'اضغط لتحديد الموقع',
+          icon: Icons.location_on_rounded,
+          isDark: isDark,
+          readOnly: true,
+          onTap: _pickLocation,
+          validator: (value) {
+            if (_lat == null || _lng == null) {
+              return 'الرجاء تحديد الموقع على الخريطة';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickLocation() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        _lat = result['lat'].toString();
+        _lng = result['lng'].toString();
+        _locationController.text = ' (${_lat}, ${_lng})';
+
+        if (result['city'] != null && _cityController.text.isEmpty) {
+          _cityController.text = result['city'];
+        }
+        if (result['region'] != null && _regionController.text.isEmpty) {
+          _regionController.text = result['region'];
+        }
+      });
+    }
   }
 
   Widget _buildTermsCheckbox(bool isDark) {
@@ -562,6 +607,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ? _storeUrlController.text.trim()
                           : null,
                       address: _addressController.text.trim(),
+                      city: _cityController.text.trim(),
+                      region: _regionController.text.trim(),
+                      location: _lat != null && _lng != null
+                          ? '$_lat,$_lng'
+                          : null,
                       subscriptionPackId: _selectedPack?.id,
                     );
                   } else {
@@ -570,6 +620,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       password: _passwordController.text,
                       firstName: _firstNameController.text.trim(),
                       lastName: _lastNameController.text.trim(),
+                      city: _cityController.text.trim(),
+                      region: _regionController.text.trim(),
+                      location: _lat != null && _lng != null
+                          ? '$_lat,$_lng'
+                          : null,
                     );
                   }
                 }
@@ -592,7 +647,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               )
             : Text(
-                _isVendor ? 'إنشاء متجري' : 'إنشاء حساب',
+                _isVendor ? 'إنشاء سوقي' : 'إنشاء حساب',
                 style: TextStyle(
                   fontSize: 16.sp,
                   fontWeight: FontWeight.bold,

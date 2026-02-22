@@ -46,21 +46,15 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             ? AppColors.backgroundDark
             : AppColors.background,
         appBar: AppBar(
-          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
           elevation: 0,
-          leading: IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(
-              Icons.arrow_back_ios_rounded,
-              color: isDark ? AppColors.textLight : AppColors.textPrimary,
-            ),
-          ),
           title: Text(
             'طلباتي',
             style: TextStyle(
               fontSize: 22.sp,
               fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              color: Colors.white,
             ),
           ),
           centerTitle: true,
@@ -170,6 +164,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
       onRefresh: () => _ordersCubit.loadOrders(),
       color: AppColors.primary,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.all(16.w),
         itemCount: orders.length,
         separatorBuilder: (_, __) => SizedBox(height: 12.h),
@@ -269,7 +264,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 ),
                 SizedBox(width: 8.w),
                 Text(
-                  '${order.lineItems.length} منتجات',
+                  '${order.lineItems.length} اعلان',
                   style: TextStyle(
                     fontSize: 14.sp,
                     color: AppColors.textSecondary,

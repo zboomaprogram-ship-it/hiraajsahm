@@ -7,7 +7,6 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../shop/data/models/product_model.dart';
 import '../cubit/vendor_products_cubit.dart';
-import 'add_product_screen.dart';
 
 class VendorProductsTab extends StatefulWidget {
   const VendorProductsTab({super.key});
@@ -31,7 +30,7 @@ class _VendorProductsTabState extends State<VendorProductsTab> {
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       appBar: AppBar(
-        title: const Text('منتجاتي'),
+        title: const Text('اعلاناتي'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
@@ -52,7 +51,7 @@ class _VendorProductsTabState extends State<VendorProductsTab> {
             }
           });
         },
-        label: const Text('إضافة منتج'),
+        label: const Text('إضافة اعلان'),
         icon: const Icon(Icons.add_rounded),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -110,7 +109,7 @@ class _VendorProductsTabState extends State<VendorProductsTab> {
                     ),
                     SizedBox(height: 16.h),
                     Text(
-                      'لا توجد منتجات',
+                      'لا توجد اعلانات',
                       style: TextStyle(
                         fontSize: 18.sp,
                         fontWeight: FontWeight.bold,
@@ -119,7 +118,7 @@ class _VendorProductsTabState extends State<VendorProductsTab> {
                     ),
                     SizedBox(height: 8.h),
                     Text(
-                      'قم بإضافة منتجك الأول لتبدأ البيع',
+                      'قم بإضافة اعلانك الأول لتبدأ البيع',
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: AppColors.textSecondary,
@@ -240,18 +239,64 @@ class _VendorProductsTabState extends State<VendorProductsTab> {
             ),
           ],
         ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddProductScreen(productToEdit: product),
+        onTap: () => _editProduct(context, product),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: () => _editProduct(context, product),
+              icon: Icon(
+                Icons.edit_outlined,
+                size: 20.sp,
+                color: AppColors.primary,
+              ),
+              tooltip: 'تعديل',
             ),
-          ).then((_) {
-            if (context.mounted) {
-              context.read<VendorProductsCubit>().loadProducts();
-            }
-          });
-        },
+            IconButton(
+              onPressed: () => _confirmDelete(context, product),
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                size: 20.sp,
+                color: AppColors.error,
+              ),
+              tooltip: 'حذف',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editProduct(BuildContext context, ProductModel product) {
+    Navigator.pushNamed(context, Routes.addProduct, arguments: product).then((
+      _,
+    ) {
+      if (mounted) {
+        context.read<VendorProductsCubit>().loadProducts();
+      }
+    });
+  }
+
+  void _confirmDelete(BuildContext context, ProductModel product) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف الاعلان'),
+        content: Text('هل أنت متأكد من رغبتك في حذف "${product.name}"؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.read<VendorProductsCubit>().deleteProduct(product.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('حذف'),
+          ),
+        ],
       ),
     );
   }

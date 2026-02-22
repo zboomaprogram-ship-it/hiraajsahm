@@ -99,27 +99,44 @@ class NotificationService {
   void _handleDeepLinking(Map<String, dynamic> data) {
     print('🔗 Deep Linking Data: $data');
 
-    // 1. Order Details
-    if (data.containsKey('order_id')) {
-      final orderId = int.tryParse(data['order_id'].toString());
-      if (orderId != null) {
-        print('🚀 Navigating to Order Details: $orderId');
+    final String? type = data['type']?.toString();
+    final String? idStr = data['id']?.toString();
+    final int? id = idStr != null ? int.tryParse(idStr) : null;
+
+    if (id == null) {
+      print('⚠️ Deep linking failed: ID is null');
+      return;
+    }
+
+    switch (type) {
+      case 'order_vendor':
+      case 'order_client':
+        print('🚀 Navigating to Order Details: $id');
         navigatorKey.currentState?.pushNamed(
           Routes.orderDetails,
-          arguments: orderId, // Passing ID (int) instead of full model
+          arguments: id,
         );
-      }
-    }
-    // 2. Product Details
-    else if (data.containsKey('product_id')) {
-      final productId = int.tryParse(data['product_id'].toString());
-      if (productId != null) {
-        print('🚀 Navigating to Product Details: $productId');
+        break;
+
+      case 'product':
+      case 'qa_vendor':
+      case 'qa_client':
+        print('🚀 Navigating to Product Details: $id');
         navigatorKey.currentState?.pushNamed(
           Routes.productDetails,
-          arguments: productId, // Passing ID (int) instead of full model
+          arguments: id,
         );
-      }
+        break;
+
+      case 'requests':
+        print('🚀 Navigating to Requests Screen');
+        navigatorKey.currentState?.pushNamed(Routes.requests);
+        break;
+
+      default:
+        print('⚠️ Unknown notification type: $type');
+        // Fallback or generic handling if needed
+        break;
     }
   }
 
@@ -143,13 +160,12 @@ class NotificationService {
     try {
       if (!_isInitialized) return;
 
-      // user corresponds to UserModel, using dynamic to avoid import loop if possible,
-      // but better to rely on caller.
-
+      // user corresponds to UserModel, using dynamic to avoid import loop
       final tags = {
         'role': user.role,
         'tier': user.tier.name,
         'user_id': user.id.toString(),
+        if (user.city != null) 'city': user.city!,
       };
 
       await OneSignal.User.addTags(tags);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'routes.dart';
 import '../di/injection_container.dart';
+import '../theme/colors.dart';
 
 // Core & Auth
 import '../../features/splash/splash_screen.dart';
@@ -10,11 +11,15 @@ import '../../features/main/main_layout_screen.dart';
 import '../../features/home/views/home_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/auth/presentation/screens/edit_user_profile_screen.dart';
 
 // Shop & Products
 import '../../features/shop/presentation/screens/shop_screen.dart';
+import '../../features/shop/presentation/screens/sub_category_screen.dart';
 import '../../features/shop/presentation/screens/product_details_screen.dart';
+import '../../features/shop/presentation/cubit/products_cubit.dart';
 import '../../features/shop/data/models/product_model.dart';
+import '../../features/shop/data/models/category_model.dart';
 import '../../features/cart/presentation/screens/cart_screen.dart';
 import '../../features/checkout/presentation/screens/checkout_screen.dart';
 
@@ -22,19 +27,21 @@ import '../../features/checkout/presentation/screens/checkout_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_dashboard_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_order_details_screen.dart';
 import '../../features/vendor/data/models/order_model.dart' as vendor_order;
+import '../../features/vendor/data/models/vendor_registration_data.dart';
 import '../../features/vendor/presentation/screens/add_product_screen.dart';
 import '../../features/vendor/presentation/screens/subscription_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_profile_screen.dart';
 import '../../features/vendor/presentation/screens/edit_vendor_profile_screen.dart';
 import '../../features/vendor/presentation/screens/service_provider_settings_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_qna_screen.dart';
+import '../../features/vendor/presentation/cubit/vendor_upgrade_cubit.dart';
 
 // Orders & Profile
 import '../../features/orders/presentation/screens/my_orders_screen.dart';
 import '../../features/orders/presentation/screens/order_details_screen.dart';
 import '../../features/orders/data/models/order_model.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
-import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+// import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 
 // Settings & Requests
 import '../../features/settings/presentation/screens/settings_screen.dart';
@@ -79,7 +86,7 @@ class AppRouter {
         return _buildRoute(const ProfileScreen(), settings);
 
       case Routes.editProfile:
-        return _buildRoute(const EditProfileScreen(), settings);
+        return _buildRoute(const EditUserProfileScreen(), settings);
 
       // --- Vendor Routes ---
       case Routes.vendorDashboard:
@@ -93,10 +100,18 @@ class AppRouter {
         return _buildRoute(_buildErrorScreen('Order not found'), settings);
 
       case Routes.addProduct:
-        return _buildRoute(const AddProductScreen(), settings);
+        final product = settings.arguments as ProductModel?;
+        return _buildRoute(AddProductScreen(productToEdit: product), settings);
 
       case Routes.vendorSubscription:
-        return _buildRoute(const SubscriptionScreen(), settings);
+        final vendorData = settings.arguments as VendorRegistrationData?;
+        return _buildRoute(
+          BlocProvider(
+            create: (context) => sl<VendorUpgradeCubit>(),
+            child: SubscriptionScreen(vendorRegistrationData: vendorData),
+          ),
+          settings,
+        );
 
       case Routes.storeDetails:
         final vendorId = settings.arguments as int;
@@ -127,6 +142,16 @@ class AppRouter {
           settings,
         );
 
+      case Routes.subCategories:
+        final args = settings.arguments as Map<String, dynamic>;
+        return _buildRoute(
+          SubCategoryScreen(
+            parentCategory: args['parentCategory'] as CategoryModel,
+            subCategories: args['subCategories'] as List<CategoryModel>,
+          ),
+          settings,
+        );
+
       case Routes.productDetails:
         final args = settings.arguments;
         // 1. Normal Navigation (Full Model)
@@ -135,10 +160,27 @@ class AppRouter {
         }
         // 2. Deep Linking (ID Only)
         else if (args is int) {
-          // Fallback: Since we need the full model for the screen,
-          // we redirect to the Shop which can load fresh data.
-          // Alternatively, you could implement a specific loading screen here.
-          return _buildRoute(const ShopScreen(), settings);
+          return _buildRoute(
+            FutureBuilder<ProductModel?>(
+              future: sl<ProductsCubit>().getProductById(args),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasData && snapshot.data != null) {
+                  return ProductDetailsScreen(product: snapshot.data!);
+                }
+                return _buildErrorScreen('تعذر العثور على الإعلان');
+              },
+            ),
+            settings,
+          );
         }
         return _buildRoute(_buildErrorScreen('Product not found'), settings);
 

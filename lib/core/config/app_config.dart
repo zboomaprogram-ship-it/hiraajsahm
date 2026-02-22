@@ -6,15 +6,7 @@ class AppConfig {
   static const String appName = 'Hiraaj Sahm';
   static const String appNameAr = 'هراج سهم';
   static const String appVersion = '1.0.0';
-  static const String buildNumber = '1';
-
-  // // ============ DEVELOPER INFO ============
-  // static const String developerName = 'Abdullah Essam';
-  // static const String developerGithub = 'https://github.com/AbdalluhEssam';
-  // static const String developerProfile = 'abdalluh-essam.com';
-  // static const String developerLinkedIn =
-  //     'https://www.linkedin.com/in/abdalluh-essam';
-  // static const String developerEmail = 'contact@abdalluh-essam.com';
+  static const String buildNumber = '2';
 
   // ============ ENVIRONMENT ============
   static const bool isProduction = false;
@@ -40,6 +32,8 @@ class AppConfig {
   static const String wpUsersEndpoint = '/wp/v2/users';
   static const String customVendorUpgradeEndpoint =
       '/custom/v1/register-vendor'; // Custom Endpoint
+  static const String serviceProvidersEndpoint =
+      '/hiraajsahm/v1/service-providers'; // Custom Endpoint
 
   // Dokan Endpoints
   static const String dokanVendorsEndpoint = '/dokan/v1/vendors';
@@ -82,4 +76,8 @@ class AppConfig {
   static const String roleCustomer = 'customer';
   static const String roleVendor = 'seller';
   static const String roleAdmin = 'administrator';
+
+  // ============ FLUENT FORMS CONFIG ============
+  static const int fluentFormInspectorId = 3; // UPDATE with actual ID
+  static const int fluentFormTransporterId = 4; // UPDATE with actual ID
 }

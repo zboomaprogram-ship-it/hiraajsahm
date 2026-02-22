@@ -308,7 +308,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         TextButton(
           onPressed: () {
-            // Navigate to forgot password
+            AppRouter.navigateTo(
+              context,
+              Routes.webView,
+              arguments: {
+                'title': 'نسيت كلمة المرور',
+                'url': 'https://hiraajsahm.com/my-account/lost-password/',
+              },
+            );
           },
           child: Text(
             'نسيت كلمة المرور؟',
@@ -328,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Container(
       width: double.infinity,
-      height: 56.h,
+      height: 64.h,
       decoration: BoxDecoration(
         gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.circular(16.r),

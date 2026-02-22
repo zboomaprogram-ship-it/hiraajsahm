@@ -86,11 +86,13 @@ class VendorOrderDetailsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'المنتجات',
+                    'الاعلانات',
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                      color: isDark
+                          ? AppColors.textLight
+                          : AppColors.textPrimary,
                     ),
                   ),
                   SizedBox(height: 12.h),
@@ -135,7 +137,8 @@ class VendorOrderDetailsScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: textSize ?? 14.sp,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-              color: valueColor ??
+              color:
+                  valueColor ??
                   (isDark ? AppColors.textLight : AppColors.textPrimary),
             ),
           ),

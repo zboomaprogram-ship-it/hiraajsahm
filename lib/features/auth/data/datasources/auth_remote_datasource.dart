@@ -71,6 +71,9 @@ class AuthRemoteDataSource {
     required String password,
     required String firstName,
     required String lastName,
+    String? city,
+    String? region,
+    String? location,
   }) async {
     try {
       final response = await _dio.post(
@@ -82,6 +85,18 @@ class AuthRemoteDataSource {
           'first_name': firstName,
           'last_name': lastName,
           'name': '$firstName $lastName',
+          'billing': {
+            'first_name': firstName,
+            'last_name': lastName,
+            'city': city ?? '',
+            'state': region ?? '',
+            'address_1': location ?? '',
+          },
+          'meta_data': [
+            if (city != null) {'key': 'city', 'value': city},
+            if (region != null) {'key': 'region', 'value': region},
+            if (location != null) {'key': 'location', 'value': location},
+          ],
         },
       );
 
@@ -114,6 +129,9 @@ class AuthRemoteDataSource {
     required String phone,
     String? storeUrl,
     String? address,
+    String? city,
+    String? region,
+    String? location,
     int? subscriptionPackId,
   }) async {
     final packId = subscriptionPackId ?? 29026;
@@ -154,11 +172,16 @@ class AuthRemoteDataSource {
           'email': email,
           'phone': phone,
           'address_1': address ?? '',
+          'city': city ?? '',
+          'state': region ?? '',
+          'address_2': location ?? '',
         },
         'shipping': {
           'first_name': firstName,
           'last_name': lastName,
           'address_1': address ?? '',
+          'city': city ?? '',
+          'state': region ?? '',
         },
         'meta_data': [
           {'key': 'dokan_enable_selling', 'value': 'yes'},
@@ -172,22 +195,26 @@ class AuthRemoteDataSource {
           {'key': 'can_post_product', 'value': '1'},
           {'key': 'product_pack_startdate', 'value': DateTime.now().toString()},
           {'key': 'dokan_admin_percentage_type', 'value': 'percentage'},
+          if (city != null) {'key': 'city', 'value': city},
+          if (region != null) {'key': 'region', 'value': region},
+          if (location != null) {'key': 'location', 'value': location},
           {
             'key': 'dokan_profile_settings',
             'value': {
               'store_name': storeName,
               'phone': phone,
               'show_email': 'no',
-              'location': '',
+              'location': location ?? '',
               'address': {
                 'street_1': address ?? '',
-                'city': '',
+                'city': city ?? '',
                 'zip': '',
                 'country': '',
-                'state': '',
+                'state': region ?? '',
               },
               'enable_tnc': 'off',
               'show_min_order_discount': 'no',
+              'vendor_biography': '',
               'assigned_subscription': packId.toString(),
               'assigned_subscription_info': {
                 'subscription_id': packId.toString(),
@@ -326,6 +353,69 @@ class AuthRemoteDataSource {
     }
   }
 
+  /// Update user profile metadata (phone, city, region, etc.)
+  Future<Either<Failure, UserModel>> updateUserMetadata({
+    required int userId,
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? city,
+    String? region,
+    String? location,
+  }) async {
+    try {
+      final String basicAuth =
+          'Basic ' +
+          base64Encode(
+            utf8.encode(
+              '${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}',
+            ),
+          );
+
+      final cleanDio = Dio(
+        BaseOptions(
+          baseUrl: AppConfig.baseUrl,
+          headers: {
+            'Authorization': basicAuth,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      final response = await cleanDio.put(
+        '${AppConfig.wcCustomersEndpoint}/$userId',
+        data: {
+          if (firstName != null) 'first_name': firstName,
+          if (lastName != null) 'last_name': lastName,
+          'billing': {
+            if (firstName != null) 'first_name': firstName,
+            if (lastName != null) 'last_name': lastName,
+            if (phone != null) 'phone': phone,
+            if (city != null) 'city': city,
+            if (region != null) 'state': region,
+            if (location != null) 'address_1': location,
+          },
+          'meta_data': [
+            if (phone != null) {'key': 'billing_phone', 'value': phone},
+            if (city != null) {'key': 'city', 'value': city},
+            if (region != null) {'key': 'region', 'value': region},
+            if (location != null) {'key': 'location', 'value': location},
+          ],
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return Right(UserModel.fromJson(response.data));
+      }
+
+      return Left(ServerFailure(message: 'Failed to update profile'));
+    } on DioException catch (e) {
+      return Left(_handleDioError(e));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
   /// Get subscription packs from WooCommerce Products (Category 122)
   Future<Either<Failure, List<SubscriptionPackModel>>>
   getSubscriptionPacks() async {
@@ -368,7 +458,7 @@ class AuthRemoteDataSource {
         billingCycle: 'month',
         billingCycleCount: 1,
         trialDays: 0,
-        features: ['5 منتجات فقط', 'دعم أساسي'],
+        features: ['5 اعلان فقط', 'دعم أساسي'],
         isFree: true,
       ),
       SubscriptionPackModel(
@@ -381,7 +471,7 @@ class AuthRemoteDataSource {
         billingCycle: 'month',
         billingCycleCount: 1,
         trialDays: 7,
-        features: ['50 منتج', 'دعم متقدم'],
+        features: ['50 اعلان', 'دعم متقدم'],
         isFree: false,
       ),
       SubscriptionPackModel(
@@ -394,7 +484,7 @@ class AuthRemoteDataSource {
         billingCycle: 'month',
         billingCycleCount: 1,
         trialDays: 14,
-        features: ['منتجات غير محدودة', 'دعم VIP'],
+        features: ['اعلان غير محدودة', 'دعم VIP'],
         isFree: false,
         isPopular: true,
       ),
@@ -430,7 +520,14 @@ class AuthRemoteDataSource {
       final wcResponse = await cleanDio.get(wcUrl);
 
       if (wcResponse.statusCode == 200) {
-        return Right(UserModel.fromJson(wcResponse.data));
+        final userData = Map<String, dynamic>.from(wcResponse.data);
+
+        // Preserve customer_qr_url from WP response if available
+        if (wpResponse.data['customer_qr_url'] != null) {
+          userData['customer_qr_url'] = wpResponse.data['customer_qr_url'];
+        }
+
+        return Right(UserModel.fromJson(userData));
       }
 
       return Left(ServerFailure(message: 'Failed to fetch user profile'));
@@ -498,6 +595,31 @@ class AuthRemoteDataSource {
           message: response.data['message'] ?? 'Start vendor upgrade failed',
         ),
       );
+    } on DioException catch (e) {
+      return Left(_handleDioError(e));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  /// Upload media to WordPress Media Library
+  Future<Either<Failure, int>> uploadMedia(String filePath) async {
+    try {
+      final fileName = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        '/wp/v2/media', // WordPress Media Endpoint
+        data: formData,
+        options: Options(headers: {'requiresToken': true}),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return Right(response.data['id'] as int);
+      }
+      return Left(ServerFailure(message: 'Failed to upload image'));
     } on DioException catch (e) {
       return Left(_handleDioError(e));
     } catch (e) {

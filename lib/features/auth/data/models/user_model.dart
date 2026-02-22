@@ -21,6 +21,9 @@ class UserModel extends Equatable {
   final VendorInfo? vendorInfo;
   final int? subscriptionPackId;
   final String? subscriptionEndDate;
+  final String? customerQrUrl; // Added
+  final String? city; // Added
+  final String? region; // Added
   final bool hasAlZabayehTier; // Al-Zabayeh add-on tier
 
   const UserModel({
@@ -37,6 +40,9 @@ class UserModel extends Equatable {
     this.vendorInfo,
     this.subscriptionPackId,
     this.subscriptionEndDate,
+    this.customerQrUrl, // Added
+    this.city, // Added
+    this.region, // Added
     this.hasAlZabayehTier = false,
   });
 
@@ -117,6 +123,30 @@ class UserModel extends Equatable {
       phone = json['phone'];
     }
 
+    // Parse QR Code URL
+    String? qrUrl = json['customer_qr_url'];
+
+    // Parse City & Region from meta_data if not directly available
+    String? city;
+    String? region;
+    if (json['meta_data'] != null) {
+      final meta = json['meta_data'] as List;
+      final cityItem = meta.firstWhere(
+        (i) => i['key'] == 'city',
+        orElse: () => null,
+      );
+      if (cityItem != null) city = cityItem['value'].toString();
+
+      final regionItem = meta.firstWhere(
+        (i) => i['key'] == 'region',
+        orElse: () => null,
+      );
+      if (regionItem != null) region = regionItem['value'].toString();
+    }
+    // Fallback to billing if meta not found
+    city ??= json['billing']?['city'];
+    region ??= json['billing']?['state'];
+
     return UserModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       email: json['email'] ?? '',
@@ -135,6 +165,9 @@ class UserModel extends Equatable {
           : null,
       subscriptionPackId: packId,
       subscriptionEndDate: endDate,
+      customerQrUrl: qrUrl, // Added
+      city: city, // Added
+      region: region, // Added
       hasAlZabayehTier: alZabayeh,
     );
   }
@@ -164,6 +197,9 @@ class UserModel extends Equatable {
       'vendor_info': vendorInfo?.toJson(),
       'product_package_id': subscriptionPackId,
       'subscription_end_date': subscriptionEndDate,
+      'customer_qr_url': customerQrUrl,
+      'city': city,
+      'region': region,
       'has_al_zabayeh_tier': hasAlZabayehTier,
     };
   }
@@ -182,6 +218,9 @@ class UserModel extends Equatable {
     VendorInfo? vendorInfo,
     int? subscriptionPackId,
     String? subscriptionEndDate,
+    String? customerQrUrl,
+    String? city,
+    String? region,
     bool? hasAlZabayehTier,
   }) {
     return UserModel(
@@ -198,6 +237,9 @@ class UserModel extends Equatable {
       vendorInfo: vendorInfo ?? this.vendorInfo,
       subscriptionPackId: subscriptionPackId ?? this.subscriptionPackId,
       subscriptionEndDate: subscriptionEndDate ?? this.subscriptionEndDate,
+      customerQrUrl: customerQrUrl ?? this.customerQrUrl,
+      city: city ?? this.city,
+      region: region ?? this.region,
       hasAlZabayehTier: hasAlZabayehTier ?? this.hasAlZabayehTier,
     );
   }
@@ -277,6 +319,9 @@ class UserModel extends Equatable {
     vendorInfo,
     subscriptionPackId,
     subscriptionEndDate,
+    customerQrUrl,
+    city,
+    region,
     hasAlZabayehTier,
   ];
 }
@@ -296,6 +341,10 @@ class VendorInfo extends Equatable {
   final bool? featured;
   final String? subscriptionId;
   final String? subscriptionType;
+  final String? biography;
+  final String? location;
+  final bool? isVerified;
+  final Map<String, dynamic>? social;
 
   const VendorInfo({
     this.storeId,
@@ -311,6 +360,10 @@ class VendorInfo extends Equatable {
     this.featured,
     this.subscriptionId,
     this.subscriptionType,
+    this.biography,
+    this.location,
+    this.isVerified,
+    this.social,
   });
 
   factory VendorInfo.fromJson(Map<String, dynamic> json) {
@@ -322,7 +375,7 @@ class VendorInfo extends Equatable {
       banner: json['banner'],
       bannerUrl: json['banner_url'] ?? json['gravatar'],
       phone: json['phone'],
-      address: json['address'] is Map
+      address: (json['address'] is Map)
           ? AddressModel.fromJson(Map<String, dynamic>.from(json['address']))
           : null,
       rating: json['rating'] is Map
@@ -334,14 +387,28 @@ class VendorInfo extends Equatable {
       reviewCount: json['rating'] is Map
           ? (json['rating']['count'] ?? 0)
           : (json['review_count'] ?? 0),
-      featured: json['featured'],
+      featured: _parseBool(json['featured']),
       subscriptionId: json['subscription'] is Map
           ? json['subscription']['id']?.toString()
           : null,
       subscriptionType: json['subscription'] is Map
           ? json['subscription']['type']
           : null,
+      biography: json['vendor_biography']?.toString(),
+      location: json['location']?.toString(),
+      isVerified: _parseBool(json['is_verified']),
+      social: json['social'] is Map
+          ? Map<String, dynamic>.from(json['social'])
+          : null,
     );
+  }
+
+  static bool? _parseBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    if (value is String) return value.toLowerCase() == 'true' || value == '1';
+    if (value is num) return value == 1;
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -359,6 +426,10 @@ class VendorInfo extends Equatable {
       'featured': featured,
       'subscription_id': subscriptionId,
       'subscription_type': subscriptionType,
+      'vendor_biography': biography,
+      'location': location,
+      'is_verified': isVerified,
+      'social': social,
     };
   }
 
@@ -377,6 +448,10 @@ class VendorInfo extends Equatable {
     featured,
     subscriptionId,
     subscriptionType,
+    biography,
+    location,
+    isVerified,
+    social,
   ];
 }
 
@@ -400,12 +475,12 @@ class AddressModel extends Equatable {
 
   factory AddressModel.fromJson(Map<String, dynamic> json) {
     return AddressModel(
-      street1: json['street_1'] ?? json['address_1'],
-      street2: json['street_2'] ?? json['address_2'],
-      city: json['city'],
-      state: json['state'],
-      postcode: json['postcode'] ?? json['zip'],
-      country: json['country'],
+      street1: json['street_1']?.toString(),
+      street2: json['street_2']?.toString(),
+      city: json['city']?.toString(),
+      state: json['state']?.toString(),
+      postcode: json['postcode']?.toString() ?? json['zip']?.toString(),
+      country: json['country']?.toString(),
     );
   }
 

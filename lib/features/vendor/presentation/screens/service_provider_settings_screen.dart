@@ -59,7 +59,7 @@ class ServiceProviderSettingsScreen extends StatelessWidget {
                 title: 'تسجيل كمعاين',
                 icon: Icons.fact_check_rounded,
                 color: Colors.green,
-                description: 'كن خبيراً في فحص المنتجات ومطابقتها.',
+                description: 'كن خبيراً في فحص السوقات ومطابقتها.',
                 onTap: () => _registerAsProvider(context, 'Inspector'),
                 isDark: isDark,
               ),

@@ -173,8 +173,77 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       return;
     }
 
-    // Navigate to subscription confirmation (simplified - no checkout form)
+    // Navigate to subscription confirmation
     _showSubscriptionConfirmDialog(pack);
+  }
+
+  void _showSubscriptionConfirmDialog(ProductModel pack) {
+    final currentPackId = _getCurrentPackId();
+    final isUpgrade = _getTierLevel(pack.id) > _getTierLevel(currentPackId);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text(isUpgrade ? 'تأكيد الترقية' : 'تأكيد الاشتراك'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('الباقة: ${pack.name}'),
+            SizedBox(height: 8.h),
+            Text(
+              'السعر: ${pack.price} ر.س',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              isUpgrade
+                  ? 'سيتم ترقية حسابك فوراً بعد التأكيد.'
+                  : 'سيتم تفعيل الباقة فوراً بعد التأكيد.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+
+              if (widget.vendorRegistrationData != null) {
+                // Register as Vendor first
+                context.read<VendorUpgradeCubit>().upgradeToVendor(
+                  userId: context.read<AuthCubit>().currentUser!.id,
+                  shopName: widget.vendorRegistrationData!.shopName,
+                  phone: widget.vendorRegistrationData!.phone,
+                  shopLink: widget.vendorRegistrationData!.shopLink,
+                );
+
+                context.read<CartCubit>().clearCart();
+                context.read<CartCubit>().addItem(pack);
+                AppRouter.navigateTo(context, Routes.checkout);
+              } else {
+                // Already a vendor, just upgrading tier
+                context.read<CartCubit>().clearCart();
+                context.read<CartCubit>().addItem(pack);
+                AppRouter.navigateTo(context, Routes.checkout);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(isUpgrade ? 'تأكيد الترقية' : 'تأكيد الاشتراك'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAlreadySubscribedDialog() {
@@ -252,72 +321,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  void _showSubscriptionConfirmDialog(ProductModel pack) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        title: Text('تأكيد الاشتراك'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('الباقة: ${pack.name}'),
-            SizedBox(height: 8.h),
-            Text(
-              'السعر: ${pack.price} ر.س',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
-            ),
-            SizedBox(height: 16.h),
-            const Text('سيتم تفعيل الباقة فوراً بعد التأكيد.'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-
-              if (widget.vendorRegistrationData != null) {
-                // Register as Vendor first
-                context.read<VendorUpgradeCubit>().upgradeToVendor(
-                  userId: context.read<AuthCubit>().currentUser!.id,
-                  shopName: widget.vendorRegistrationData!.shopName,
-                  phone: widget.vendorRegistrationData!.phone,
-                  shopLink: widget.vendorRegistrationData!.shopLink,
-                );
-                // Note: Actual subscription logic (adding to cart) should ideally happen
-                // AFTER successful registration. I'll need to listen to the Cubit state.
-                // For now, let's trigger both, but ideally we should wait.
-
-                // Temporary: Register then Add to Cart.
-                context.read<CartCubit>().clearCart();
-                context.read<CartCubit>().addItem(pack);
-                AppRouter.navigateTo(context, Routes.checkout);
-              } else {
-                // Already a vendor, just upgrading tier
-                context.read<CartCubit>().clearCart();
-                context.read<CartCubit>().addItem(pack);
-                AppRouter.navigateTo(context, Routes.checkout);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('تأكيد الاشتراك'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showLockedPackDialog() {
     showDialog(
       context: context,
@@ -349,62 +352,59 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return BlocProvider(
-      create: (context) => di.sl<VendorUpgradeCubit>(),
-      child: BlocListener<VendorUpgradeCubit, VendorUpgradeState>(
-        listener: (context, state) {
-          if (state is VendorUpgradeSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.success,
-              ),
-            );
-            // Refresh Auth to get new role
-            context.read<AuthCubit>().checkAuthStatus();
-          } else if (state is VendorUpgradeFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.error,
-              ),
-            );
-          }
-        },
-        child: Scaffold(
-          backgroundColor: isDark
-              ? AppColors.backgroundDark
-              : AppColors.background,
-          appBar: AppBar(
-            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-            elevation: 0,
-            leading: IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: Icon(
-                Icons.arrow_back_ios_rounded,
-                color: isDark ? AppColors.textLight : AppColors.textPrimary,
-              ),
+    return BlocListener<VendorUpgradeCubit, VendorUpgradeState>(
+      listener: (context, state) {
+        if (state is VendorUpgradeSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.success,
             ),
-            title: Text(
-              'باقات الاشتراك',
-              style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.textLight : AppColors.textPrimary,
-              ),
+          );
+          // Refresh Auth to get new role
+          context.read<AuthCubit>().checkAuthStatus();
+        } else if (state is VendorUpgradeFailure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.error,
             ),
-            centerTitle: true,
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark
+            ? AppColors.backgroundDark
+            : AppColors.background,
+        appBar: AppBar(
+          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: Icon(
+              Icons.arrow_back_ios_rounded,
+              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            ),
           ),
-          body: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                )
-              : _errorMessage != null
-              ? _buildErrorState()
-              : _subscriptionPacks.isEmpty
-              ? _buildEmptyState()
-              : _buildSubscriptionList(isDark),
+          title: Text(
+            'باقات الاشتراك',
+            style: TextStyle(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.bold,
+              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            ),
+          ),
+          centerTitle: true,
         ),
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
+            : _errorMessage != null
+            ? _buildErrorState()
+            : _subscriptionPacks.isEmpty
+            ? _buildEmptyState()
+            : _buildSubscriptionList(isDark),
       ),
     );
   }
@@ -616,35 +616,61 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               child: ElevatedButton(
                 onPressed: () => _subscribeToPack(pack),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isZabayehLocked(pack.id)
+                  backgroundColor: _getCurrentPackId() == pack.id
+                      ? AppColors.success.withValues(alpha: 0.2)
+                      : _isZabayehLocked(pack.id)
                       ? AppColors.textSecondary.withValues(alpha: 0.5)
                       : tierInfo.buttonColor,
                   padding: EdgeInsets.symmetric(vertical: 14.h),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12.r),
                   ),
+                  side: _getCurrentPackId() == pack.id
+                      ? BorderSide(color: AppColors.success, width: 1.w)
+                      : BorderSide.none,
+                  elevation: _getCurrentPackId() == pack.id ? 0 : 2,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (_isZabayehLocked(pack.id)) ...[
+                    if (_getCurrentPackId() == pack.id) ...[
                       Icon(
-                        Icons.lock_outline,
-                        color: Colors.white,
+                        Icons.check_circle_rounded,
+                        color: AppColors.success,
                         size: 18.sp,
                       ),
                       SizedBox(width: 8.w),
-                    ],
-                    Text(
-                      _isZabayehLocked(pack.id)
-                          ? 'مقيد - ترقية مطلوبة'
-                          : 'اشترك الآن',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      Text(
+                        'باقتك الحالية',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success,
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      if (_isZabayehLocked(pack.id)) ...[
+                        Icon(
+                          Icons.lock_outline,
+                          color: Colors.white,
+                          size: 18.sp,
+                        ),
+                        SizedBox(width: 8.w),
+                      ],
+                      Text(
+                        _isZabayehLocked(pack.id)
+                            ? 'مقيد - ترقية مطلوبة'
+                            : _getTierLevel(pack.id) >
+                                  _getTierLevel(_getCurrentPackId())
+                            ? 'ترقية الآن'
+                            : 'اشترك الآن',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

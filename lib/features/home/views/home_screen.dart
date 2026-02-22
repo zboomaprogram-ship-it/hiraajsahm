@@ -104,6 +104,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onCategoryTap(CategoryModel category) {
+    final categoriesState = context.read<CategoriesCubit>().state;
+    if (categoriesState is CategoriesLoaded) {
+      final subCategories = CategoryModel.getSubCategories(
+        categoriesState.categories,
+        category.id,
+      );
+
+      if (subCategories.isNotEmpty) {
+        AppRouter.navigateTo(
+          context,
+          Routes.subCategories,
+          arguments: {
+            'parentCategory': category,
+            'subCategories': subCategories,
+          },
+        );
+        return;
+      }
+    }
+
     // Navigate to shop with category filter
     AppRouter.navigateTo(
       context,
@@ -388,7 +408,9 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             if (state is CategoriesLoaded) {
-              final categories = state.categories;
+              final categories = state.categories
+                  .where((c) => c.parent == 0)
+                  .toList();
 
               return SizedBox(
                 height: 110.h,
@@ -433,36 +455,26 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Container(
-            width: 70.w,
-            height: 70.w,
+            width: 80.w,
+            height: 48.h, // Adjusted representing a flat card
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(color: color.withOpacity(0.3), width: 2),
+              color: isDark ? AppColors.surfaceVariantDark : Colors.grey[200],
+              borderRadius: BorderRadius.circular(12.r),
             ),
-            child: category.hasImage
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(18.r),
-                    child: CachedNetworkImage(
-                      imageUrl: category.imageUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) =>
-                          Icon(icon, color: color, size: 32.sp),
-                      errorWidget: (_, __, ___) =>
-                          Icon(icon, color: color, size: 32.sp),
-                    ),
-                  )
-                : Icon(icon, color: color, size: 32.sp),
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            category.name,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? AppColors.textLightSecondary
-                  : AppColors.textPrimary,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4.w),
+              child: Text(
+                category.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
             ),
           ),
         ],
@@ -557,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Padding(
                   padding: EdgeInsets.all(40.w),
                   child: Text(
-                    'لا توجد منتجات حالياً',
+                    'لا توجد اعلانات حالياً',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),

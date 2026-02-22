@@ -98,37 +98,48 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           ),
         ],
       ),
-      child: CurvedNavigationBar(
-        index: _currentIndex,
-        height: 65,
-        items: [
-          Icon(
-            Icons.dashboard_rounded,
-            size: 26.sp,
-            color: _currentIndex == 0 ? Colors.white : const Color(0xFF1B4965),
-          ),
-          Icon(
-            Icons.inventory_2_rounded,
-            size: 26.sp,
-            color: _currentIndex == 1 ? Colors.white : const Color(0xFF1B4965),
-          ),
-          Icon(
-            Icons.shopping_bag_rounded,
-            size: 26.sp,
-            color: _currentIndex == 2 ? Colors.white : const Color(0xFF1B4965),
-          ),
-          Icon(
-            Icons.person_rounded,
-            size: 26.sp,
-            color: _currentIndex == 3 ? Colors.white : const Color(0xFF1B4965),
-          ),
-        ],
-        color: isDark ? AppColors.cardDark : Colors.white,
-        buttonBackgroundColor: const Color(0xFF1B4965),
-        backgroundColor: Colors.transparent,
-        animationCurve: Curves.easeInOut,
-        animationDuration: const Duration(milliseconds: 300),
-        onTap: (index) => setState(() => _currentIndex = index),
+      child: SafeArea(
+        top: false,
+        child: CurvedNavigationBar(
+          index: _currentIndex,
+          height: 65,
+          items: [
+            Icon(
+              Icons.dashboard_rounded,
+              size: 26.sp,
+              color: _currentIndex == 0
+                  ? Colors.white
+                  : const Color(0xFF1B4965),
+            ),
+            Icon(
+              Icons.inventory_2_rounded,
+              size: 26.sp,
+              color: _currentIndex == 1
+                  ? Colors.white
+                  : const Color(0xFF1B4965),
+            ),
+            Icon(
+              Icons.shopping_bag_rounded,
+              size: 26.sp,
+              color: _currentIndex == 2
+                  ? Colors.white
+                  : const Color(0xFF1B4965),
+            ),
+            Icon(
+              Icons.person_rounded,
+              size: 26.sp,
+              color: _currentIndex == 3
+                  ? Colors.white
+                  : const Color(0xFF1B4965),
+            ),
+          ],
+          color: isDark ? AppColors.cardDark : Colors.white,
+          buttonBackgroundColor: const Color(0xFF1B4965),
+          backgroundColor: Colors.transparent,
+          animationCurve: Curves.easeInOut,
+          animationDuration: const Duration(milliseconds: 300),
+          onTap: (index) => setState(() => _currentIndex = index),
+        ),
       ),
     );
   }
@@ -180,6 +191,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
             ),
           ),
 
+          SliverToBoxAdapter(child: SizedBox(height: 24.h)),
+
           // Orders Overview
           SliverToBoxAdapter(
             child: FadeInUp(
@@ -190,14 +203,13 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           ),
 
           // Quick Actions
-          SliverToBoxAdapter(
-            child: FadeInUp(
-              delay: const Duration(milliseconds: 400),
-              duration: const Duration(milliseconds: 500),
-              child: _buildQuickActions(context),
-            ),
-          ),
-
+          // SliverToBoxAdapter(
+          //   child: FadeInUp(
+          //     delay: const Duration(milliseconds: 400),
+          //     duration: const Duration(milliseconds: 500),
+          //     child: _buildQuickActions(context),
+          //   ),
+          // ),
           SliverToBoxAdapter(child: SizedBox(height: 100.h)),
         ],
       ),
@@ -217,7 +229,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           child: Text(
             'لوحة التحكم',
             style: TextStyle(
-              fontSize: 18.sp,
+              fontSize: 15.sp,
               fontWeight: FontWeight.bold,
               color: isDark ? AppColors.textLight : AppColors.textPrimary,
             ),
@@ -307,14 +319,14 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         'gradient': AppColors.primaryGradient,
       },
       {
-        'title': 'المنتجات المباعة',
+        'title': 'الاعلانات المباعة',
         'value': '${stats.productsSold}',
         'icon': Icons.inventory_2_rounded,
         'color': AppColors.secondary,
         'gradient': AppColors.secondaryGradient,
       },
       {
-        'title': 'إجمالي المنتجات',
+        'title': 'إجمالي الاعلانات',
         'value': '${stats.totalProducts}',
         'icon': Icons.category_rounded,
         'color': AppColors.info,
@@ -533,7 +545,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
     final actions = [
       {
-        'title': 'إضافة منتج',
+        'title': 'إضافة اعلان',
         'icon': Icons.add_box_rounded,
         'color': AppColors.primary,
       },
@@ -543,7 +555,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         'color': AppColors.secondary,
       },
       {
-        'title': 'تحرير المتجر',
+        'title': 'تحرير السوق',
         'icon': Icons.store_rounded,
         'color': AppColors.accent,
       },
@@ -586,7 +598,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                 color: action['color'] as Color,
                 isDark: isDark,
                 onTap: () {
-                  if (action['title'] == 'إضافة منتج') {
+                  if (action['title'] == 'إضافة اعلان') {
                     Navigator.pushNamed(context, '/vendor/add-product');
                   } else if (action['title'] == 'عرض الطلبات') {
                     setState(() => _currentIndex = 2);

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/config/app_config.dart';
 import '../../data/models/store_model.dart';
 import '../../../shop/data/models/product_model.dart';
+import '../../../shop/data/models/review_model.dart';
 
 // ============ STATES ============
 
@@ -25,25 +26,29 @@ class VendorProfileLoading extends VendorProfileState {
 class VendorProfileLoaded extends VendorProfileState {
   final StoreModel store;
   final List<ProductModel> products;
+  final List<ReviewModel> reviews;
   final bool hasMoreProducts;
 
   const VendorProfileLoaded({
     required this.store,
     required this.products,
+    required this.reviews,
     this.hasMoreProducts = false,
   });
 
   @override
-  List<Object?> get props => [store, products, hasMoreProducts];
+  List<Object?> get props => [store, products, reviews, hasMoreProducts];
 
   VendorProfileLoaded copyWith({
     StoreModel? store,
     List<ProductModel>? products,
+    List<ReviewModel>? reviews,
     bool? hasMoreProducts,
   }) {
     return VendorProfileLoaded(
       store: store ?? this.store,
       products: products ?? this.products,
+      reviews: reviews ?? this.reviews,
       hasMoreProducts: hasMoreProducts ?? this.hasMoreProducts,
     );
   }
@@ -81,24 +86,33 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
       super(const VendorProfileInitial());
 
   /// Load vendor profile with store details and products
-  Future<void> loadVendorProfile(int vendorId) async {
-    emit(const VendorProfileLoading());
+  Future<void> loadVendorProfile(
+    int vendorId, {
+    bool showLoading = true,
+  }) async {
+    if (showLoading) {
+      emit(const VendorProfileLoading());
+    }
     _currentPage = 1;
 
     try {
-      // Fetch store details and products concurrently
+      // Fetch store details, products, and reviews concurrently
       final results = await Future.wait([
         _fetchStoreDetails(vendorId),
         _fetchVendorProducts(vendorId, page: 1),
+        _fetchStoreReviews(vendorId),
       ]);
 
       final store = results[0] as StoreModel;
       final productsResult = results[1] as _ProductsResult;
+      final reviews = results[2] as List<ReviewModel>;
 
+      if (isClosed) return;
       emit(
         VendorProfileLoaded(
           store: store,
           products: productsResult.products,
+          reviews: reviews,
           hasMoreProducts: productsResult.hasMore,
         ),
       );
@@ -110,6 +124,7 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
       } else {
         msg = msg.replaceAll("Exception:", "").trim();
       }
+      if (isClosed) return;
       emit(VendorProfileError(msg));
     }
   }
@@ -126,6 +141,7 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
     try {
       final result = await _fetchVendorProducts(vendorId, page: _currentPage);
 
+      if (isClosed) return;
       emit(
         currentState.copyWith(
           products: [...currentState.products, ...result.products],
@@ -138,12 +154,23 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
     }
   }
 
-  /// Update Vendor Profile (Store Name, Phone, Address)
+  /// Update Vendor Profile (Store Name, Phone, Address, Social, etc.)
   Future<void> updateVendorProfile({
     required int vendorId,
     required String storeName,
     required String phone,
-    required String address,
+    required String street,
+    String? city,
+    String? state,
+    String? biography,
+    String? location,
+    String? facebook,
+    String? instagram,
+    String? twitter,
+    String? youtube,
+    int? gravatarId,
+    // Store Banner ID for update
+    int? bannerId,
   }) async {
     emit(const VendorProfileUpdating());
     try {
@@ -152,12 +179,27 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
         data: {
           'store_name': storeName,
           'phone': phone,
-          'address': {'street_1': address},
+          'address': {
+            'street_1': street,
+            if (city != null) 'city': city,
+            if (state != null) 'state': state,
+          },
+          if (biography != null) 'vendor_biography': biography,
+          if (location != null) 'location': location,
+          'social': {
+            if (facebook != null) 'fb': facebook,
+            if (instagram != null) 'instagram': instagram,
+            if (twitter != null) 'twitter': twitter,
+            if (youtube != null) 'youtube': youtube,
+          },
+          if (gravatarId != null) 'gravatar_id': gravatarId,
+          if (bannerId != null) 'banner_id': bannerId,
         },
         // Ensure we send auth token
         options: Options(headers: {'requiresToken': true}),
       );
 
+      if (isClosed) return;
       if (response.statusCode == 200) {
         emit(const VendorProfileUpdateSuccess('تم تحديث الملف الشخصي بنجاح'));
         // Reload profile to show changes
@@ -166,7 +208,74 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
         emit(const VendorProfileError('فشل تحديث المعلومات'));
       }
     } catch (e) {
+      if (isClosed) return;
       emit(VendorProfileError(e.toString()));
+    }
+  }
+
+  /// Submit a review for the store
+  Future<void> submitStoreReview({
+    required int vendorId,
+    required int rating,
+    required String comment,
+  }) async {
+    final currentState = state;
+    if (currentState is! VendorProfileLoaded) return;
+
+    emit(const VendorProfileUpdating());
+    try {
+      final response = await _dio.post(
+        '${AppConfig.dokanStoreEndpoint}/$vendorId/reviews',
+        data: {
+          'rating': rating,
+          'title': comment.length > 30 ? comment.substring(0, 30) : comment,
+          'content': comment,
+        },
+        options: Options(headers: {'requiresToken': true}),
+      );
+
+      if (isClosed) return;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Optimistically update the UI with the new review from response
+        ReviewModel? optimisticReview;
+        try {
+          optimisticReview = ReviewModel.fromJson(response.data);
+          final updatedReviews = [optimisticReview, ...currentState.reviews];
+          emit(currentState.copyWith(reviews: updatedReviews));
+        } catch (e) {
+          // Silent catch for parse error
+        }
+
+        emit(const VendorProfileUpdateSuccess('تم إضافة تقييمك بنجاح'));
+
+        // Refresh profile silently (background)
+        await loadVendorProfile(vendorId, showLoading: false);
+
+        // After refresh, check if the server still returned stale reviews.
+        // If so, re-insert our optimistic review to keep it visible.
+        if (isClosed) return;
+        final newState = state;
+        if (optimisticReview != null && newState is VendorProfileLoaded) {
+          final isStillMissing = !newState.reviews.any(
+            (r) => r.id == optimisticReview!.id,
+          );
+          if (isStillMissing) {
+            emit(
+              newState.copyWith(
+                reviews: [optimisticReview, ...newState.reviews],
+              ),
+            );
+          }
+        }
+      } else {
+        emit(const VendorProfileError('فشل في إضافة التقييم'));
+        // Stay on loaded state if error
+        emit(currentState);
+      }
+    } catch (e) {
+      if (isClosed) return;
+      emit(VendorProfileError(e.toString()));
+      emit(currentState);
     }
   }
 
@@ -253,6 +362,104 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
     }
 
     throw Exception('فشل في تحميل منتجات البائع');
+  }
+
+  /// Fetch store reviews from Dokan API
+  /// Fetch store reviews from Dokan API (Clean & Simple)
+  Future<List<ReviewModel>> _fetchStoreReviews(int vendorId) async {
+    try {
+      // Construct an ABSOLUTE URL for the fresh Dio instance
+      final baseUrl = AppConfig.dokanStoreEndpoint.contains('http')
+          ? ''
+          : 'https://hiraajsahm.com/wp-json';
+      final absoluteUrl =
+          '$baseUrl${AppConfig.dokanStoreEndpoint}/$vendorId/reviews';
+
+      // 1. Setup a browser-mimic Dio
+      final probeDio = Dio(
+        BaseOptions(
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        ),
+      );
+
+      // 2. Concurrently probe
+      final results = await Future.wait([
+        // Path A: The raw browser URL
+        probeDio.get('$absoluteUrl?v=${DateTime.now().millisecondsSinceEpoch}'),
+
+        // Path B: Exhaustive status
+        probeDio.get(
+          absoluteUrl,
+          queryParameters: {
+            'status': 'any,all,approved,pending,hold,unapproved',
+            'per_page': 100,
+            '_': DateTime.now().millisecondsSinceEpoch + 1,
+          },
+        ),
+
+        // Path C: User's Path (Keys + Any)
+        probeDio.get(
+          absoluteUrl,
+          queryParameters: {
+            'status': 'any',
+            'consumer_key': AppConfig.wcConsumerKey,
+            'consumer_secret': AppConfig.wcConsumerSecret,
+            '_': DateTime.now().millisecondsSinceEpoch + 2,
+          },
+        ),
+      ]);
+
+      final Map<int, ReviewModel> mergedReviews = {};
+
+      for (var i = 0; i < results.length; i++) {
+        final response = results[i];
+        if (response.statusCode == 200 && response.data is List) {
+          final List<dynamic> data = response.data;
+          for (final json in data) {
+            try {
+              final review = ReviewModel.fromJson(json);
+              mergedReviews[review.id] = review;
+            } catch (e) {
+              // Ignore parse errors for specific items
+            }
+          }
+        }
+      }
+
+      final sortedReviews = mergedReviews.values.toList()
+        ..sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
+
+      return sortedReviews;
+    } catch (e) {
+      print('❌ Aggressive probe fatal error: $e');
+      return [];
+    }
+  }
+
+  /// Upload media to WordPress Media Library
+  Future<int?> uploadMedia(String filePath) async {
+    try {
+      final fileName = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        '/wp/v2/media', // WordPress Media Endpoint
+        data: formData,
+        options: Options(headers: {'requiresToken': true}),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return response.data['id'] as int?;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 }
 

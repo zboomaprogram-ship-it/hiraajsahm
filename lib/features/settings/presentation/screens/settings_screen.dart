@@ -19,21 +19,15 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back_ios_rounded,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
-          ),
-        ),
         title: Text(
           'الإعدادات',
           style: TextStyle(
             fontSize: 22.sp,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            color: Colors.white,
           ),
         ),
         centerTitle: true,
@@ -55,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
               child: _buildSettingsCard([
                 _buildThemeToggle(context, isDark),
                 _buildDivider(),
-                _buildLanguageOption(context, isDark),
+                // _buildLanguageOption(context, isDark),
               ], isDark),
             ),
             SizedBox(height: 24.h),
@@ -87,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => _openWebView(
                     context,
                     'سياسة الخصوصية',
-                    'https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%a7%d8%b3%d8%aa%d8%ae%d8%af%d8%a7%d9%85/',
+                    'https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%ae%d8%b5%d9%88%d8%b5%d9%8a%d8%a9/',
                   ),
                 ),
                 _buildDivider(),
@@ -99,7 +93,7 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => _openWebView(
                     context,
                     'الشروط والأحكام',
-                    'https://hiraajsahm.com/terms',
+                    'https://hiraajsahm.com/%d8%a7%d9%84%d8%ae%d8%af%d9%85%d8%a7%d8%aa-%d9%88%d8%b4%d8%b1%d9%88%d8%b7%d9%87%d8%a7-2/',
                   ),
                 ),
               ], isDark),

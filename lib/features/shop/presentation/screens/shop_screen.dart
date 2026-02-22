@@ -106,7 +106,7 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(bool isDark) {
-    String title = 'السوق الإلكتروني'; // Changed
+    String title = 'السوق'; // Changed
     if (widget.initialCategoryName != null) {
       title = widget.initialCategoryName!;
     } else if (widget.initialSearch != null &&
@@ -189,7 +189,7 @@ class _ShopScreenState extends State<ShopScreen> {
         controller: _searchController,
         onChanged: _onSearch,
         decoration: InputDecoration(
-          hintText: 'ابحث عن منتج...',
+          hintText: 'ابحث عن اعلان...',
           hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14.sp),
           prefixIcon: Icon(
             Icons.search_rounded,
@@ -417,7 +417,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   ),
                   SizedBox(height: 16.h),
                   Text(
-                    'لا توجد منتجات',
+                    'لا توجد اعلانات',
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.w600,
@@ -695,7 +695,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                   context.read<CartCubit>().addItem(product);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('تمت الإضافة إلى السلة'),
+                                      content: Text('تمت الإضافة إلى طلباتي'),
                                       backgroundColor: AppColors.success,
                                       behavior: SnackBarBehavior.floating,
                                       duration: const Duration(seconds: 2),

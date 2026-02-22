@@ -78,51 +78,55 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
               ),
             ],
           ),
-          child: CurvedNavigationBar(
-            key: _bottomNavKey,
-            index: _currentIndex,
-            height: 70,
-            items: [
-              Image.asset(
-                'assets/icons/home.png',
-                width: 26.w,
-                height: 26.w,
-                color: _currentIndex == 0
-                    ? Colors.white
-                    : const Color(0xFF1B4965),
-              ),
-              Image.asset(
-                'assets/icons/store.png',
-                width: 26.w,
-                height: 26.w,
-                color: _currentIndex == 1
-                    ? Colors.white
-                    : const Color(0xFF1B4965),
-              ),
-              Image.asset(
-                'assets/icons/contract.png',
-                width: 26.w,
-                height: 26.w,
-                color: _currentIndex == 2
-                    ? Colors.white
-                    : const Color(0xFF1B4965),
-              ),
+          child: SafeArea(
+            // Added SafeArea to avoid clipping
+            top: false,
+            child: CurvedNavigationBar(
+              key: _bottomNavKey,
+              index: _currentIndex,
+              height: 70,
+              items: [
+                Image.asset(
+                  'assets/icons/home.png',
+                  width: 26.w,
+                  height: 26.w,
+                  color: _currentIndex == 0
+                      ? Colors.white
+                      : const Color(0xFF1B4965),
+                ),
+                Image.asset(
+                  'assets/icons/store.png',
+                  width: 26.w,
+                  height: 26.w,
+                  color: _currentIndex == 1
+                      ? Colors.white
+                      : const Color(0xFF1B4965),
+                ),
+                Image.asset(
+                  'assets/icons/contract.png',
+                  width: 26.w,
+                  height: 26.w,
+                  color: _currentIndex == 2
+                      ? Colors.white
+                      : const Color(0xFF1B4965),
+                ),
 
-              Image.asset(
-                'assets/icons/user.png',
-                width: 26.w,
-                height: 26.w,
-                color: _currentIndex == 3
-                    ? Colors.white
-                    : const Color(0xFF1B4965),
-              ),
-            ],
-            color: isDark ? AppColors.surfaceDark : Colors.white,
-            buttonBackgroundColor: const Color(0xFF1B4965),
-            backgroundColor: Colors.transparent,
-            animationCurve: Curves.easeInOut,
-            animationDuration: const Duration(milliseconds: 300),
-            onTap: _onTabTapped,
+                Image.asset(
+                  'assets/icons/user.png',
+                  width: 26.w,
+                  height: 26.w,
+                  color: _currentIndex == 3
+                      ? Colors.white
+                      : const Color(0xFF1B4965),
+                ),
+              ],
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              buttonBackgroundColor: const Color(0xFF1B4965),
+              backgroundColor: Colors.transparent,
+              animationCurve: Curves.easeInOut,
+              animationDuration: const Duration(milliseconds: 300),
+              onTap: _onTabTapped,
+            ),
           ),
         ),
       ),
@@ -140,11 +144,11 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
           borderRadius: BorderRadius.circular(16.r),
         ),
         title: Text(
-          'استبدال المنتج',
+          'استبدال اعلان',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18.sp),
         ),
         content: Text(
-          'سلتك تحتوي على منتج آخر. هل تريد استبداله بـ "${state.pendingProduct.name}"؟',
+          'طلباتك تحتوي على اعلان آخر. هل تريد استبداله بـ "${state.pendingProduct.name}"؟',
           style: TextStyle(fontSize: 14.sp),
         ),
         actions: [
@@ -164,7 +168,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
               context.read<CartCubit>().confirmReplace();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم استبدال المنتج في السلة'),
+                  content: Text('تم استبدال اعلان في طلباتي'),
                   backgroundColor: AppColors.success,
                   behavior: SnackBarBehavior.floating,
                 ),

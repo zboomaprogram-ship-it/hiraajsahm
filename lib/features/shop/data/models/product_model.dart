@@ -34,11 +34,16 @@ class ProductModel extends Equatable {
   final String? vendorPhone; // Added
   final String vendorTier; // 'bronze', 'silver', 'gold'
   final String? vendorAddress;
+  final String? vendorLocation; // Added
   final String? productLocation;
+  final bool isVendorVerified;
+  final double? vendorRating; // Added
+  final int vendorRatingCount; // Added
 
   final bool featured;
   final bool isLocked;
   final String? videoUrl;
+  final String? qrCodeUrl;
   final DateTime? dateCreated;
 
   const ProductModel({
@@ -74,10 +79,15 @@ class ProductModel extends Equatable {
     this.vendorPhone,
     this.vendorTier = 'bronze',
     this.vendorAddress,
+    this.vendorLocation,
     this.productLocation,
+    this.isVendorVerified = false,
+    this.vendorRating,
+    this.vendorRatingCount = 0,
     this.featured = false,
     this.isLocked = false,
     this.videoUrl,
+    this.qrCodeUrl,
     this.dateCreated,
   });
 
@@ -110,20 +120,103 @@ class ProductModel extends Equatable {
       averageRating: _parseDouble(json['average_rating']),
       ratingCount: _parseInt(json['rating_count']),
       vendorId: json['store']?['id'],
-      vendorName: json['store']?['name'],
+      vendorName:
+          json['store']?['store_name'] ??
+          json['store']?['shop_name'] ??
+          'المتجر',
       vendorAvatar: json['store']?['gravatar'] ?? json['store']?['shop_url'],
       vendorPhone: json['store']?['phone'],
-      vendorTier: json['store']?['vendor_tier'] ?? 'bronze',
+      vendorTier: _parseVendorTier(json['store']),
+      isVendorVerified:
+          json['store']?['is_verified'] == true ||
+          json['store']?['is_verified'] == 'true',
       vendorAddress: _parseVendorAddress(json['store']),
+      vendorLocation: _parseVendorLocation(json['store']),
       productLocation: _parseProductLocation(json['meta_data']),
+      vendorRating: _parseDouble(json['store']?['rating']?['rating']),
+      vendorRatingCount: _parseInt(json['store']?['rating']?['count']),
       featured: json['featured'] ?? false,
       isLocked: _parseIsLocked(json['meta_data']),
       videoUrl: _parseVideoUrl(json['meta_data']),
-
+      qrCodeUrl: json['qr_code_url'],
       dateCreated: json['date_created'] != null
           ? DateTime.tryParse(json['date_created'])
           : null,
     );
+  }
+
+  static String _parseVendorTier(dynamic store) {
+    if (store == null || store is! Map) return 'bronze';
+
+    // Helper to check ID
+    String checkId(String? id) {
+      if (id == null) return '';
+      final cleanId = id.trim();
+      if (cleanId == '29030') return 'gold';
+      if (cleanId == '29028') return 'silver';
+      if (cleanId == '29026') return 'bronze';
+      return '';
+    }
+
+    // 1. Check direct 'vendor_tier' field
+    if (store['vendor_tier'] != null) {
+      final res = checkId(store['vendor_tier'].toString());
+      if (res.isNotEmpty) return res;
+      final val = store['vendor_tier'].toString().toLowerCase();
+      if (val == 'gold' || val == 'silver' || val == 'bronze') return val;
+    }
+
+    // 2. Check 'current_subscription' object
+    final sub = store['current_subscription'];
+    if (sub != null && sub is Map) {
+      final res = checkId(sub['name']?.toString());
+      if (res.isNotEmpty) return res;
+
+      // Check Label
+      final label = sub['label']?.toString();
+      if (label != null) {
+        if (label.contains('Gold') || label.contains('ذهبية')) return 'gold';
+        if (label.contains('Silver') || label.contains('فضية')) return 'silver';
+        if (label.contains('Bronze') || label.contains('برونزية'))
+          return 'bronze';
+      }
+    }
+
+    // 3. Check 'assigned_subscription' (Direct Value)
+    if (store['assigned_subscription'] != null) {
+      if (store['assigned_subscription'] is! Map) {
+        final res = checkId(store['assigned_subscription'].toString());
+        if (res.isNotEmpty) return res;
+      }
+    }
+
+    // 4. Check 'assigned_subscription_info'
+    final info = store['assigned_subscription_info'];
+    if (info != null && info is Map) {
+      final res = checkId(info['subscription_id']?.toString());
+      if (res.isNotEmpty) return res;
+    }
+
+    return 'bronze';
+  }
+
+  static String? _parseVendorLocation(dynamic store) {
+    if (store == null || store is! Map) return null;
+    final location = store['location'];
+    if (location == null) return null;
+
+    if (location is String) return location.isNotEmpty ? location : null;
+
+    if (location is Map) {
+      final lat = location['lat'] ?? location['latitude'];
+      final lng = location['lng'] ?? location['longitude'];
+
+      if (lat != null && lng != null) {
+        return '$lat,$lng';
+      }
+    }
+
+    return location.toString();
   }
 
   static String? _parseProductLocation(dynamic metaData) {
@@ -208,6 +301,96 @@ class ProductModel extends Equatable {
     };
   }
 
+  ProductModel copyWith({
+    int? id,
+    String? name,
+    String? slug,
+    String? permalink,
+    String? type,
+    String? status,
+    String? description,
+    String? shortDescription,
+    String? sku,
+    String? price,
+    String? regularPrice,
+    String? salePrice,
+    bool? onSale,
+    bool? purchasable,
+    int? totalSales,
+    bool? virtual,
+    bool? downloadable,
+    String? taxStatus,
+    String? stockStatus,
+    int? stockQuantity,
+    bool? manageStock,
+    List<String>? images,
+    List<CategoryRef>? categories,
+    List<AttributeRef>? attributes,
+    double? averageRating,
+    int? ratingCount,
+    int? vendorId,
+    String? vendorName,
+    String? vendorAvatar,
+    String? vendorPhone,
+    String? vendorTier,
+    String? vendorAddress,
+    String? vendorLocation,
+    String? productLocation,
+    bool? isVendorVerified,
+    double? vendorRating,
+    int? vendorRatingCount,
+    bool? featured,
+    bool? isLocked,
+    String? videoUrl,
+    String? qrCodeUrl,
+    DateTime? dateCreated,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      slug: slug ?? this.slug,
+      permalink: permalink ?? this.permalink,
+      type: type ?? this.type,
+      status: status ?? this.status,
+      description: description ?? this.description,
+      shortDescription: shortDescription ?? this.shortDescription,
+      sku: sku ?? this.sku,
+      price: price ?? this.price,
+      regularPrice: regularPrice ?? this.regularPrice,
+      salePrice: salePrice ?? this.salePrice,
+      onSale: onSale ?? this.onSale,
+      purchasable: purchasable ?? this.purchasable,
+      totalSales: totalSales ?? this.totalSales,
+      virtual: virtual ?? this.virtual,
+      downloadable: downloadable ?? this.downloadable,
+      taxStatus: taxStatus ?? this.taxStatus,
+      stockStatus: stockStatus ?? this.stockStatus,
+      stockQuantity: stockQuantity ?? this.stockQuantity,
+      manageStock: manageStock ?? this.manageStock,
+      images: images ?? this.images,
+      categories: categories ?? this.categories,
+      attributes: attributes ?? this.attributes,
+      averageRating: averageRating ?? this.averageRating,
+      ratingCount: ratingCount ?? this.ratingCount,
+      vendorId: vendorId ?? this.vendorId,
+      vendorName: vendorName ?? this.vendorName,
+      vendorAvatar: vendorAvatar ?? this.vendorAvatar,
+      vendorPhone: vendorPhone ?? this.vendorPhone,
+      vendorTier: vendorTier ?? this.vendorTier,
+      vendorAddress: vendorAddress ?? this.vendorAddress,
+      vendorLocation: vendorLocation ?? this.vendorLocation,
+      productLocation: productLocation ?? this.productLocation,
+      isVendorVerified: isVendorVerified ?? this.isVendorVerified,
+      vendorRating: vendorRating ?? this.vendorRating,
+      vendorRatingCount: vendorRatingCount ?? this.vendorRatingCount,
+      featured: featured ?? this.featured,
+      isLocked: isLocked ?? this.isLocked,
+      videoUrl: videoUrl ?? this.videoUrl,
+      qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
+      dateCreated: dateCreated ?? this.dateCreated,
+    );
+  }
+
   static List<String> _parseImages(dynamic images) {
     if (images == null) return [];
     if (images is! List) return [];
@@ -271,7 +454,16 @@ class ProductModel extends Equatable {
   double get depositAmount => priceAsDouble * depositPercentage;
 
   @override
-  List<Object?> get props => [id, name, price];
+  List<Object?> get props => [
+    id,
+    name,
+    price,
+    isVendorVerified,
+    vendorTier,
+    vendorRating,
+    vendorRating,
+    vendorRatingCount,
+  ];
 }
 
 /// Category Reference

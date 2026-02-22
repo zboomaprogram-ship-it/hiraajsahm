@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async'; // Added for Timer
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -22,6 +23,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String _address = 'جاري تحديد الموقع...';
   String? _city;
   String? _region;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _mapController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -140,14 +149,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               _currentPosition = position.target;
             },
             onCameraIdle: () {
-              _getAddressFromLatLng(_currentPosition);
+              // Debounce address lookup
+              if (_debounce != null && _debounce!.isActive) _debounce!.cancel();
+              _debounce = Timer(const Duration(milliseconds: 800), () {
+                _getAddressFromLatLng(_currentPosition);
+              });
             },
-            markers: {
-              Marker(
-                markerId: const MarkerId('selected'),
-                position: _currentPosition,
-              ),
-            },
+            // Markers removed as we use the center icon
+            markers: {},
+            mapType: MapType.normal,
           ),
 
           // Center Marker Indicator (Fixed in center)

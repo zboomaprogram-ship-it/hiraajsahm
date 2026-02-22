@@ -72,6 +72,7 @@ class AuthInterceptor extends Interceptor {
         path.contains('/wc/v3/') ||
         path.contains('/wp/v2/users') ||
         path.contains('/wp/v2/media') ||
+        path.contains('/fluentform/v1/') ||
         path.contains('/jwt-auth/v1/token/validate');
 
     if (needsAuth) {

@@ -154,7 +154,7 @@ class VendorSettingsTab extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.person_outline_rounded,
-            title: 'عرض المتجر',
+            title: 'عرض السوق',
             onTap: () {
               // Get current user ID from AuthCubit
               final state = context.read<AuthCubit>().state;

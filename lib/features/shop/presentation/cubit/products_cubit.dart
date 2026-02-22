@@ -237,6 +237,28 @@ class ProductsCubit extends Cubit<ProductsState> {
     await loadProducts(categoryId: categoryId);
   }
 
+  /// Get a single product by ID (for deep linking)
+  Future<ProductModel?> getProductById(int productId) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'consumer_key': AppConfig.wcConsumerKey,
+        'consumer_secret': AppConfig.wcConsumerSecret,
+      };
+
+      final response = await _cleanDio.get(
+        'https://hiraajsahm.com/wp-json/wc/v3/products/$productId',
+        queryParameters: queryParams,
+      );
+
+      if (response.statusCode == 200) {
+        return ProductModel.fromJson(response.data);
+      }
+    } catch (e) {
+      print('❌ Error fetching product by ID: $e');
+    }
+    return null;
+  }
+
   /// Clear filters
   Future<void> clearFilters() async {
     await loadProducts();

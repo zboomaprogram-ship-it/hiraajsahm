@@ -9,12 +9,12 @@ class CartItem extends Equatable {
   final bool isDeposit;
   final double depositPercentage;
 
-  const CartItem({
+  CartItem({
     required this.product,
     this.quantity = 1,
     this.isDeposit = false,
-    this.depositPercentage = 0.10,
-  });
+    double? depositPercentage,
+  }) : depositPercentage = depositPercentage ?? product.depositPercentage;
 
   CartItem copyWith({
     int? quantity,
@@ -86,11 +86,13 @@ class CartReplaceConfirmation extends CartState {
   final ProductModel pendingProduct;
   final int pendingQuantity;
   final bool pendingIsDeposit;
+  final double pendingDepositPercentage;
 
   const CartReplaceConfirmation({
     required this.pendingProduct,
     this.pendingQuantity = 1,
     this.pendingIsDeposit = false,
+    required this.pendingDepositPercentage,
   });
 
   @override
@@ -98,6 +100,7 @@ class CartReplaceConfirmation extends CartState {
     pendingProduct.id,
     pendingQuantity,
     pendingIsDeposit,
+    pendingDepositPercentage,
   ];
 }
 
@@ -113,6 +116,7 @@ class CartCubit extends Cubit<CartState> {
     ProductModel product, {
     int quantity = 1,
     bool isDeposit = false,
+    double? depositPercentage,
   }) {
     final currentState = state;
 
@@ -137,6 +141,7 @@ class CartCubit extends Cubit<CartState> {
           updatedItems[existingIndex] = existingItem.copyWith(
             quantity: existingItem.quantity + quantity,
             isDeposit: isDeposit,
+            depositPercentage: depositPercentage ?? product.depositPercentage,
           );
           emit(CartLoaded(items: updatedItems));
         } else {
@@ -146,6 +151,8 @@ class CartCubit extends Cubit<CartState> {
               pendingProduct: product,
               pendingQuantity: quantity,
               pendingIsDeposit: isDeposit,
+              pendingDepositPercentage:
+                  depositPercentage ?? product.depositPercentage,
             ),
           );
         }
@@ -160,6 +167,7 @@ class CartCubit extends Cubit<CartState> {
               product: product,
               quantity: quantity,
               isDeposit: isDeposit,
+              depositPercentage: depositPercentage ?? product.depositPercentage,
             ),
           ],
         ),
@@ -178,6 +186,7 @@ class CartCubit extends Cubit<CartState> {
               product: currentState.pendingProduct,
               quantity: currentState.pendingQuantity,
               isDeposit: currentState.pendingIsDeposit,
+              depositPercentage: currentState.pendingDepositPercentage,
             ),
           ],
         ),
@@ -229,8 +238,8 @@ class CartCubit extends Cubit<CartState> {
     if (currentState is CartLoaded) {
       final item = currentState.items.firstWhere(
         (item) => item.product.id == productId,
-        orElse: () => const CartItem(
-          product: ProductModel(id: 0, name: '', price: '0'),
+        orElse: () => CartItem(
+          product: const ProductModel(id: 0, name: '', price: '0'),
         ),
       );
       if (item.product.id != 0) {
@@ -245,8 +254,8 @@ class CartCubit extends Cubit<CartState> {
     if (currentState is CartLoaded) {
       final item = currentState.items.firstWhere(
         (item) => item.product.id == productId,
-        orElse: () => const CartItem(
-          product: ProductModel(id: 0, name: '', price: '0'),
+        orElse: () => CartItem(
+          product: const ProductModel(id: 0, name: '', price: '0'),
         ),
       );
       if (item.product.id != 0) {
@@ -275,8 +284,8 @@ class CartCubit extends Cubit<CartState> {
     if (currentState is CartLoaded) {
       final item = currentState.items.firstWhere(
         (item) => item.product.id == productId,
-        orElse: () => const CartItem(
-          product: ProductModel(id: 0, name: '', price: '0'),
+        orElse: () => CartItem(
+          product: const ProductModel(id: 0, name: '', price: '0'),
           quantity: 0,
         ),
       );

@@ -70,7 +70,6 @@ class CategoriesCubit extends Cubit<CategoriesState> {
         queryParameters: {
           'per_page': 100,
           'hide_empty': false, // CRITICAL: Show all categories even if empty
-          'parent': 0, // Only top-level categories
           'consumer_key': AppConfig.wcConsumerKey,
           'consumer_secret': AppConfig.wcConsumerSecret,
         },

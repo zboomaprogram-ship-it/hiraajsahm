@@ -34,19 +34,19 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
         ),
         titleTextStyle: AppTypography.h3.copyWith(
-          color: AppColors.textPrimary,
+          color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 24),
+        iconTheme: const IconThemeData(color: Colors.white, size: 24),
       ),
 
       // Text Theme
@@ -144,7 +144,7 @@ class AppTheme {
           elevation: 2,
           shadowColor: AppColors.primary.withValues(alpha: 0.3),
           padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-          minimumSize: Size(double.infinity, 52.h),
+          minimumSize: Size(double.infinity, 60.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),
@@ -158,7 +158,7 @@ class AppTheme {
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.primary, width: 1.5),
           padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-          minimumSize: Size(double.infinity, 52.h),
+          minimumSize: Size(double.infinity, 60.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),
@@ -410,8 +410,8 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        backgroundColor: AppColors.backgroundDark,
-        foregroundColor: AppColors.textLight,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -419,10 +419,10 @@ class AppTheme {
           statusBarBrightness: Brightness.dark,
         ),
         titleTextStyle: AppTypography.h3.copyWith(
-          color: AppColors.textLight,
+          color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textLight, size: 24),
+        iconTheme: const IconThemeData(color: Colors.white, size: 24),
       ),
 
       // Text Theme
@@ -518,7 +518,7 @@ class AppTheme {
           elevation: 4,
           shadowColor: AppColors.primary.withValues(alpha: 0.5),
           padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-          minimumSize: Size(double.infinity, 52.h),
+          minimumSize: Size(double.infinity, 60.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),
@@ -532,7 +532,7 @@ class AppTheme {
           foregroundColor: AppColors.secondary,
           side: const BorderSide(color: AppColors.secondary, width: 1.5),
           padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-          minimumSize: Size(double.infinity, 52.h),
+          minimumSize: Size(double.infinity, 60.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),

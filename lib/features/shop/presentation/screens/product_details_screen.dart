@@ -9,13 +9,17 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/di/injection_container.dart' as di;
-import '../../../../core/services/storage_service.dart';
 import '../../data/models/product_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../presentation/cubit/product_details_cubit.dart';
 import '../../presentation/cubit/qna_cubit.dart';
 import '../../../../core/widgets/custom_text_field.dart';
+import '../widgets/product_qr_card.dart';
+import '../widgets/service_providers_slider.dart';
+import '../cubit/service_providers_cubit.dart';
+import '../../../../core/widgets/mini_map_preview.dart';
+import '../../../../features/vendor/presentation/cubit/vendor_profile_cubit.dart';
 
 /// Product Details Screen
 /// Full product view with image slider, info, and action buttons
@@ -82,6 +86,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           create: (context) =>
               di.sl<QnACubit>()..fetchProductQuestions(product.id),
         ),
+        BlocProvider(
+          create: (context) {
+            final cubit = di.sl<VendorProfileCubit>();
+            // Enable showLoading: true to show a loader while fetching correct tier/details
+            if (product.vendorId != null) {
+              cubit.loadVendorProfile(product.vendorId!, showLoading: true);
+            }
+            return cubit;
+          },
+        ),
       ],
       child: BlocListener<CartCubit, CartState>(
         listener: (context, state) {
@@ -89,127 +103,214 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             _showReplaceCartDialog(context);
           }
         },
-        child: Scaffold(
-          backgroundColor: isDark
-              ? AppColors.backgroundDark
-              : AppColors.background,
-          body: CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-                leading: _buildBackButton(context),
-                title: Text(
-                  product.name,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black,
-                    fontSize: 16.sp,
-                  ),
-                ),
-                actions: [
-                  _buildActionButton(Icons.share_outlined, () {}),
-                  SizedBox(width: 16.w),
-                ],
-              ),
-              SliverToBoxAdapter(
-                child: FadeInUp(
-                  delay: const Duration(milliseconds: 100),
-                  duration: const Duration(milliseconds: 400),
-                  child: SizedBox(
-                    height: 300.h,
-                    child: _buildImageSlider(product),
-                  ),
-                ),
-              ),
+        child: Builder(
+          builder: (context) => Scaffold(
+            backgroundColor: isDark
+                ? AppColors.backgroundDark
+                : AppColors.background,
+            body: BlocBuilder<VendorProfileCubit, VendorProfileState>(
+              builder: (context, state) {
+                if (state is VendorProfileLoading ||
+                    state is VendorProfileInitial) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  );
+                }
 
-              // 1. Text Details (Info & Description)
-              SliverToBoxAdapter(
-                child: FadeInUp(
-                  duration: const Duration(milliseconds: 300),
-                  child: Column(
-                    children: [
-                      _buildProductInfo(context, product, isDark),
-                      _buildDescription(product, isDark),
-                    ],
-                  ),
-                ),
-              ),
+                if (state is VendorProfileError) {
+                  return Center(child: Text(state.message));
+                }
 
-              // Video Player (if available)
-              if (product.videoUrl != null && product.videoUrl!.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: FadeInUp(
-                    delay: const Duration(milliseconds: 150),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildVideoPlayer(isDark),
-                  ),
-                ),
-
-              // 2. Images Slider
-
-              // // 3. Contact Actions (Call/Message)
-              // SliverToBoxAdapter(
-              //   child: FadeInUp(
-              //     delay: const Duration(milliseconds: 150),
-              //     duration: const Duration(milliseconds: 400),
-              //     child: _buildContactButtons(context, product),
-              //   ),
-              // ),
-
-              // 4. Vendor Info
-              if (product.vendorName != null)
-                SliverToBoxAdapter(
-                  child: FadeInUp(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 400),
-                    child: Column(
-                      children: [
-                        _buildVendorCard(product, isDark),
-                        SizedBox(height: 20.h),
-                        _buildReviewsSection(context, isDark),
+                return CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverAppBar(
+                      pinned: true,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      leading: _buildBackButton(context),
+                      title: Text(
+                        product.name,
+                        style: TextStyle(color: Colors.white, fontSize: 16.sp),
+                      ),
+                      actions: [
+                        _buildActionButton(Icons.share_outlined, () {}),
+                        SizedBox(width: 16.w),
                       ],
                     ),
-                  ),
-                ),
-              if (product.vendorName == null)
-                SliverToBoxAdapter(
-                  child: FadeInUp(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 400),
-                    child: _buildReviewsSection(context, isDark),
-                  ),
-                ),
+                    SliverToBoxAdapter(
+                      child: FadeInUp(
+                        delay: const Duration(milliseconds: 100),
+                        duration: const Duration(milliseconds: 400),
+                        child: SizedBox(
+                          height: 300.h,
+                          child: _buildImageSlider(product),
+                        ),
+                      ),
+                    ),
 
-              // 5. Q&A Section (New)
-              SliverToBoxAdapter(
-                child: FadeInUp(
-                  delay: const Duration(milliseconds: 250),
-                  duration: const Duration(milliseconds: 400),
-                  child: _buildQnASection(context, isDark),
-                ),
-              ),
+                    // 1. Text Details (Info & Description)
+                    SliverToBoxAdapter(
+                      child: FadeInUp(
+                        duration: const Duration(milliseconds: 300),
+                        child: Column(
+                          children: [
+                            _buildProductInfo(context, product, isDark),
+                            _buildDescription(product, isDark),
+                          ],
+                        ),
+                      ),
+                    ),
 
-              // 5. Service Providers (Inspection & Delivery)
-              // SliverToBoxAdapter(
-              //   child: FadeInUp(
-              //     delay: const Duration(milliseconds: 250),
-              //     duration: const Duration(milliseconds: 400),
-              //     child: _buildServiceProvidersSection(context),
-              //   ),
-              // ),
+                    // Video Player (if available)
+                    if (product.videoUrl != null &&
+                        product.videoUrl!.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: FadeInUp(
+                          delay: const Duration(milliseconds: 150),
+                          duration: const Duration(milliseconds: 300),
+                          child: _buildVideoPlayer(isDark),
+                        ),
+                      ),
 
-              // Bottom Spacing
-              SliverToBoxAdapter(child: SizedBox(height: 100.h)),
-            ],
+                    // 2. Images Slider
+
+                    // // 3. Contact Actions (Call/Message)
+                    // SliverToBoxAdapter(
+                    //   child: FadeInUp(
+                    //     delay: const Duration(milliseconds: 150),
+                    //     duration: const Duration(milliseconds: 400),
+                    //     child: _buildContactButtons(context, product),
+                    //   ),
+                    // ),
+
+                    // 4. Vendor Info
+                    if (product.vendorName != null)
+                      SliverToBoxAdapter(
+                        child: FadeInUp(
+                          delay: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 400),
+                          child: Column(
+                            children: [
+                              BlocBuilder<
+                                VendorProfileCubit,
+                                VendorProfileState
+                              >(
+                                builder: (context, state) {
+                                  ProductModel displayProduct = product;
+                                  if (state is VendorProfileLoaded &&
+                                      state.store.id == product.vendorId) {
+                                    // Merge fresh store data into product
+                                    displayProduct = product.copyWith(
+                                      vendorTier: state.store.vendorTier,
+                                      vendorName: state.store.displayName,
+                                      vendorAvatar: state.store.gravatar,
+                                      isVendorVerified: state.store.isVerified,
+                                      vendorRating: state.store.rating,
+                                      vendorRatingCount:
+                                          state.store.ratingCount,
+                                      vendorAddress:
+                                          state.store.address?.fullAddress,
+                                      vendorLocation: state.store.location,
+                                    );
+                                  }
+                                  return _buildVendorCard(
+                                    displayProduct,
+                                    isDark,
+                                  );
+                                },
+                              ),
+                              SizedBox(height: 12.h),
+                              BlocBuilder<
+                                VendorProfileCubit,
+                                VendorProfileState
+                              >(
+                                builder: (context, vendorState) {
+                                  String? location =
+                                      product.vendorLocation ??
+                                      product.productLocation;
+
+                                  if (location == null || location.isEmpty) {
+                                    if (vendorState is VendorProfileLoaded) {
+                                      location = vendorState.store.location;
+                                    }
+                                  }
+
+                                  if (location != null && location.isNotEmpty) {
+                                    return Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 20.w,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          MiniMapPreview(
+                                            latLong: location,
+                                            isDark: isDark,
+                                            label: 'موقع السوق',
+                                            height: 180,
+                                          ),
+                                          SizedBox(height: 12.h),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                              ProductQRCard(product: product),
+                              SizedBox(height: 20.h),
+                              _buildReviewsSection(context, isDark),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (product.vendorName == null)
+                      SliverToBoxAdapter(
+                        child: FadeInUp(
+                          delay: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 400),
+                          child: _buildReviewsSection(context, isDark),
+                        ),
+                      ),
+
+                    // 5. Q&A Section (New)
+                    SliverToBoxAdapter(
+                      child: FadeInUp(
+                        delay: const Duration(milliseconds: 250),
+                        duration: const Duration(milliseconds: 400),
+                        child: _buildQnASection(context, isDark),
+                      ),
+                    ),
+
+                    // 5. Service Providers (Inspection & Delivery)
+                    SliverToBoxAdapter(
+                      child: FadeInUp(
+                        delay: const Duration(milliseconds: 250),
+                        duration: const Duration(milliseconds: 400),
+                        child: _buildServiceProvidersSection(context, isDark),
+                      ),
+                    ),
+
+                    // Bottom Spacing
+                    SliverToBoxAdapter(child: SizedBox(height: 100.h)),
+                  ],
+                );
+              },
+            ),
+            bottomNavigationBar: _buildBottomNavBar(context, isDark),
           ),
-          bottomNavigationBar: _buildBottomNavBar(context, isDark),
         ),
       ),
     );
   }
 
   Widget _buildBottomNavBar(BuildContext context, bool isDark) {
+    final vendorState = context.watch<VendorProfileCubit>().state;
+    if (vendorState is VendorProfileLoading ||
+        vendorState is VendorProfileInitial) {
+      return const SizedBox.shrink();
+    }
+
     // 1. Check if product is locked (sold)
     // 1. Check if product is locked (Under Review)
     if (widget.product.isLocked) {
@@ -230,7 +331,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             ),
             SizedBox(width: 12.w),
             Text(
-              'يتم معاينة هذا المنتج الآن',
+              'يتم معاينة هذا اعلان الآن',
               style: TextStyle(
                 color: AppColors.error,
                 fontSize: 18.sp,
@@ -277,7 +378,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 ),
                 SizedBox(width: 8.w),
                 Text(
-                  'هذا منتجك الخاص',
+                  'هذا اعلان الخاص',
                   style: TextStyle(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.bold,
@@ -684,7 +785,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ),
               SizedBox(width: 8.w),
               Text(
-                'فيديو المنتج',
+                'فيديو الاعلان',
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
@@ -715,7 +816,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  Color _getTierColor(String tier) {
+    switch (tier.toLowerCase()) {
+      case 'gold':
+        return const Color(0xFFFFD700); // Gold
+      case 'silver':
+        return const Color(0xFFC0C0C0); // Silver
+      case 'bronze':
+        return const Color(0xFFCD7F32); // Bronze
+      default:
+        return Colors.transparent;
+    }
+  }
+
   Widget _buildVendorCard(ProductModel product, bool isDark) {
+    // print(); // DEBUG
+    final tierColor = _getTierColor(product.vendorTier);
+    final hasTier = tierColor != Colors.transparent;
+
     return GestureDetector(
       onTap: () {
         // Navigate to vendor profile if vendorId is available
@@ -739,31 +857,49 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           children: [
             // Vendor Avatar
             Container(
-              width: 50.w,
-              height: 50.w,
+              width: 54.w, // Slightly larger for border
+              height: 54.w,
+              padding: EdgeInsets.all(hasTier ? 2.w : 0),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12.r),
+                shape: BoxShape.circle,
+                border: hasTier
+                    ? Border.all(color: tierColor, width: 2.w)
+                    : Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ), // Match Profile Default
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12.r),
-                child:
-                    product.vendorAvatar != null &&
-                        product.vendorAvatar!.isNotEmpty
-                    ? Image.network(
-                        product.vendorAvatar!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white, // Match Profile
+                  shape: BoxShape.circle,
+                ),
+                child: ClipOval(
+                  child:
+                      product.vendorAvatar != null &&
+                          product.vendorAvatar!.isNotEmpty
+                      ? Image.network(
+                          product.vendorAvatar!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.store_rounded,
+                            color: AppColors.primary,
+                            size: 28.sp,
+                          ),
+                        )
+                      : Icon(
                           Icons.store_rounded,
                           color: AppColors.primary,
                           size: 28.sp,
                         ),
-                      )
-                    : Icon(
-                        Icons.store_rounded,
-                        color: AppColors.primary,
-                        size: 28.sp,
-                      ),
+                ),
               ),
             ),
             SizedBox(width: 16.w),
@@ -771,19 +907,68 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    product.vendorName ?? 'المتجر',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.bold,
-                      color: isDark
-                          ? AppColors.textLight
-                          : AppColors.textPrimary,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          product.vendorName ?? 'السوق',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.textLight
+                                : AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (product.isVendorVerified) ...[
+                        SizedBox(width: 4.w),
+                        Icon(
+                          Icons.verified_rounded,
+                          color: Colors.blue,
+                          size: 16.sp,
+                        ),
+                      ],
+                    ],
                   ),
                   SizedBox(height: 4.h),
+                  // Vendor Rating
+                  if (product.vendorRating != null &&
+                      product.vendorRating! > 0) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.star_rounded,
+                          color: Colors.amber,
+                          size: 16.sp,
+                        ),
+                        SizedBox(width: 4.w),
+                        Text(
+                          product.vendorRating!.toStringAsFixed(1),
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.textLight
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(width: 2.w),
+                        Text(
+                          '(${product.vendorRatingCount})',
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 4.h),
+                  ],
                   Text(
-                    'عرض المتجر',
+                    'عرض السوق',
                     style: TextStyle(fontSize: 13.sp, color: AppColors.primary),
                   ),
                   if ((product.productLocation != null &&
@@ -828,147 +1013,173 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildActionBar(BuildContext context, bool isDark) {
-    final price = double.tryParse(widget.product.price) ?? 0;
-    final deposit = price * 0.10;
-    final isOutOfStock =
-        widget.product.stockStatus == 'outofstock' ||
-        widget.product.stockQuantity == 0;
+    return BlocBuilder<VendorProfileCubit, VendorProfileState>(
+      builder: (context, state) {
+        // Dynamic product with vendor data injection
+        ProductModel product = widget.product;
+        if (state is VendorProfileLoaded &&
+            state.store.id == widget.product.vendorId) {
+          product = widget.product.copyWith(vendorTier: state.store.vendorTier);
+        }
 
-    final cartState = context.watch<CartCubit>().state;
-    bool isInCart = false;
-    if (cartState is CartLoaded) {
-      isInCart = cartState.items.any(
-        (item) => item.product.id == widget.product.id,
-      );
-    }
-    final isButtonDisabled = isOutOfStock || isInCart;
+        final price = double.tryParse(product.price) ?? 0;
+        // Use dynamic deposit percentage based on tier (Silver/Gold=10%, Bronze=1%)
+        final depositPercentage = product.depositPercentage;
+        final deposit = price * depositPercentage;
+        final isOutOfStock =
+            product.stockStatus == 'outofstock' || product.stockQuantity == 0;
 
-    return Container(
-      padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+        final cartState = context.watch<CartCubit>().state;
+        bool isInCart = false;
+        if (cartState is CartLoaded) {
+          isInCart = cartState.items.any(
+            (item) => item.product.id == product.id,
+          );
+        }
+        final isButtonDisabled = isOutOfStock || isInCart;
+
+        return Container(
+          padding: EdgeInsets.all(20.w),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            // Inspection Button (10%)
-            Expanded(
-              child: ElevatedButton(
-                onPressed: isButtonDisabled
-                    ? null
-                    : () {
-                        context.read<CartCubit>().addItem(
-                          widget.product,
-                          isDeposit: true,
-                        );
-                        _showAddToCartSnackBar(context, isDeposit: true);
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
-                  ),
-                  disabledBackgroundColor: AppColors.textSecondary.withOpacity(
-                    0.3,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      isInCart ? 'مضاف للسلة' : 'معاينة (10%)',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.bold,
+          child: SafeArea(
+            child: Row(
+              children: [
+                // Inspection Button (Dynamic Percentage)
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isButtonDisabled
+                        ? null
+                        : () {
+                            context.read<CartCubit>().addItem(
+                              product,
+                              isDeposit: true,
+                            );
+                            _showAddToCartSnackBar(
+                              context,
+                              isDeposit: true,
+                              depositPercentageOverride: depositPercentage,
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
                       ),
+                      disabledBackgroundColor: AppColors.textSecondary
+                          .withOpacity(0.3),
                     ),
-                    if (!isInCart)
-                      Text(
-                        '${deposit.toStringAsFixed(2)} ر.س',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w400,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isInCart
+                              ? 'مضاف للسلة'
+                              : 'معاينة (${(depositPercentage * 100).toStringAsFixed(0)}%)',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(width: 16.w),
-            // Buy Now Button (100%)
-            Expanded(
-              child: ElevatedButton(
-                onPressed: isButtonDisabled
-                    ? null
-                    : () {
-                        context.read<CartCubit>().addItem(
-                          widget.product,
-                          isDeposit: false,
-                        );
-                        _showAddToCartSnackBar(context, isDeposit: false);
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
-                  ),
-                  disabledBackgroundColor: AppColors.textSecondary.withOpacity(
-                    0.3,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      isOutOfStock
-                          ? 'قيد المعاينة'
-                          : (isInCart ? 'مضاف للسلة' : 'شراء الآن'),
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        if (!isInCart)
+                          Text(
+                            '${deposit.toStringAsFixed(2)} ر.س',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (!isButtonDisabled)
-                      Text(
-                        'كامل المبلغ',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
+                SizedBox(width: 16.w),
+                // Buy Now Button (100%)
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isButtonDisabled
+                        ? null
+                        : () {
+                            context.read<CartCubit>().addItem(
+                              product,
+                              isDeposit: false,
+                            );
+                            _showAddToCartSnackBar(
+                              context,
+                              isDeposit: false,
+                              depositPercentageOverride: depositPercentage,
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                      disabledBackgroundColor: AppColors.textSecondary
+                          .withOpacity(0.3),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isOutOfStock
+                              ? 'قيد المعاينة'
+                              : (isInCart ? 'مضاف للسلة' : 'شراء الآن'),
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (!isButtonDisabled)
+                          Text(
+                            'كامل المبلغ',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  void _showAddToCartSnackBar(BuildContext context, {required bool isDeposit}) {
+  void _showAddToCartSnackBar(
+    BuildContext context, {
+    required bool isDeposit,
+    double? depositPercentageOverride,
+  }) {
+    final depositPercentage =
+        depositPercentageOverride ?? widget.product.depositPercentage;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           isDeposit
-              ? 'تم إضافة "معاينة" للسلة (10%)'
-              : 'تم إضافة المنتج للسلة (شراء كامل)',
+              ? 'تم إضافة "معاينة" للسلة (${(depositPercentage * 100).toStringAsFixed(0)}%)'
+              : 'تم إضافة الاعلان للسلة (شراء كامل)',
         ),
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: 'عرض السلة',
+          label: 'عرض طلباتي',
           textColor: Colors.white,
           onPressed: () {
             AppRouter.navigateTo(context, Routes.cart);
@@ -1363,6 +1574,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  Widget _buildServiceProvidersSection(BuildContext context, bool isDark) {
+    final authState = context.read<AuthCubit>().state;
+    String? userCity;
+    if (authState is AuthAuthenticated) {
+      userCity = authState.user.city;
+    }
+
+    return BlocProvider(
+      create: (context) =>
+          di.sl<ServiceProvidersCubit>()
+            ..fetchServiceProviders(userCity: userCity),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 10.h),
+        child: ServiceProvidersSlider(userCity: userCity),
+      ),
+    );
+  }
+
   void _showAskQuestionDialog(BuildContext context) {
     final controller = TextEditingController();
     showDialog(
@@ -1413,9 +1642,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('استبدال السلة'),
+        title: const Text('استبدال طلباتي'),
         content: const Text(
-          'تحتوي السلة على منتج آخر\nهل تريد استبدال محتويات السلة بالمنتج الجديد؟',
+          'تحتوي طلباتي على اعلان آخر\nهل تريد استبدال محتويات طلباتي بالاعلان الجديد؟',
         ),
         actions: [
           TextButton(
@@ -1431,7 +1660,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('تم تحديث السلة بنجاح'),
+                  content: Text('تم تحديث طلباتي بنجاح'),
                   backgroundColor: AppColors.success,
                 ),
               );

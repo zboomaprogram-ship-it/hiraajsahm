@@ -61,4 +61,28 @@ class VendorProductsCubit extends Cubit<VendorProductsState> {
       emit(VendorProductsError(e.toString()));
     }
   }
+
+  Future<void> deleteProduct(int productId) async {
+    emit(VendorProductsLoading());
+    try {
+      final response = await _dio.delete(
+        '/dokan/v1/products/$productId',
+        queryParameters: {'force': true}, // Force delete from bin as well
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        await loadProducts(); // Refresh the list
+      } else {
+        emit(const VendorProductsError('Failed to delete product'));
+      }
+    } on DioException catch (e) {
+      emit(
+        VendorProductsError(
+          e.response?.data?['message'] ?? 'Failed to delete product',
+        ),
+      );
+    } catch (e) {
+      emit(VendorProductsError(e.toString()));
+    }
+  }
 }

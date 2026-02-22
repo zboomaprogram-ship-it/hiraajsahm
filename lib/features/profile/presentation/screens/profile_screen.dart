@@ -9,12 +9,13 @@ import '../../../vendor/presentation/widgets/vendor_upgrade_sheet.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../vendor/presentation/screens/vendor_dashboard_screen.dart';
 import '../../../auth/data/models/user_model.dart';
-import '../widgets/subscription_card.dart';
+import '../widgets/customer_card.dart';
 
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/di/injection_container.dart';
 import '../cubit/profile_cubit.dart';
+import '../../../auth/presentation/screens/edit_user_profile_screen.dart';
 
 /// Profile Screen - Customer/Vendor Dashboard
 class ProfileScreen extends StatelessWidget {
@@ -202,120 +203,175 @@ class ProfileScreen extends StatelessWidget {
   ) {
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Profile Header
-          SliverToBoxAdapter(
-            child: _buildProfileHeader(context, state, isDark, profileState),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Refresh user data (points, tier, vendor status)
+          await context.read<AuthCubit>().checkAuthStatus();
+          // Also refresh profile specific data if needed
+          if (context.mounted) {
+            // context.read<ProfileCubit>().loadProfile(); // If there is such method
+          }
+        },
+        color: AppColors.primary,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
           ),
-
-          // Subscription Plan Card
-          SliverToBoxAdapter(
-            child: FadeInUp(
-              duration: const Duration(milliseconds: 400),
-              child: SubscriptionCard(user: state.user),
+          slivers: [
+            // Profile Header
+            SliverToBoxAdapter(
+              child: _buildProfileHeader(context, state, isDark, profileState),
             ),
-          ),
-
-          // Vendor Banner - different for vendors vs customers
-          SliverToBoxAdapter(
-            child: FadeInUp(
-              delay: const Duration(milliseconds: 100),
-              duration: const Duration(milliseconds: 400),
-              child: state.user.isVendor
-                  ? _buildVendorDashboardBanner(context)
-                  : _buildBecomeVendorBanner(context, state),
-            ),
-          ),
-
-          // Menu Items
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(20.w),
-              child: Column(
-                children: [
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 100),
-                    duration: const Duration(milliseconds: 400),
-                    child: _buildMenuSection(
-                      title: 'طلباتي',
-                      items: [
-                        _MenuItem(
-                          icon: Icons.shopping_bag_outlined,
-                          title: 'طلباتي',
-                          subtitle: 'تتبع حالة طلباتك',
-                          onTap: () =>
-                              AppRouter.navigateTo(context, Routes.orders),
-                        ),
-                      ],
-                      isDark: isDark,
-                    ),
-                  ),
-                  SizedBox(height: 20.h),
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 150),
-                    duration: const Duration(milliseconds: 400),
-                    child: _buildMenuSection(
-                      title: 'الإعدادات',
-                      items: [
-                        _MenuItem(
-                          icon: Icons.settings_outlined,
-                          title: 'الإعدادات العامة',
-                          onTap: () =>
-                              AppRouter.navigateTo(context, Routes.settings),
-                        ),
-                        _MenuItem(
-                          icon: Icons.location_on_outlined,
-                          title: 'العناوين',
-                          onTap: () {},
-                        ),
-                        _MenuItem(
-                          icon: Icons.notifications_outlined,
-                          title: 'الإشعارات',
-                          onTap: () {},
-                        ),
-                      ],
-                      isDark: isDark,
-                    ),
-                  ),
-                  SizedBox(height: 20.h),
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 400),
-                    child: _buildMenuSection(
-                      title: 'أخرى',
-                      items: [
-                        _MenuItem(
-                          icon: Icons.help_outline_rounded,
-                          title: 'المساعدة والدعم',
-                          onTap: () =>
-                              AppRouter.navigateTo(context, Routes.contactUs),
-                        ),
-                        _MenuItem(
-                          icon: Icons.info_outline_rounded,
-                          title: 'عن التطبيق',
-                          onTap: () {},
-                        ),
-                        _MenuItem(
-                          icon: Icons.logout_rounded,
-                          title: 'تسجيل الخروج',
-                          color: AppColors.error,
-                          onTap: () {
-                            _showLogoutDialog(context);
-                          },
-                        ),
-                      ],
-                      isDark: isDark,
-                    ),
-                  ),
-                ],
+            SliverToBoxAdapter(child: SizedBox(height: 20.h)),
+            // Customer Card (QR Code & Tier)
+            SliverToBoxAdapter(
+              child: FadeInUp(
+                duration: const Duration(milliseconds: 400),
+                child: ProfileQRCard(user: state.user),
               ),
             ),
-          ),
+            if (state.user.isVendor)
+              SliverToBoxAdapter(child: SizedBox(height: 12.h)),
 
-          SliverToBoxAdapter(child: SizedBox(height: 100.h)),
-        ],
+            // Upgrade Subscription Card (Only for Vendors)
+            if (state.user.isVendor)
+              SliverToBoxAdapter(
+                child: FadeInUp(
+                  delay: const Duration(milliseconds: 100),
+                  duration: const Duration(milliseconds: 400),
+                  child: _buildUpgradeSubscriptionCard(
+                    context,
+                    state.user,
+                    isDark,
+                  ),
+                ),
+              ),
+
+            // Vendor Info Details (Biography & Location)
+            if (state.user.isVendor)
+              SliverToBoxAdapter(
+                child: FadeInUp(
+                  delay: const Duration(milliseconds: 120),
+                  duration: const Duration(milliseconds: 400),
+                  child: _buildVendorInfoDetailCard(
+                    context,
+                    state.user,
+                    isDark,
+                  ),
+                ),
+              ),
+
+            // Vendor Banner - different for vendors vs customers
+            SliverToBoxAdapter(
+              child: FadeInUp(
+                delay: state.user.isVendor
+                    ? const Duration(milliseconds: 150)
+                    : const Duration(milliseconds: 100),
+                duration: const Duration(milliseconds: 400),
+                child: state.user.isVendor
+                    ? _buildVendorDashboardBanner(context)
+                    : _buildBecomeVendorBanner(context, state),
+              ),
+            ),
+
+            // Menu Items
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  children: [
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 100),
+                      duration: const Duration(milliseconds: 400),
+                      child: _buildMenuSection(
+                        title: 'طلباتي',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.shopping_bag_outlined,
+                            title: 'طلباتي',
+                            subtitle: 'تتبع حالة طلباتك',
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.orders),
+                          ),
+                        ],
+                        isDark: isDark,
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 150),
+                      duration: const Duration(milliseconds: 400),
+                      child: _buildMenuSection(
+                        title: 'الإعدادات',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.settings_outlined,
+                            title: 'تعديل الملف الشخصي',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const EditUserProfileScreen(),
+                              ),
+                            ),
+                          ),
+                          _MenuItem(
+                            icon: Icons.location_on_outlined,
+                            title: 'العناوين',
+                            onTap: () {},
+                          ),
+                          _MenuItem(
+                            icon: Icons.notifications_outlined,
+                            title: 'الإشعارات',
+                            onTap: () {},
+                          ),
+                        ],
+                        isDark: isDark,
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 200),
+                      duration: const Duration(milliseconds: 400),
+                      child: _buildMenuSection(
+                        title: 'أخرى',
+                        items: [
+                          _MenuItem(
+                            icon: Icons.help_outline_rounded,
+                            title: 'المساعدة والدعم',
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.contactUs),
+                          ),
+                          _MenuItem(
+                            icon: Icons.settings_outlined,
+                            title: 'الإعدادات',
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.settings),
+                          ),
+                          _MenuItem(
+                            icon: Icons.info_outline_rounded,
+                            title: 'عن التطبيق',
+                            onTap: () {},
+                          ),
+                          _MenuItem(
+                            icon: Icons.logout_rounded,
+                            title: 'تسجيل الخروج',
+                            color: AppColors.error,
+                            onTap: () {
+                              _showLogoutDialog(context);
+                            },
+                          ),
+                        ],
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            SliverToBoxAdapter(child: SizedBox(height: 100.h)),
+          ],
+        ),
       ),
     );
   }
@@ -462,6 +518,10 @@ class ProfileScreen extends StatelessWidget {
                 SizedBox(width: 6.w),
                 Icon(Icons.check_circle, color: Colors.red, size: 20.sp),
               ],
+              if (state.user.vendorInfo?.isVerified == true) ...[
+                SizedBox(width: 6.w),
+                Icon(Icons.verified_rounded, color: Colors.blue, size: 20.sp),
+              ],
             ],
           ),
           SizedBox(height: 4.h),
@@ -526,6 +586,93 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildUpgradeSubscriptionCard(
+    BuildContext context,
+    UserModel user,
+    bool isDark,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        AppRouter.navigateTo(context, Routes.vendorSubscription);
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 0.h),
+        padding: EdgeInsets.all(20.w),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFB300), Color(0xFFFF6F00)],
+          ),
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50.w,
+              height: 50.w,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Icon(
+                Icons.upgrade_rounded,
+                color: Colors.white,
+                size: 28.sp,
+              ),
+            ),
+            SizedBox(width: 16.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ترقية باقة الإعلانات',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    'احصل على ميزات أكبر وظهور أكثر لمنتجاتك',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Text(
+                'طلب ترقية',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFFF6F00),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBecomeVendorBanner(
     BuildContext context,
     AuthAuthenticated state,
@@ -582,7 +729,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 4.h),
                   Text(
-                    'ابدأ ببيع منتجاتك وحقق أرباحاً',
+                    'ابدأ ببيع اعلاناتك وحقق أرباحاً',
                     style: TextStyle(
                       fontSize: 13.sp,
                       color: Colors.white.withOpacity(0.9),
@@ -673,9 +820,9 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 4.h),
                   Text(
-                    'إدارة متجرك ومنتجاتك',
+                    'إدارة سوقك واعلاناتك',
                     style: TextStyle(
-                      fontSize: 13.sp,
+                      fontSize: 14.sp,
                       color: Colors.white.withOpacity(0.9),
                     ),
                   ),
@@ -689,6 +836,177 @@ class ProfileScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildVendorInfoDetailCard(
+    BuildContext context,
+    UserModel user,
+    bool isDark,
+  ) {
+    final bio = user.vendorInfo?.biography;
+    final location = user.vendorInfo?.location;
+
+    if ((bio == null || bio.isEmpty) &&
+        (location == null || location.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (bio != null && bio.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.description_outlined,
+                  color: AppColors.primary,
+                  size: 20.sp,
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    'نبذة عن المتجر',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? AppColors.textLight
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    AppRouter.navigateTo(
+                      context,
+                      Routes.vendorEditProfile,
+                      arguments: user.id,
+                    );
+                  },
+                  icon: Icon(
+                    Icons.edit_note_rounded,
+                    color: AppColors.primary,
+                    size: 22.sp,
+                  ),
+                  tooltip: 'تعديل بيانات المتجر',
+                ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              bio,
+              style: TextStyle(
+                fontSize: 13.sp,
+                color: isDark
+                    ? AppColors.textLightSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            if (location != null && location.isNotEmpty) ...[
+              SizedBox(height: 16.h),
+              Divider(color: Colors.grey.withOpacity(0.1)),
+              SizedBox(height: 16.h),
+            ],
+          ],
+          if (location != null && location.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.map_outlined, color: AppColors.primary, size: 20.sp),
+                SizedBox(width: 8.w),
+                Text(
+                  'الموقع (إحداثيات)',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              location,
+              style: TextStyle(
+                fontSize: 13.sp,
+                color: isDark
+                    ? AppColors.textLightSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ],
+          if (user.vendorInfo?.social != null) ...[
+            SizedBox(height: 16.h),
+            Divider(color: Colors.grey.withOpacity(0.1)),
+            SizedBox(height: 16.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (user.vendorInfo?.social?['fb']?.toString().isNotEmpty ==
+                    true)
+                  _buildSocialIcon(
+                    Icons.facebook_rounded,
+                    user.vendorInfo!.social!['fb'].toString(),
+                    Colors.blue[800]!,
+                  ),
+                if (user.vendorInfo?.social?['instagram']
+                        ?.toString()
+                        .isNotEmpty ==
+                    true)
+                  _buildSocialIcon(
+                    Icons.camera_alt_rounded,
+                    user.vendorInfo!.social!['instagram'].toString(),
+                    Colors.purple,
+                  ),
+                if (user.vendorInfo?.social?['twitter']
+                        ?.toString()
+                        .isNotEmpty ==
+                    true)
+                  _buildSocialIcon(
+                    Icons.alternate_email_rounded,
+                    user.vendorInfo!.social!['twitter'].toString(),
+                    Colors.black,
+                  ),
+                if (user.vendorInfo?.social?['youtube']
+                        ?.toString()
+                        .isNotEmpty ==
+                    true)
+                  _buildSocialIcon(
+                    Icons.play_circle_filled_rounded,
+                    user.vendorInfo!.social!['youtube'].toString(),
+                    Colors.red,
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialIcon(IconData icon, String url, Color color) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8.w),
+      child: InkWell(
+        onTap: () {
+          // TODO: Implement URL launcher
+        },
+        child: Icon(icon, size: 24.sp, color: color),
       ),
     );
   }

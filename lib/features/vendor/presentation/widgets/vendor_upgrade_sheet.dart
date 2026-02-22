@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../core/routes/routes.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../data/models/vendor_registration_data.dart';
-import '../screens/subscription_screen.dart';
 
 class VendorUpgradeSheet extends StatefulWidget {
   final int userId;
@@ -88,8 +90,8 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
               // Fields
               _buildTextField(
                 controller: _shopNameController,
-                label: 'اسم المتجر',
-                hint: 'مثال: متجر الأناقة',
+                label: 'اسم السوق',
+                hint: 'مثال: سوق الأناقة',
                 icon: Icons.store,
                 validator: (value) => value?.isEmpty ?? true ? 'مطلوب' : null,
               ),
@@ -105,7 +107,7 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
               SizedBox(height: 16.h),
               _buildTextField(
                 controller: _shopLinkController,
-                label: 'رابط المتجر (اختياري)',
+                label: 'رابط السوق (اختياري)',
                 hint: 'https://example.com',
                 icon: Icons.link,
                 keyboardType: TextInputType.url,
@@ -137,19 +139,22 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
+                      // Update user profile metadata with the new phone number
+                      final phone = _phoneController.text.trim();
+                      context.read<AuthCubit>().updateUserMetadata(
+                        phone: phone,
+                      );
+
                       Navigator.pop(context);
-                      Navigator.push(
+                      Navigator.pushNamed(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => SubscriptionScreen(
-                            vendorRegistrationData: VendorRegistrationData(
-                              shopName: _shopNameController.text.trim(),
-                              phone: _phoneController.text.trim(),
-                              shopLink: _shopLinkController.text.trim().isEmpty
-                                  ? null
-                                  : _shopLinkController.text.trim(),
-                            ),
-                          ),
+                        Routes.vendorSubscription,
+                        arguments: VendorRegistrationData(
+                          shopName: _shopNameController.text.trim(),
+                          phone: _phoneController.text.trim(),
+                          shopLink: _shopLinkController.text.trim().isEmpty
+                              ? null
+                              : _shopLinkController.text.trim(),
                         ),
                       );
                     }

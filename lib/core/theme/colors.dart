@@ -91,6 +91,13 @@ class AppColors {
     stops: [0.0, 0.5, 1.0],
   );
 
+  static const LinearGradient silverGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFC0C0C0), Color(0xFFE8E8E8), Color(0xFFC0C0C0)],
+    stops: [0.0, 0.5, 1.0],
+  );
+
   static const LinearGradient darkGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

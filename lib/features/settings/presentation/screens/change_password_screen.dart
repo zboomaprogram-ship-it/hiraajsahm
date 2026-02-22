@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:dio/dio.dart';
+
 import '../../../../core/theme/colors.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection_container.dart';
@@ -47,22 +48,31 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         return;
       }
 
+      final token = await storageService.getToken();
+      if (token == null) {
+        _showError('انتهت جلسة تسجيل الدخول، يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+
       final dio = Dio(
         BaseOptions(
+          baseUrl: AppConfig.baseUrl,
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
         ),
       );
 
-      final url = 'https://hiraajsahm.com/wp-json/wc/v3/customers/$userId';
+      final url = '${AppConfig.wpUsersEndpoint}/me';
 
-      final response = await dio.put(
+      final response = await dio.post(
         url,
         data: {'password': _newPasswordController.text},
-        queryParameters: {
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200) {

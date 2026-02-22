@@ -153,15 +153,18 @@ class _SplashScreenState extends State<SplashScreen>
 
             // 3. LOADING INDICATOR (Optional, small at bottom)
             Positioned(
-              bottom: 30.h,
+              bottom: 20.h,
               left: 0,
               right: 0,
-              child: FadeIn(
-                delay: const Duration(milliseconds: 1500),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              child: SafeArea(
+                top: false,
+                child: FadeIn(
+                  delay: const Duration(milliseconds: 1500),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
                 ),
               ),

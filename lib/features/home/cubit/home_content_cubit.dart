@@ -68,10 +68,12 @@ class HomeContentCubit extends Cubit<HomeContentState> {
     emit(const HomeContentLoading());
 
     try {
-      // Fetch latest products
       const productsUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
+      const alZabayehProductId = 29318;
+      const excludeCategoryId = 122;
 
-      final response = await _cleanDio.get(
+      // Prepare both requests
+      final latestRequest = _cleanDio.get(
         productsUrl,
         queryParameters: {
           'per_page': 10,
@@ -82,11 +84,32 @@ class HomeContentCubit extends Cubit<HomeContentState> {
         },
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        // Filter out product 29318 (Al-Zabayeh fee) and category 122 (subscription packs)
-        const alZabayehProductId = 29318;
-        const excludeCategoryId = 122;
+      final featuredRequest = _cleanDio.get(
+        productsUrl,
+        queryParameters: {
+          'per_page': 5,
+          'featured': true,
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
+      );
+
+      // Execute in parallel
+      final responses = await Future.wait([
+        latestRequest,
+        featuredRequest.catchError(
+          (e) => Response(
+            requestOptions: RequestOptions(path: productsUrl),
+            statusCode: 500, // Dummy error status
+          ),
+        ),
+      ]);
+
+      final latestResponse = responses[0];
+      final featuredResponse = responses[1];
+
+      if (latestResponse.statusCode == 200) {
+        final List<dynamic> data = latestResponse.data;
         final latestProducts = data
             .map((json) => ProductModel.fromJson(json))
             .where((product) => product.status == 'publish')
@@ -94,32 +117,16 @@ class HomeContentCubit extends Cubit<HomeContentState> {
             .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
             .toList();
 
-        // Try to fetch featured products
         List<ProductModel> featuredProducts = [];
-        try {
-          final featuredResponse = await _cleanDio.get(
-            productsUrl,
-            queryParameters: {
-              'per_page': 5,
-              'featured': true,
-              'consumer_key': AppConfig.wcConsumerKey,
-              'consumer_secret': AppConfig.wcConsumerSecret,
-            },
-          );
-
-          if (featuredResponse.statusCode == 200) {
-            final List<dynamic> featuredData = featuredResponse.data;
-            featuredProducts = featuredData
-                .map((json) => ProductModel.fromJson(json))
-                .where((product) => product.status == 'publish')
-                .where((product) => product.id != alZabayehProductId)
-                .where(
-                  (p) => !p.categories.any((c) => c.id == excludeCategoryId),
-                )
-                .toList();
-          }
-        } catch (_) {
-          // Featured products optional, continue without them
+        if (featuredResponse.statusCode == 200 &&
+            featuredResponse.data is List) {
+          final List<dynamic> featuredData = featuredResponse.data;
+          featuredProducts = featuredData
+              .map((json) => ProductModel.fromJson(json))
+              .where((product) => product.status == 'publish')
+              .where((product) => product.id != alZabayehProductId)
+              .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
+              .toList();
         }
 
         emit(
@@ -133,11 +140,9 @@ class HomeContentCubit extends Cubit<HomeContentState> {
       }
     } on DioException catch (e) {
       String errorMessage = 'خطأ في الاتصال بالخادم';
-
       if (e.response?.data != null && e.response?.data is Map) {
         errorMessage = e.response?.data['message'] ?? errorMessage;
       }
-
       emit(HomeContentError(message: errorMessage));
     } catch (e) {
       emit(HomeContentError(message: e.toString()));

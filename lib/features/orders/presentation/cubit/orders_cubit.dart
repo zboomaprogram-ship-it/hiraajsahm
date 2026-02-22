@@ -143,4 +143,32 @@ class OrdersCubit extends Cubit<OrdersState> {
     emit(const OrdersInitial());
     await loadOrders();
   }
+
+  /// Fetch a single order by ID (for details screen refresh)
+  Future<OrderModel?> fetchOrder(int orderId) async {
+    try {
+      // We can iterate the current state to see if we have it, but for refresh we want network.
+      final currentUserId = await _storageService.getUserId();
+      if (currentUserId == null) return null;
+
+      final response = await _cleanDio.get(
+        'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId',
+        queryParameters: {
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final order = OrderModel.fromJson(response.data);
+        // Optionally update the list state if we want to reflect changes in the list view too
+        // But that requires finding and replacing in the list which is immutable.
+        // For now, just return the fresh order.
+        return order;
+      }
+    } catch (e) {
+      print('Error fetching order $orderId: $e');
+    }
+    return null;
+  }
 }

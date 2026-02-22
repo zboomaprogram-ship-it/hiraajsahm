@@ -3,9 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/config/app_config.dart';
+import '../../../shop/data/models/category_model.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/di/injection_container.dart' as di;
-import '../../../shop/data/models/category_model.dart';
 
 // ============ ADD PRODUCT STATES ============
 abstract class AddProductState extends Equatable {
@@ -108,14 +108,79 @@ class AddProductCubit extends Cubit<AddProductState> {
     String? salePrice,
     required String address, // Changed from location
   }) async {
-    // 1. Check Limits (Keep your existing check logic here)
-    final canPost = await _checkDailyLimit();
-    if (!canPost) {
-      // ... keep your existing error logic ...
+    // 1. Check Limits (Real-time)
+    final userId = await _storageService.getUserId();
+    if (userId == null) {
+      emit(const AddProductError(message: 'يرجى تسجيل الدخول أولاً'));
       return;
     }
 
-    emit(const AddProductUploading());
+    emit(const AddProductUploading(progress: 0.05));
+
+    try {
+      // Fetch store details to get accurate remaining_products
+      final storeResponse = await _cleanDio.get(
+        '${AppConfig.baseUrl}/dokan/v1/stores/$userId',
+      );
+
+      if (storeResponse.statusCode == 200) {
+        final storeData = storeResponse.data;
+        // Dokan might return a list or a map
+        Map<String, dynamic>? data;
+        if (storeData is List && storeData.isNotEmpty) {
+          data = storeData.first;
+        } else if (storeData is Map<String, dynamic>) {
+          data = storeData;
+        }
+
+        if (data != null) {
+          final remaining = _parseInt(
+            data['remaining_products'],
+            defaultValue: -1,
+          );
+          if (remaining != -1 && remaining <= 0) {
+            emit(
+              const AddProductError(
+                message: 'لقد وصلت للحد الأقصى لعدد الإعلانات في باقتك الحالية',
+              ),
+            );
+            return;
+          }
+        }
+      }
+
+      // Check Daily Limit via API count
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final productsResponse = await _cleanDio.get(
+        '${AppConfig.baseUrl}/dokan/v1/stores/$userId/products',
+        queryParameters: {
+          'after': '${today}T00:00:00',
+          'per_page': 50, // Enough to check limits
+        },
+      );
+
+      if (productsResponse.statusCode == 200 && productsResponse.data is List) {
+        final productsToday = (productsResponse.data as List).length;
+        final tier = await _storageService.getUserTier();
+        final dailyLimit =
+            (tier == 'silver' || tier == 'gold' || tier == 'zabayeh') ? 5 : 1;
+
+        if (productsToday >= dailyLimit) {
+          emit(
+            AddProductError(
+              message:
+                  'لقد وصلت للحد الأقصى للإعلانات اليومية ($dailyLimit إعلانات)',
+            ),
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      print('Limit check error: $e');
+      // Continue if check fails? Or block? Let's allow but log.
+    }
+
+    emit(const AddProductUploading(progress: 0.1));
 
     try {
       // 2. Upload Images First
@@ -304,25 +369,12 @@ class AddProductCubit extends Cubit<AddProductState> {
     return null;
   }
 
-  Future<bool> _checkDailyLimit() async {
-    final lastPostDateStr = _storageService.getLastPostDate();
-    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-
-    // Reset count if new day (or no date)
-    if (lastPostDateStr == null || lastPostDateStr != todayStr) {
-      await _storageService.resetDailyPostCount();
-      return true;
-    }
-
-    final count = _storageService.getDailyPostCount();
-    final tier = await _storageService.getUserTier();
-
-    // Limits
-    final limit = (tier == 'silver' || tier == 'gold' || tier == 'zabayeh')
-        ? 5
-        : 1;
-
-    return count < limit;
+  int _parseInt(dynamic value, {int defaultValue = 0}) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    if (value is num) return value.toInt();
+    return defaultValue;
   }
 
   void reset() {

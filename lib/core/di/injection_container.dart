@@ -24,6 +24,8 @@ import '../../features/requests/presentation/cubit/requests_cubit.dart';
 import '../../features/requests/data/services/requests_service.dart';
 import '../../features/vendor/presentation/cubit/add_product_cubit.dart';
 import '../../features/shop/presentation/cubit/qna_cubit.dart';
+import '../../features/shop/data/services/service_provider_service.dart';
+import '../../features/shop/presentation/cubit/service_providers_cubit.dart';
 // ✅ 1. Add Import
 import '../../features/notifications/presentation/cubit/notifications_cubit.dart';
 import '../../features/vendor/data/datasources/vendor_remote_datasource.dart';
@@ -142,10 +144,15 @@ Future<void> init() async {
   // Add Product Cubit
   sl.registerFactory(() => AddProductCubit());
 
-  // QnA Cubit
   sl.registerFactory(
     () => QnACubit(dio: sl<Dio>(), storageService: sl<StorageService>()),
   );
+
+  // Service Providers Cubit
+  sl.registerLazySingleton<ServiceProviderService>(
+    () => ServiceProviderService(sl<Dio>()),
+  );
+  sl.registerFactory(() => ServiceProvidersCubit(sl<ServiceProviderService>()));
 
   // ✅ 2. Register NotificationsCubit
   // Note: If your NotificationsCubit takes arguments (like Dio), add them here:

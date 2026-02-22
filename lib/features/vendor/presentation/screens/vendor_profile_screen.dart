@@ -7,13 +7,18 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme/colors.dart';
+import '../../../../core/widgets/mini_map_preview.dart';
 import '../../../../core/di/injection_container.dart';
 import '../cubit/vendor_profile_cubit.dart';
 import '../../data/models/store_model.dart';
 import '../../../shop/data/models/product_model.dart';
+import '../../../shop/data/models/review_model.dart';
 import '../../../shop/presentation/screens/product_details_screen.dart';
 import 'package:hiraajsahm/features/auth/presentation/cubit/auth_cubit.dart';
 import '../../../../core/services/follow_service.dart';
+import '../../../../core/widgets/custom_text_field.dart';
+import '../../../../core/routes/app_router.dart';
+import '../../../../core/routes/routes.dart';
 
 /// Vendor Profile Screen - Shows store details and products
 class VendorProfileScreen extends StatelessWidget {
@@ -77,9 +82,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _isFollowing
-                  ? 'تم متابعة المتجر بنجاح'
-                  : 'تم إلغاء متابعة المتجر',
+              _isFollowing ? 'تم متابعة السوق بنجاح' : 'تم إلغاء متابعة السوق',
               style: const TextStyle(fontFamily: 'Cairo'),
             ),
             backgroundColor: _isFollowing ? AppColors.success : Colors.grey,
@@ -109,20 +112,40 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
-      body: BlocBuilder<VendorProfileCubit, VendorProfileState>(
+      body: BlocConsumer<VendorProfileCubit, VendorProfileState>(
+        listener: (context, state) {
+          if (state is VendorProfileUpdateSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        },
         builder: (context, state) {
+          // Helper to get the latest available data state (Optimistic)
+          final data = _getLoadedData(state);
+
+          if (data != null) {
+            return RefreshIndicator(
+              onRefresh: () => context
+                  .read<VendorProfileCubit>()
+                  .loadVendorProfile(widget.vendorId),
+              color: AppColors.primary,
+              child: _buildContent(context, data, isDark),
+            );
+          }
+
           if (state is VendorProfileLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (state is VendorProfileError) {
+          if (state is VendorProfileError && state.message.isNotEmpty) {
             return _buildErrorWidget(context, state.message);
           }
 
-          if (state is VendorProfileLoaded) {
-            return _buildContent(context, state, isDark);
-          }
-
+          // Fallback if somehow both data and loading are null
           return const SizedBox.shrink();
         },
       ),
@@ -154,6 +177,20 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
       ),
     );
   }
+
+  VendorProfileLoaded? _getLoadedData(VendorProfileState state) {
+    if (state is VendorProfileLoaded) {
+      _lastLoadedState = state;
+      return state;
+    }
+    // Return the cached state during updates so the screen doesn't go blank
+    if (state is VendorProfileUpdating || state is VendorProfileUpdateSuccess) {
+      return _lastLoadedState;
+    }
+    return null;
+  }
+
+  VendorProfileLoaded? _lastLoadedState;
 
   Widget _buildContent(
     BuildContext context,
@@ -197,7 +234,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
             child: Padding(
               padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 12.h),
               child: Text(
-                'منتجات المتجر',
+                'اعلانات السوق',
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
@@ -227,6 +264,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                           context,
                           state.products[index],
                           isDark,
+                          storeOverride: state.store,
                         ),
                       );
                     }, childCount: state.products.length),
@@ -241,6 +279,15 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                 child: const Center(child: CircularProgressIndicator()),
               ),
             ),
+
+          // Store Reviews Section
+          SliverToBoxAdapter(
+            child: FadeInUp(
+              delay: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 400),
+              child: _buildReviewsSection(context, state, isDark),
+            ),
+          ),
 
           // Bottom Spacing
           SliverToBoxAdapter(child: SizedBox(height: 32.h)),
@@ -284,7 +331,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
               Icon(Icons.link, color: Colors.blue, size: 20.sp),
               SizedBox(width: 8.w),
               Text(
-                'رابط المتجر',
+                'رابط السوق',
                 style: TextStyle(
                   fontSize: 14.sp,
                   color: AppColors.primary,
@@ -335,7 +382,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Share.share('تفضل بزيارة متجري على هراج سهم: \n$storeUrl');
+                    Share.share('تفضل بزيارة سوقي على هراج سهم: \n$storeUrl');
                   },
                   icon: const Icon(Icons.share, size: 18),
                   label: const Text('مشاركة'),
@@ -356,6 +403,19 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
   }
   // ----------------------------------------------
 
+  Color _getTierColor(String tier) {
+    switch (tier.toLowerCase()) {
+      case 'gold':
+        return const Color(0xFFFFD700); // Gold
+      case 'silver':
+        return const Color(0xFFC0C0C0); // Silver
+      case 'bronze':
+        return const Color(0xFFCD7F32); // Bronze
+      default:
+        return Colors.transparent;
+    }
+  }
+
   Widget _buildSliverAppBar(
     BuildContext context,
     StoreModel store,
@@ -374,17 +434,43 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
       expandedHeight: 220.h,
       pinned: true,
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.primary,
-      leading: IconButton(
-        icon: Container(
-          padding: EdgeInsets.all(8.w),
-          decoration: BoxDecoration(
-            color: Colors.black26,
-            borderRadius: BorderRadius.circular(12.r),
+      leading: isSelf
+          ? null // No back button for own profile (usually in dashboard)
+          : IconButton(
+              icon: Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: Colors.white,
+                ),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+      actions: [
+        if (isSelf)
+          IconButton(
+            icon: Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: const Icon(Icons.edit_rounded, color: Colors.white),
+            ),
+            onPressed: () {
+              AppRouter.navigateTo(
+                context,
+                Routes.vendorEditProfile,
+                arguments: widget.vendorId,
+              );
+            },
           ),
-          child: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
+        SizedBox(width: 8.w),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
@@ -419,11 +505,22 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                 children: [
                   // Avatar
                   Container(
-                    width: 70.w,
-                    height: 70.w,
+                    width: 74.w, // Increased for border
+                    height: 74.w,
+                    padding: EdgeInsets.all(
+                      _getTierColor(store.vendorTier) != Colors.transparent
+                          ? 3.w
+                          : 0,
+                    ),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
+                      border:
+                          _getTierColor(store.vendorTier) != Colors.transparent
+                          ? Border.all(
+                              color: _getTierColor(store.vendorTier),
+                              width: 2.w,
+                            )
+                          : Border.all(color: Colors.white, width: 3),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black26,
@@ -432,16 +529,22 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                         ),
                       ],
                     ),
-                    child: ClipOval(
-                      child:
-                          store.gravatar != null && store.gravatar!.isNotEmpty
-                          ? Image.network(
-                              store.gravatar!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _buildDefaultAvatar(store),
-                            )
-                          : _buildDefaultAvatar(store),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: ClipOval(
+                        child:
+                            store.gravatar != null && store.gravatar!.isNotEmpty
+                            ? Image.network(
+                                store.gravatar!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildDefaultAvatar(store),
+                              )
+                            : _buildDefaultAvatar(store),
+                      ),
                     ),
                   ),
                   SizedBox(width: 16.w),
@@ -451,15 +554,29 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          store.displayName,
-                          style: TextStyle(
-                            fontSize: 22.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                store.displayName,
+                                style: TextStyle(
+                                  fontSize: 22.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (store.isVerified) ...[
+                              SizedBox(width: 8.w),
+                              Icon(
+                                Icons.verified_rounded,
+                                color: Colors.blue,
+                                size: 20.sp,
+                              ),
+                            ],
+                          ],
                         ),
                         SizedBox(height: 4.h),
                         Row(
@@ -626,7 +743,33 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Biography
+          if (store.biography != null && store.biography!.isNotEmpty) ...[
+            Text(
+              'عن السوق',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              store.biography!,
+              style: TextStyle(
+                fontSize: 13.sp,
+                color: isDark
+                    ? AppColors.textLightSecondary
+                    : AppColors.textSecondary,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Divider(color: Colors.grey.withOpacity(0.2)),
+            SizedBox(height: 16.h),
+          ],
+
           // Phone
           if (phone.isNotEmpty)
             _buildInfoRow(Icons.phone_outlined, phone, isDark),
@@ -642,7 +785,70 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
             SizedBox(height: 12.h),
             _buildInfoRow(Icons.email_outlined, email, isDark),
           ],
+
+          // Location Coordinates
+          if (store.location != null && store.location!.isNotEmpty) ...[
+            SizedBox(height: 16.h),
+            MiniMapPreview(
+              latLong: store.location,
+              isDark: isDark,
+              label: 'موقع السوق',
+            ),
+          ],
+
+          // Social Links
+          if (store.social != null) ...[
+            SizedBox(height: 16.h),
+            Divider(color: Colors.grey.withOpacity(0.2)),
+            SizedBox(height: 16.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (store.social?.facebook != null &&
+                    store.social!.facebook!.isNotEmpty)
+                  _buildSocialIcon(
+                    Icons.facebook_rounded,
+                    store.social!.facebook!,
+                    Colors.blue[800]!,
+                  ),
+                if (store.social?.instagram != null &&
+                    store.social!.instagram!.isNotEmpty)
+                  _buildSocialIcon(
+                    Icons.camera_alt_rounded,
+                    store.social!.instagram!,
+                    Colors.purple,
+                  ),
+                if (store.social?.twitter != null &&
+                    store.social!.twitter!.isNotEmpty)
+                  _buildSocialIcon(
+                    Icons.alternate_email_rounded,
+                    store.social!.twitter!,
+                    Colors.black,
+                  ),
+                if (store.social?.youtube != null &&
+                    store.social!.youtube!.isNotEmpty)
+                  _buildSocialIcon(
+                    Icons.play_circle_filled_rounded,
+                    store.social!.youtube!,
+                    Colors.red,
+                  ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildSocialIcon(IconData icon, String url, Color color) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8.w),
+      child: InkWell(
+        onTap: () {
+          // TODO: Implement URL launcher if needed,
+          // though for now we just show them
+        },
+        child: Icon(icon, size: 28.sp, color: color),
       ),
     );
   }
@@ -679,7 +885,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
           ),
           SizedBox(height: 16.h),
           Text(
-            'لا توجد منتجات حالياً',
+            'لا توجد اعلانات حالياً',
             style: TextStyle(
               fontSize: 16.sp,
               color: isDark
@@ -695,14 +901,31 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
   Widget _buildProductCard(
     BuildContext context,
     ProductModel product,
-    bool isDark,
-  ) {
+    bool isDark, {
+    StoreModel? storeOverride,
+  }) {
     return GestureDetector(
       onTap: () {
+        // Inject store data if provided (to fix missing tier/info issues from API)
+        ProductModel finalProduct = product;
+        if (storeOverride != null) {
+          // print(); // DEBUG
+          finalProduct = product.copyWith(
+            vendorTier: storeOverride.vendorTier,
+            vendorName: storeOverride.displayName,
+            vendorAvatar: storeOverride.gravatar,
+            isVendorVerified: storeOverride.isVerified,
+            vendorRating: storeOverride.rating,
+            vendorRatingCount: storeOverride.ratingCount,
+            vendorAddress: storeOverride.address?.fullAddress,
+            vendorLocation: storeOverride.location,
+          );
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ProductDetailsScreen(product: product),
+            builder: (_) => ProductDetailsScreen(product: finalProduct),
           ),
         );
       },
@@ -782,6 +1005,220 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
           color: AppColors.textSecondary,
         ),
       ),
+    );
+  }
+
+  Widget _buildReviewsSection(
+    BuildContext context,
+    VendorProfileLoaded state,
+    bool isDark,
+  ) {
+    final reviews = state.reviews;
+
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'التقييمات (${reviews.length})',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                ),
+              ),
+              // Only allow customers to review, and only if not self
+              if (!_isSelf())
+                TextButton.icon(
+                  onPressed: () => _showAddReviewDialog(context),
+                  icon: const Icon(Icons.rate_review_outlined, size: 18),
+                  label: const Text('أضف تقييمك'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 16.h),
+          if (reviews.isEmpty)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.h),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.star_outline_rounded,
+                      size: 48.sp,
+                      color: AppColors.textSecondary.withOpacity(0.5),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'لا توجد تقييمات لهذا المتجر بعد.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: reviews.length,
+              separatorBuilder: (_, __) => SizedBox(height: 12.h),
+              itemBuilder: (context, index) {
+                final review = reviews[index];
+                return _buildReviewCard(review, isDark);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(ReviewModel review, bool isDark) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                review.reviewer,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14.sp,
+                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                ),
+              ),
+              Row(
+                children: List.generate(5, (starIndex) {
+                  return Icon(
+                    starIndex < review.rating
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: Colors.amber,
+                    size: 14.sp,
+                  );
+                }),
+              ),
+            ],
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            review.dateCreated,
+            style: TextStyle(fontSize: 10.sp, color: AppColors.textSecondary),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            review.review.replaceAll(RegExp(r'<[^>]*>'), ''),
+            style: TextStyle(
+              fontSize: 13.sp,
+              color: isDark
+                  ? AppColors.textLight.withOpacity(0.9)
+                  : AppColors.textPrimary.withOpacity(0.9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isSelf() {
+    final authState = context.read<AuthCubit>().state;
+    if (authState is AuthAuthenticated) {
+      return authState.user.id == widget.vendorId;
+    }
+    return false;
+  }
+
+  void _showAddReviewDialog(BuildContext context) {
+    final reviewController = TextEditingController();
+    int rating = 5;
+    final cubit = context.read<VendorProfileCubit>();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.r),
+              ),
+              title: const Text('ما هو تقييمك للمتجر؟'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        onPressed: () {
+                          setState(() {
+                            rating = index + 1;
+                          });
+                        },
+                        icon: Icon(
+                          index < rating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: Colors.amber,
+                          size: 32.sp,
+                        ),
+                      );
+                    }),
+                  ),
+                  SizedBox(height: 16.h),
+                  CustomTextField(
+                    controller: reviewController,
+                    hint: 'اكتب تجربتك مع المتجر هنا...',
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('إلغاء'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (reviewController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('الرجاء كتابة تعليق')),
+                      );
+                      return;
+                    }
+                    cubit.submitStoreReview(
+                      vendorId: widget.vendorId,
+                      rating: rating,
+                      comment: reviewController.text.trim(),
+                    );
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('إرسال التقييم'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

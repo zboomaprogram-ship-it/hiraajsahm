@@ -9,9 +9,9 @@ class ContactUsScreen extends StatelessWidget {
   const ContactUsScreen({super.key});
 
   // TODO: Replace with actual contact info
-  static const String whatsappNumber = '+966500000000';
-  static const String phoneNumber = '+966500000000';
-  static const String email = 'support@hiraajsahm.com';
+  static const String whatsappNumber = '+966532476676';
+  static const String phoneNumber = '+966532476676';
+  static const String email = 'harajsahm2025@gmail.com';
 
   @override
   Widget build(BuildContext context) {

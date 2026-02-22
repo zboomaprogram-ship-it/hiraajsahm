@@ -189,6 +189,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         // Clear cart after successful order
         _cartCubit.clearCart();
 
+        // Update user profile metadata with new info if provided (Persist phone from checkout)
+        _authCubit.updateUserMetadata(
+          firstName: finalFirstName,
+          lastName: finalLastName,
+          phone: finalPhone,
+          city: finalCity,
+          location: finalAddress,
+        );
+
         emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey));
       } else {
         emit(const CheckoutFailure(message: 'فشل في إنشاء الطلب'));

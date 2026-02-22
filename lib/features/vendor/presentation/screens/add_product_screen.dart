@@ -4,10 +4,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../core/routes/routes.dart';
 import '../../../../core/di/injection_container.dart' as di;
 import '../cubit/add_product_cubit.dart';
 import '../cubit/vendor_dashboard_cubit.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/data/models/user_model.dart';
 import '../../../shop/data/models/category_model.dart';
 
 /// Add Product Screen - For Vendors
@@ -32,9 +36,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _locationController = TextEditingController(); // Added
 
   final List<File> _selectedImages = [];
+  final List<String> _existingImageUrls = []; // Track existing images
   File? _selectedVideo;
-  int? _selectedCategoryId;
-  String _selectedCategoryName = 'اختر القسم';
+  int? _selectedMainCategoryId;
+  int? _selectedSubCategoryId;
+  String _selectedMainCategoryName = 'القسم الرئيسي';
+  String _selectedSubCategoryName = 'القسم الفرعي';
 
   List<CategoryModel> _categories = []; // Dynamic categories
 
@@ -53,21 +60,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (widget.productToEdit != null) {
       final p = widget.productToEdit!;
       _nameController.text = p.name;
-      _regularPriceController.text =
-          p.regularPrice; // Use regularPrice directly
+
+      // Fallback regular price to price if regular_price is empty
+      _regularPriceController.text = p.regularPrice.isNotEmpty
+          ? p.regularPrice
+          : p.price;
+
       _salePriceController.text = p.salePrice;
-      _stockController.text = '1'; // Default, as stock might not be in model
-      // Note: ProductModel might need update to include stock_quantity if we want to pre-fill it accurately
+      _stockController.text =
+          p.stockQuantity?.toString() ?? '1'; // Improved stock pre-fill
       _descriptionController.text = p.description;
 
-      // Set category if possible
+      // Pre-fill Category names if available
       if (p.categories.isNotEmpty) {
-        // Logic to find category ID? ProductModel usually has category IDs or names.
-        // Assuming first category.
-        // We'll leave it for user to select if we can't map it easily from basic ProductModel
+        final cat = p.categories.first;
+        _selectedMainCategoryId = cat.id;
+        _selectedMainCategoryName = cat.name;
+        // Optionally handle subcategories if the data structure supports it
       }
 
-      _locationController.text = p.productLocation ?? ''; // Added
+      _locationController.text = p.productLocation ?? '';
+
+      // Initialize existing images
+      _existingImageUrls.addAll(p.images);
     }
   }
 
@@ -94,8 +109,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
               leading: const Icon(Icons.camera_alt),
               title: Text(
                 widget.productToEdit != null
-                    ? 'تعديل المنتج'
-                    : 'إضافة منتج جديد',
+                    ? 'تعديل الاعلان'
+                    : 'إضافة اعلان جديد',
               ),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
@@ -188,7 +203,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     });
   }
 
-  void _showCategoryPicker() {
+  void _showMainCategoryPicker() {
+    final mainCategories = _categories.where((c) => c.parent == 0).toList();
+
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
@@ -201,11 +218,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'اختر القسم',
+              'اختر القسم الرئيسي',
               style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16.h),
-            if (_categories.isEmpty)
+            if (mainCategories.isEmpty)
               Padding(
                 padding: EdgeInsets.all(20.h),
                 child: const Center(child: CircularProgressIndicator()),
@@ -214,19 +231,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
-                  itemCount: _categories.length,
+                  itemCount: mainCategories.length,
                   separatorBuilder: (_, __) => const Divider(),
                   itemBuilder: (context, index) {
-                    final category = _categories[index];
+                    final category = mainCategories[index];
                     return ListTile(
                       title: Text(category.name),
-                      trailing: _selectedCategoryId == category.id
-                          ? Icon(Icons.check, color: AppColors.primary)
+                      trailing: _selectedMainCategoryId == category.id
+                          ? const Icon(Icons.check, color: AppColors.primary)
                           : null,
                       onTap: () {
                         setState(() {
-                          _selectedCategoryId = category.id;
-                          _selectedCategoryName = category.name;
+                          _selectedMainCategoryId = category.id;
+                          _selectedMainCategoryName = category.name;
+                          // Reset subcategory when main changes
+                          _selectedSubCategoryId = null;
+                          _selectedSubCategoryName = 'القسم الفرعي';
                         });
                         Navigator.pop(ctx);
                       },
@@ -234,6 +254,66 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   },
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSubCategoryPicker() {
+    if (_selectedMainCategoryId == null) return;
+
+    final subCategories = CategoryModel.getSubCategories(
+      _categories,
+      _selectedMainCategoryId!,
+    );
+
+    if (subCategories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد أقسام فرعية لهذا القسم')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
+      builder: (ctx) => Container(
+        padding: EdgeInsets.symmetric(vertical: 20.h),
+        constraints: BoxConstraints(maxHeight: 0.5.sh),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'اختر القسم الفرعي',
+              style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16.h),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: subCategories.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (context, index) {
+                  final category = subCategories[index];
+                  return ListTile(
+                    title: Text(category.name),
+                    trailing: _selectedSubCategoryId == category.id
+                        ? const Icon(Icons.check, color: AppColors.primary)
+                        : null,
+                    onTap: () {
+                      setState(() {
+                        _selectedSubCategoryId = category.id;
+                        _selectedSubCategoryName = category.name;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -256,7 +336,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void _submitProduct() {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedCategoryId == null) {
+    final categoryId = _selectedSubCategoryId ?? _selectedMainCategoryId;
+
+    if (categoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('يرجى اختيار القسم'),
@@ -282,7 +364,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         name: _nameController.text.trim(),
         price: _regularPriceController.text.trim(),
         salePrice: _salePriceController.text.trim(),
-        categoryId: _selectedCategoryId!,
+        categoryId: categoryId,
         stockQuantity: int.tryParse(_stockController.text.trim()) ?? 1,
         description: _descriptionController.text.trim(),
         newImages: _selectedImages, // Only passing new images
@@ -293,7 +375,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         name: _nameController.text.trim(),
         price: _regularPriceController.text.trim(),
         salePrice: _salePriceController.text.trim(),
-        categoryId: _selectedCategoryId!,
+        categoryId: categoryId,
         stockQuantity: int.tryParse(_stockController.text.trim()) ?? 1,
         description: _descriptionController.text.trim(),
         images: _selectedImages,
@@ -311,8 +393,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
       child: BlocListener<AddProductCubit, AddProductState>(
         listener: (context, state) {
           if (state is AddProductCategoriesLoaded) {
+            final user = context.read<AuthCubit>().currentUser;
+            final hasZabayeh = user?.hasAlZabayehTier ?? false;
+
             setState(() {
-              _categories = state.categories;
+              _categories = state.categories.where((cat) {
+                // 1. Always remove "الباقات" (Packages)
+                if (cat.id == 122 ||
+                    cat.name.contains('باقة') ||
+                    cat.name == 'الباقات' ||
+                    cat.slug == 'packages') {
+                  return false;
+                }
+
+                // 2. Remove "الذبائح" (Zabayeh) if user doesn't have the tier
+                if (!hasZabayeh) {
+                  if (cat.name.contains('الذبائح') ||
+                      cat.slug == 'slaughtered' ||
+                      cat.slug == 'sacrifices') {
+                    return false;
+                  }
+                }
+
+                return true;
+              }).toList();
             });
           } else if (state is AddProductSuccess) {
             // Refresh dashboard items count
@@ -342,7 +446,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
             ),
             title: Text(
-              'إضافة منتج',
+              widget.productToEdit != null ? 'تعديل اعلان' : 'إضافة اعلان',
               style: TextStyle(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.bold,
@@ -358,6 +462,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Limit Info
+                  FadeInDown(
+                    duration: const Duration(milliseconds: 400),
+                    child: _buildLimitInfo(isDark),
+                  ),
+                  SizedBox(height: 20.h),
+
                   // Image Picker
                   FadeInUp(
                     duration: const Duration(milliseconds: 300),
@@ -379,7 +490,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     duration: const Duration(milliseconds: 300),
                     child: _buildTextField(
                       controller: _nameController,
-                      label: 'اسم المنتج',
+                      label: 'اسم الاعلان',
                       hint: 'مثال: ناقة عمر 3 سنوات',
                       icon: Icons.inventory_2_outlined,
                       isDark: isDark,
@@ -424,7 +535,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   FadeInUp(
                     delay: const Duration(milliseconds: 200),
                     duration: const Duration(milliseconds: 300),
-                    child: _buildCategorySelector(isDark),
+                    child: Column(
+                      children: [
+                        _buildMainCategorySelector(isDark),
+                        SizedBox(height: 12.h),
+                        _buildSubCategorySelector(isDark),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  // Upgrade Banner (Show if not Gold AND Zabayeh)
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 225),
+                    duration: const Duration(milliseconds: 300),
+                    child: _buildUpgradeBanner(isDark),
                   ),
                   SizedBox(height: 16.h),
 
@@ -450,7 +574,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     child: _buildTextField(
                       controller: _descriptionController,
                       label: 'الوصف',
-                      hint: 'اكتب وصفاً تفصيلياً للمنتج...',
+                      hint: 'اكتب وصفاً تفصيلياً للاعلان...',
                       icon: Icons.description_outlined,
                       maxLines: 4,
                       isDark: isDark,
@@ -460,24 +584,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   SizedBox(height: 16.h),
 
                   // Product Location (New Field - Map Picker)
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 325),
-                    duration: const Duration(milliseconds: 300),
-                    child: GestureDetector(
-                      onTap: _pickLocation,
-                      child: AbsorbPointer(
-                        child: _buildTextField(
-                          controller: _locationController,
-                          label: 'عنوان المنتج (مطلوب)',
-                          hint: 'اختر الموقع من الخريطة',
-                          icon: Icons.location_on_outlined,
-                          isDark: isDark,
-                          isRequired: true,
-                        ),
-                      ),
-                    ),
-                  ),
-
+                  // FadeInUp(
+                  //   delay: const Duration(milliseconds: 325),
+                  //   duration: const Duration(milliseconds: 300),
+                  //   child: GestureDetector(
+                  //     onTap: _pickLocation,
+                  //     child: AbsorbPointer(
+                  //       child: _buildTextField(
+                  //         controller: _locationController,
+                  //         label: 'عنوان الاعلان (مطلوب)',
+                  //         hint: 'اختر الموقع من الخريطة',
+                  //         icon: Icons.location_on_outlined,
+                  //         isDark: isDark,
+                  //         isRequired: true,
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ),
                   SizedBox(height: 32.h),
 
                   // Submit Button
@@ -526,9 +649,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       Icon(Icons.add_rounded, size: 24.sp),
                                       SizedBox(width: 12.w),
                                       Text(
-                                        'نشر المنتج',
+                                        widget.productToEdit != null
+                                            ? 'تحديث الاعلان'
+                                            : 'نشر الاعلان',
                                         style: TextStyle(
-                                          fontSize: 18.sp,
+                                          fontSize: 14.sp,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -550,18 +675,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildImagePicker(bool isDark) {
+    final hasImages =
+        _selectedImages.isNotEmpty || _existingImageUrls.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_selectedImages.isNotEmpty)
+        if (hasImages)
           SizedBox(
             height: 120.h,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _selectedImages.length + 1,
+              itemCount: _existingImageUrls.length + _selectedImages.length + 1,
               separatorBuilder: (context, index) => SizedBox(width: 12.w),
               itemBuilder: (context, index) {
-                if (index == _selectedImages.length) {
+                // 1. Add Button
+                if (index ==
+                    _existingImageUrls.length + _selectedImages.length) {
                   return GestureDetector(
                     onTap: _pickImage,
                     child: Container(
@@ -583,6 +713,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   );
                 }
 
+                // 2. Existing Network Images
+                if (index < _existingImageUrls.length) {
+                  return Container(
+                    width: 120.w,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16.r),
+                      child: CachedNetworkImage(
+                        imageUrl: _existingImageUrls[index],
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.error),
+                      ),
+                    ),
+                  );
+                }
+
+                // 3. Newly Selected Local Images
+                final localIndex = index - _existingImageUrls.length;
                 return Stack(
                   children: [
                     Container(
@@ -591,7 +746,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         borderRadius: BorderRadius.circular(16.r),
                         border: Border.all(color: AppColors.border),
                         image: DecorationImage(
-                          image: FileImage(_selectedImages[index]),
+                          image: FileImage(_selectedImages[localIndex]),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -600,7 +755,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       top: 4.h,
                       right: 4.w,
                       child: GestureDetector(
-                        onTap: () => _removeImage(index),
+                        onTap: () => _removeImage(localIndex),
                         child: Container(
                           padding: EdgeInsets.all(4.w),
                           decoration: const BoxDecoration(
@@ -645,7 +800,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   SizedBox(height: 16.h),
                   Text(
-                    'اضغط لإضافة صور للمنتج',
+                    'اضغط لإضافة صور للاعلان',
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.bold,
@@ -675,7 +830,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'فيديو المنتج (اختياري)',
+          'فيديو الاعلان (اختياري)',
           style: TextStyle(
             fontSize: 16.sp,
             fontWeight: FontWeight.w600,
@@ -784,6 +939,93 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
+  Widget _buildUpgradeBanner(bool isDark) {
+    final user = context.watch<AuthCubit>().currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    final isGold = user.tier == UserTier.gold;
+    final hasZabayeh = user.hasAlZabayehTier;
+
+    // Show if not Gold OR doesn't have Zabayeh
+    if (isGold && hasZabayeh) return const SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [
+                  AppColors.primary.withValues(alpha: 0.15),
+                  AppColors.primary.withValues(alpha: 0.05),
+                ]
+              : [AppColors.primary.withValues(alpha: 0.1), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(10.w),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.workspace_premium_rounded,
+              color: AppColors.primary,
+              size: 24.sp,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  !isGold ? 'ترقية العضوية' : 'باقة الذبائح',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  !isGold
+                      ? 'احصل على مميزات العضوية الذهبية وزيادة حد الإعلانات'
+                      : 'اشترك الآن للوصول لقسم الذبائح المميز',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8.w),
+          TextButton(
+            onPressed: () =>
+                Navigator.pushNamed(context, Routes.vendorSubscription),
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            child: Text(
+              'ترقية',
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -832,9 +1074,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  Widget _buildCategorySelector(bool isDark) {
+  Widget _buildMainCategorySelector(bool isDark) {
     return GestureDetector(
-      onTap: _showCategoryPicker,
+      onTap: _showMainCategoryPicker,
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
@@ -844,22 +1086,120 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         child: Row(
           children: [
-            Icon(Icons.category_outlined, color: AppColors.primary),
+            const Icon(Icons.category_outlined, color: AppColors.primary),
             SizedBox(width: 12.w),
             Expanded(
               child: Text(
-                _selectedCategoryName,
+                _selectedMainCategoryName,
                 style: TextStyle(
                   fontSize: 16.sp,
-                  color: _selectedCategoryId != null
+                  color: _selectedMainCategoryId != null
                       ? (isDark ? AppColors.textLight : AppColors.textPrimary)
                       : AppColors.textSecondary,
                 ),
               ),
             ),
-            Icon(Icons.arrow_drop_down_rounded, color: AppColors.textSecondary),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              color: AppColors.textSecondary,
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSubCategorySelector(bool isDark) {
+    final hasSubCategories =
+        _selectedMainCategoryId != null &&
+        CategoryModel.getSubCategories(
+          _categories,
+          _selectedMainCategoryId!,
+        ).isNotEmpty;
+
+    return GestureDetector(
+      onTap: hasSubCategories ? _showSubCategoryPicker : null,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        opacity: hasSubCategories ? 1.0 : 0.5,
+        child: Container(
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : Colors.white,
+            borderRadius: BorderRadius.circular(14.r),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.account_tree_outlined, color: AppColors.primary),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Text(
+                  _selectedSubCategoryName,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    color: _selectedSubCategoryId != null
+                        ? (isDark ? AppColors.textLight : AppColors.textPrimary)
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.arrow_drop_down_rounded,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLimitInfo(bool isDark) {
+    final user = context.watch<AuthCubit>().currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    final tier = user.tier.name.toLowerCase();
+    final dailyLimit = (tier == 'silver' || tier == 'gold' || tier == 'zabayeh')
+        ? 5
+        : 1;
+
+    // We don't have real-time remaining_products here yet without fetching,
+    // but we can show the daily limit and a general reminder.
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : Colors.grey[100],
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: AppColors.primary, size: 20.sp),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'حد الإعلانات اليومي: $dailyLimit إعلانات',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  'سيتم التحقق من رصيد باقتك عند النشر',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -890,12 +1230,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             ),
             SizedBox(height: 24.h),
             Text(
-              'تم نشر المنتج بنجاح!',
+              'تم نشر الاعلان بنجاح!',
               style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12.h),
             Text(
-              'سيظهر منتجك في المتجر بعد المراجعة',
+              'سيظهر اعلانك في السوق بعد المراجعة',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14.sp, color: AppColors.textSecondary),
             ),

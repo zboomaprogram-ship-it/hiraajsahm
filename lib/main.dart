@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shorebird_code_push/shorebird_code_push.dart';
 
 // ✅ Correct Import for Global Navigator Key
 import 'core/services/notification_service.dart';
@@ -28,6 +29,8 @@ import 'features/vendor/presentation/cubit/vendor_products_cubit.dart';
 import 'features/vendor/presentation/cubit/vendor_orders_cubit.dart';
 import 'features/notifications/presentation/cubit/notifications_cubit.dart';
 
+final shorebirdCodePush = ShorebirdUpdater();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
@@ -49,8 +52,14 @@ void main() async {
   // Initialize dependency injection
   await di.init();
 
-  // ✅ Initialize OneSignal Notifications
-  await NotificationService().initializeOneSignal();
+  // Optimize Image Cache
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      1024 * 1024 * 300; // 300MB
+
+  // Initialize OneSignal in background (Don't await to prevent startup block)
+  NotificationService().initializeOneSignal().catchError((e) {
+    debugPrint('OneSignal Initialization failed: $e');
+  });
 
   runApp(
     EasyLocalization(

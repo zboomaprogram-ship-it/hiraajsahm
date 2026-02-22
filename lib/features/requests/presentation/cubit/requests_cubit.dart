@@ -70,4 +70,24 @@ class RequestsCubit extends Cubit<RequestsState> {
       emit(RequestsError(e.toString()));
     }
   }
+
+  Future<void> submitRegistration({
+    required int formId,
+    required Map<String, dynamic> data,
+    File? vehicleImage,
+    File? licenseImage,
+  }) async {
+    emit(const RequestsLoading());
+    try {
+      await _requestsService.submitToFluentForms(
+        formId: formId,
+        data: data,
+        vehicleImage: vehicleImage,
+        licenseImage: licenseImage,
+      );
+      emit(const RequestsSuccess());
+    } catch (e) {
+      emit(RequestsError(e.toString()));
+    }
+  }
 }
