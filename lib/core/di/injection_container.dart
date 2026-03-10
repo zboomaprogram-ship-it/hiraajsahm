@@ -32,6 +32,8 @@ import '../../features/vendor/data/datasources/vendor_remote_datasource.dart';
 import '../../features/vendor/data/repositories/vendor_repository_impl.dart';
 import '../../features/vendor/domain/repositories/vendor_repository.dart';
 import '../../features/vendor/presentation/cubit/vendor_upgrade_cubit.dart';
+import '../../features/addresses/presentation/cubit/addresses_cubit.dart';
+import '../services/telr_payment_service.dart';
 
 final sl = GetIt.instance;
 
@@ -158,6 +160,12 @@ Future<void> init() async {
   // Note: If your NotificationsCubit takes arguments (like Dio), add them here:
   // e.g., () => NotificationsCubit(dio: sl<Dio>())
   sl.registerFactory(() => NotificationsCubit());
+
+  // Addresses Cubit
+  sl.registerFactory(() => AddressesCubit());
+
+  // Telr Payment Service
+  sl.registerLazySingleton(() => TelrPaymentService());
 
   // Vendor Upgrade Cubit
   sl.registerFactory(

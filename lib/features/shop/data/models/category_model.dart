@@ -32,6 +32,31 @@ class CategoryModel extends Equatable {
     );
   }
 
+  /// Parses from the custom WordPress menu API endpoint `/custom/v1/menu`
+  factory CategoryModel.fromMenuJson(Map<String, dynamic> json) {
+    String extractSlug(String urlStr) {
+      if (urlStr.isEmpty) return '';
+      try {
+        final uri = Uri.parse(urlStr);
+        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+        if (segments.isNotEmpty) {
+          // Uri.pathSegments are already URL-decoded
+          return segments.last;
+        }
+      } catch (_) {}
+      return '';
+    }
+
+    return CategoryModel(
+      id: json['id'] ?? 0,
+      name: json['title'] ?? '',
+      slug: extractSlug(json['url'] ?? ''),
+      parent: json['parent'] ?? 0,
+      description: '',
+      count: 0, // Menu API doesn't provide product count
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

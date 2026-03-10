@@ -31,7 +31,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
           onPageFinished: (url) {
             setState(() => _isLoading = false);
           },
-          onWebResourceError: (error) {
+          onWebResourceError: (WebResourceError error) {
             setState(() => _isLoading = false);
           },
         ),

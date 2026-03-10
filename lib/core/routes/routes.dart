@@ -61,4 +61,7 @@ class Routes {
 
   // Notifications
   static const String notifications = '/notifications';
+
+  // Addresses
+  static const String addresses = '/addresses';
 }

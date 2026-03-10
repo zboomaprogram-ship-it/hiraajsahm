@@ -8,6 +8,8 @@ import 'package:shorebird_code_push/shorebird_code_push.dart';
 
 // ✅ Correct Import for Global Navigator Key
 import 'core/services/notification_service.dart';
+import 'package:telr_mobile_payment_sdk/telr_mobile_payment_sdk.dart';
+import 'core/config/app_config.dart';
 
 import 'core/routes/app_router.dart';
 import 'core/routes/routes.dart';
@@ -51,6 +53,18 @@ void main() async {
 
   // Initialize dependency injection
   await di.init();
+
+  // Initialize Telr SDK
+  try {
+    await TelrSdk.init(
+      preferredLanguageCode: 'ar',
+      debugLoggingEnabled: AppConfig.enableLogging,
+      samsungPayServiceId: null,
+      samsungPayMerchantId: null,
+    );
+  } catch (e) {
+    debugPrint('Telr SDK Initialization failed: $e');
+  }
 
   // Optimize Image Cache
   PaintingBinding.instance.imageCache.maximumSizeBytes =

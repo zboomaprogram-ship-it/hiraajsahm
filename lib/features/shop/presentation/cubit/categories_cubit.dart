@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
-import '../../../../core/config/app_config.dart';
+
 import '../../data/models/category_model.dart';
 
 // ============ CATEGORIES STATES ============
@@ -62,29 +62,24 @@ class CategoriesCubit extends Cubit<CategoriesState> {
     emit(const CategoriesLoading());
 
     try {
-      const fullUrl =
-          'https://hiraajsahm.com/wp-json/wc/v3/products/categories';
+      const fullUrl = 'https://hiraajsahm.com/wp-json/custom/v1/menu';
 
       final response = await _cleanDio.get(
         fullUrl,
-        queryParameters: {
-          'per_page': 100,
-          'hide_empty': false, // CRITICAL: Show all categories even if empty
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        },
+        // No authentication or query parameters needed for this public custom endpoint
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         final categories = data
-            .map((json) => CategoryModel.fromJson(json))
+            .map((json) => CategoryModel.fromMenuJson(json))
             .where(
               (cat) =>
                   cat.slug != 'uncategorized' &&
                   cat.slug != 'packages' &&
                   cat.name != 'الباقات' &&
-                  cat.id != 122,
+                  cat.id != 122 &&
+                  cat.slug.isNotEmpty,
             ) // Exclude uncategorized and packages categories
             .toList();
 

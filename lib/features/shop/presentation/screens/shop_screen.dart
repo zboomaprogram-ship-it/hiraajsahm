@@ -84,6 +84,7 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
@@ -97,9 +98,9 @@ class _ShopScreenState extends State<ShopScreen> {
           FadeInDown(
             delay: const Duration(milliseconds: 100),
             duration: const Duration(milliseconds: 300),
-            child: _buildCategoryFilter(isDark),
+            child: _buildCategoryFilter(isDark, isTablet),
           ),
-          Expanded(child: _buildProductsGrid(isDark)),
+          Expanded(child: _buildProductsGrid(isDark, isTablet)),
         ],
       ),
     );
@@ -219,9 +220,9 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildCategoryFilter(bool isDark) {
+  Widget _buildCategoryFilter(bool isDark, bool isTablet) {
     return SizedBox(
-      height: 50.h,
+      height: isTablet ? 60.h : 50.h,
       child: BlocBuilder<CategoriesCubit, CategoriesState>(
         builder: (context, state) {
           List<CategoryModel?> categories = [null];
@@ -359,13 +360,13 @@ class _ShopScreenState extends State<ShopScreen> {
     return Icons.category;
   }
 
-  Widget _buildProductsGrid(bool isDark) {
+  Widget _buildProductsGrid(bool isDark, bool isTablet) {
     return BlocBuilder<ProductsCubit, ProductsState>(
       builder: (context, state) {
         if (state is ProductsLoading) {
           return Padding(
             padding: EdgeInsets.only(top: 16.h),
-            child: const ProductGridShimmer(itemCount: 6),
+            child: ProductGridShimmer(itemCount: isTablet ? 9 : 6),
           );
         }
 
@@ -439,10 +440,10 @@ class _ShopScreenState extends State<ShopScreen> {
               controller: _scrollController,
               padding: EdgeInsets.all(16.w),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+                crossAxisCount: isTablet ? 3 : 2,
                 mainAxisSpacing: 16.h,
                 crossAxisSpacing: 16.w,
-                childAspectRatio: 0.65,
+                childAspectRatio: isTablet ? 0.8 : 0.65,
               ),
               itemCount: state.products.length + (state.hasReachedMax ? 0 : 1),
               itemBuilder: (context, index) {
@@ -459,7 +460,11 @@ class _ShopScreenState extends State<ShopScreen> {
                 return FadeInUp(
                   duration: const Duration(milliseconds: 300),
                   delay: Duration(milliseconds: (index % 10) * 50),
-                  child: _buildProductCard(state.products[index], isDark),
+                  child: _buildProductCard(
+                    state.products[index],
+                    isDark,
+                    isTablet,
+                  ),
                 );
               },
             ),
@@ -471,7 +476,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildProductCard(ProductModel product, bool isDark) {
+  Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
     final isOutOfStock =
         product.stockStatus == 'outofstock' || product.stockQuantity == 0;
 

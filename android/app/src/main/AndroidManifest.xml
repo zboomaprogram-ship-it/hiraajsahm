@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -9,6 +10,7 @@
   <!-- <application android:label="hiraajsahm" android:name="${applicationName}" android:icon="@mipmap/launcher_icon"> -->
    <application
         android:label="حراج السهم"
+        tools:replace="android:label"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- OneSignal Notification Icons (for Android 5.0+) -->

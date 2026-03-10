@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="0dp"
+    android:divider="@drawable/divider_form_field_spacing"
+    android:showDividers="middle">
+
+    <include
+        android:id="@+id/nameContainer"
+        layout="@layout/view_form_field" />
+
+    <include
+        android:id="@+id/emailContainer"
+        layout="@layout/view_form_field" />
+
+    <include
+        android:id="@+id/addressLineOneContainer"
+        layout="@layout/view_form_field" />
+
+    <include
+        android:id="@+id/addressLineTwoContainer"
+        layout="@layout/view_form_field" />
+
+    <include
+        android:id="@+id/addressLineThreeContainer"
+        layout="@layout/view_form_field" />
+
+    <include
+        android:id="@+id/addressCityContainer"
+        layout="@layout/view_form_field"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <include
+        android:id="@+id/addressCountryContainer"
+        layout="@layout/view_form_field_dropdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <include
+        android:id="@+id/phoneContainer"
+        layout="@layout/view_form_field" />
+
+</LinearLayout>

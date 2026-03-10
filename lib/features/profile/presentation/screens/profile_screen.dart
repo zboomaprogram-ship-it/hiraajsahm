@@ -317,12 +317,16 @@ class ProfileScreen extends StatelessWidget {
                           _MenuItem(
                             icon: Icons.location_on_outlined,
                             title: 'العناوين',
-                            onTap: () {},
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.addresses),
                           ),
                           _MenuItem(
                             icon: Icons.notifications_outlined,
                             title: 'الإشعارات',
-                            onTap: () {},
+                            onTap: () => AppRouter.navigateTo(
+                              context,
+                              Routes.notifications,
+                            ),
                           ),
                         ],
                         isDark: isDark,

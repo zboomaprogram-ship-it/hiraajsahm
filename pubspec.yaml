@@ -57,7 +57,6 @@ dependencies:
   go_router: ^17.0.1
   get_it: ^9.2.0
   image_picker: ^1.0.7
-  webview_flutter: ^4.10.0
   onesignal_flutter: ^5.0.0
 
   # Firebase & Push Notifications
@@ -88,6 +87,10 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
   shorebird_code_push: ^2.0.5
+
+  # Telr Payment Gateway
+  telr_mobile_payment_sdk: ^3.0.3
+  webview_flutter: ^4.13.1
 
 dev_dependencies:
   flutter_test:

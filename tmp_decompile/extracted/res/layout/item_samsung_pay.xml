@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <ImageButton
+        android:id="@+id/samsungPayButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/rounded_corners_black_button_with_grey_border_shape"
+        android:contentDescription="Pay with Samsung Pay"
+        android:foreground="@drawable/rounded_corners_black_button_ripple"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_samsung_pay_button_basic" />
+
+</LinearLayout>

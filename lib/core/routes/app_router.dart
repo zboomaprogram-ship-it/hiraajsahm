@@ -55,6 +55,10 @@ import '../../features/requests/presentation/screens/requests_screen.dart';
 import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/notifications/presentation/cubit/notifications_cubit.dart';
 
+// Addresses
+import '../../features/addresses/presentation/screens/addresses_screen.dart';
+import '../../features/addresses/presentation/cubit/addresses_cubit.dart';
+
 /// Application Router
 class AppRouter {
   AppRouter._();
@@ -238,6 +242,16 @@ class AppRouter {
       case Routes.wishlist:
         return _buildRoute(
           _buildPlaceholderScreen('المفضلة', 'صفحة المفضلة قيد التطوير'),
+          settings,
+        );
+
+      // --- Addresses ---
+      case Routes.addresses:
+        return _buildRoute(
+          BlocProvider(
+            create: (context) => sl<AddressesCubit>()..loadAddresses(),
+            child: const AddressesScreen(),
+          ),
           settings,
         );
 

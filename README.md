@@ -33,6 +33,11 @@ cs:cs_b9eaac1870c64b2ea3935a5d2296bdf93a73b4ce
 /////////////
 and on the logged user vendor profile there is no location viwed add it and add a description that the logged vendor can edit and link it with wordpress
 
+//payment//
+Store ID 34762
+Authentication Key 5QFj~s5rDH#KpBnQ
+Authentication key K8nTm^WSVK@pQ. --mobile
+
 /////////////////////////////////////////////
 
 /\*\*

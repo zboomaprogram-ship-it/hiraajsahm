@@ -8,10 +8,12 @@ import '../../../../core/routes/app_router.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/services/telr_payment_service.dart';
 import '../cubit/checkout_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import 'telr_webview_screen.dart';
 
-import '../../../../core/widgets/location_picker_screen.dart'; // Added
+import '../../../../core/widgets/location_picker_screen.dart';
 import '../../../../core/widgets/mini_map_preview.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -50,7 +52,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _PaymentMethod(
       id: 'online',
       title: 'دفع إلكتروني',
-      subtitle: 'بطاقة ائتمانية / مدى / Apple Pay',
+      subtitle: 'Telr - بطاقة ائتمانية / مدى / Apple Pay / Google Pay',
       icon: Icons.credit_card_rounded,
     ),
   ];
@@ -161,6 +163,55 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  /// Handle Telr payment flow via WebView SDK alternative
+  Future<void> _handleTelrPayment(
+    BuildContext context, {
+    required int orderId,
+    required String amount,
+    required String customerEmail,
+    required String customerName,
+  }) async {
+    try {
+      final telrService = sl<TelrPaymentService>();
+
+      // Call our WP backend to generate the HPP URL
+      final session = await telrService.createOrderSession(
+        orderId: orderId,
+        amount: amount,
+        customerEmail: customerEmail,
+        customerName: customerName,
+        billingAddress: _addressController.text,
+        billingCity: _cityController.text,
+        billingPhone: _phoneController.text,
+      );
+
+      final orderUrl = session['order_url'];
+      final orderRef = session['order_ref'];
+
+      if (orderUrl == null || orderUrl.isEmpty) {
+        throw Exception('Failed to get valid payment URL from backend.');
+      }
+
+      // Launch secure WebView to process the Hosted Payment Page
+      if (!context.mounted) return;
+      final success = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              TelrWebViewScreen(orderUrl: orderUrl, orderRef: orderRef),
+        ),
+      );
+
+      if (success == true) {
+        _checkoutCubit.completePayment(orderId);
+      } else {
+        _checkoutCubit.failPayment('تم إلغاء عملية الدفع أو فشلها.');
+      }
+    } catch (e) {
+      _checkoutCubit.failPayment('خطأ في عملية الدفع: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -180,6 +231,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     backgroundColor: AppColors.error,
                     behavior: SnackBarBehavior.floating,
                   ),
+                );
+              } else if (state is CheckoutAwaitingPayment) {
+                // Trigger Telr payment flow
+                _handleTelrPayment(
+                  context,
+                  orderId: state.orderId,
+                  amount: state.amount,
+                  customerEmail: state.customerEmail,
+                  customerName: state.customerName,
                 );
               }
             },

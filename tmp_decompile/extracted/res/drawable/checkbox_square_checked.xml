@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background: Green square with rounded corners -->
+    <item>
+        <shape android:shape="rectangle">
+            <size android:width="20dp" android:height="20dp" />
+            <solid android:color="@color/brand_button_green" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+    <!-- Checkmark icon -->
+    <item
+        android:width="12dp"
+        android:height="12dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_check" />
+</layer-list>

@@ -80,4 +80,11 @@ class AppConfig {
   // ============ FLUENT FORMS CONFIG ============
   static const int fluentFormInspectorId = 3; // UPDATE with actual ID
   static const int fluentFormTransporterId = 4; // UPDATE with actual ID
+
+  // ============ TELR PAYMENT GATEWAY ============
+  static const String telrTokenEndpoint = '/hiraajsahm/v1/telr/token';
+  static const String telrOrderEndpoint = '/hiraajsahm/v1/telr/order';
+  static const int telrStoreId = 34762;
+  static const String telrMobileAuthKey = 'K8nTm^WSVK@pQ.';
+  static const bool telrTestMode = true; // Set to false for production
 }

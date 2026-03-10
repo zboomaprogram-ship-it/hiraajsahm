@@ -139,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
@@ -160,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
               child: FadeInUp(
                 duration: const Duration(milliseconds: 400),
-                child: _buildCategories(context, isDark),
+                child: _buildCategories(context, isDark, isTablet),
               ),
             ),
 
@@ -177,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // Products Grid - Uses HomeContentCubit
-            _buildProductsGrid(context, isDark),
+            _buildProductsGrid(context, isDark, isTablet),
 
             // Bottom Spacing
             SliverToBoxAdapter(child: SizedBox(height: 100.h)),
@@ -386,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategories(BuildContext context, bool isDark) {
+  Widget _buildCategories(BuildContext context, bool isDark, bool isTablet) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -413,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   .toList();
 
               return SizedBox(
-                height: 110.h,
+                height: isTablet ? 70.h : 60.h,
                 child: ListView.separated(
                   padding: EdgeInsets.symmetric(horizontal: 20.w),
                   scrollDirection: Axis.horizontal,
@@ -426,6 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _getCategoryIcon(category),
                       _getCategoryColor(index),
                       isDark,
+                      isTablet,
                     );
                   },
                 ),
@@ -449,14 +451,15 @@ class _HomeScreenState extends State<HomeScreen> {
     IconData icon,
     Color color,
     bool isDark,
+    bool isTablet,
   ) {
     return GestureDetector(
       onTap: () => _onCategoryTap(category),
       child: Column(
         children: [
           Container(
-            width: 80.w,
-            height: 48.h, // Adjusted representing a flat card
+            width: isTablet ? 110.w : 80.w,
+            height: isTablet ? 55.h : 48.h, // Adjusted representing a flat card
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: isDark ? AppColors.surfaceVariantDark : Colors.grey[200],
@@ -522,11 +525,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildProductsGrid(BuildContext context, bool isDark) {
+  Widget _buildProductsGrid(BuildContext context, bool isDark, bool isTablet) {
     return BlocBuilder<HomeContentCubit, HomeContentState>(
       builder: (context, state) {
         if (state is HomeContentLoading) {
-          return SliverToBoxAdapter(child: ProductGridShimmer(itemCount: 4));
+          return SliverToBoxAdapter(
+            child: ProductGridShimmer(itemCount: isTablet ? 6 : 4),
+          );
         }
 
         if (state is HomeContentError) {
@@ -561,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         if (state is HomeContentLoaded) {
-          final products = state.latestProducts.take(6).toList();
+          final products = state.latestProducts.take(isTablet ? 9 : 6).toList();
 
           if (products.isEmpty) {
             return SliverToBoxAdapter(
@@ -581,13 +586,13 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: EdgeInsets.symmetric(horizontal: 20.w),
             sliver: SliverGrid(
               delegate: SliverChildBuilderDelegate((context, index) {
-                return _buildProductCard(products[index], isDark);
+                return _buildProductCard(products[index], isDark, isTablet);
               }, childCount: products.length),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+                crossAxisCount: isTablet ? 3 : 2,
                 mainAxisSpacing: 16.h,
                 crossAxisSpacing: 16.w,
-                childAspectRatio: 0.7,
+                childAspectRatio: isTablet ? 0.8 : 0.7,
               ),
             ),
           );
@@ -598,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildProductCard(ProductModel product, bool isDark) {
+  Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
     return GestureDetector(
       onTap: () {
         AppRouter.navigateTo(

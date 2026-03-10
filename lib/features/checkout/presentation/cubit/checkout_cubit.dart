@@ -41,6 +41,24 @@ class CheckoutFailure extends CheckoutState {
   List<Object?> get props => [message];
 }
 
+/// State emitted when an online payment order is created and awaiting Telr payment
+class CheckoutAwaitingPayment extends CheckoutState {
+  final int orderId;
+  final String amount;
+  final String customerEmail;
+  final String customerName;
+
+  const CheckoutAwaitingPayment({
+    required this.orderId,
+    required this.amount,
+    required this.customerEmail,
+    required this.customerName,
+  });
+
+  @override
+  List<Object?> get props => [orderId, amount, customerEmail, customerName];
+}
+
 class CheckoutCubit extends Cubit<CheckoutState> {
   final Dio _cleanDio;
   final CartCubit _cartCubit;
@@ -186,10 +204,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         final orderId = response.data['id'];
         final orderKey = response.data['order_key'] ?? '';
 
-        // Clear cart after successful order
-        _cartCubit.clearCart();
-
-        // Update user profile metadata with new info if provided (Persist phone from checkout)
+        // Update user profile metadata with new info if provided
         _authCubit.updateUserMetadata(
           firstName: finalFirstName,
           lastName: finalLastName,
@@ -198,7 +213,25 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           location: finalAddress,
         );
 
-        emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey));
+        // If online payment, emit awaiting payment state for Telr
+        if (paymentMethod == 'online') {
+          final cartState2 = _cartCubit.state;
+          final total = cartState2 is CartLoaded
+              ? cartState2.total.toStringAsFixed(2)
+              : '0.00';
+          emit(
+            CheckoutAwaitingPayment(
+              orderId: orderId,
+              amount: total,
+              customerEmail: finalEmail,
+              customerName: '$finalFirstName $finalLastName'.trim(),
+            ),
+          );
+        } else {
+          // Clear cart for non-online payments
+          _cartCubit.clearCart();
+          emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey));
+        }
       } else {
         emit(const CheckoutFailure(message: 'فشل في إنشاء الطلب'));
       }
@@ -222,10 +255,21 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       case 'bacs':
         return 'تحويل بنكي';
       case 'online':
-        return 'دفع إلكتروني';
+        return 'دفع إلكتروني - Telr';
       default:
         return 'الدفع عند الاستلام';
     }
+  }
+
+  /// Mark payment as complete after Telr success
+  void completePayment(int orderId) {
+    _cartCubit.clearCart();
+    emit(CheckoutSuccess(orderId: orderId, orderKey: ''));
+  }
+
+  /// Mark payment as failed
+  void failPayment(String message) {
+    emit(CheckoutFailure(message: message));
   }
 
   /// Reset to initial state

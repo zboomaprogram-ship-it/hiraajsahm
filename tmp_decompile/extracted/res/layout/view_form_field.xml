@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="0dp">
+
+    <AutoCompleteTextView
+        android:id="@+id/editText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:background="@drawable/input_background"
+        android:paddingStart="12dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="14dp"
+        android:textSize="16sp"
+        android:textColor="@color/text_input"
+        android:textColorHint="@color/text_hint"
+        android:hint=" "
+        android:inputType="text"
+        android:completionThreshold="0"
+        android:gravity="center_vertical"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/errorText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="0dp"
+        android:text=""
+        android:textColor="#D32F2F"
+        android:textSize="12sp"
+        android:paddingTop="4dp"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp"
+        android:visibility="gone"
+        android:gravity="start" />
+
+</LinearLayout>

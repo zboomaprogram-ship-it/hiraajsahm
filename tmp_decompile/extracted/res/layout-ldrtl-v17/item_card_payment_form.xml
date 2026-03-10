@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="15dp"
+    android:paddingBottom="15dp">
+
+    <!-- Payment method selector -->
+    <LinearLayout
+        android:id="@+id/newCardHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="5dp">
+
+        <RadioButton
+            android:id="@+id/payment_method_radio"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:button="@null"
+            android:background="@drawable/checkbox_circle_selector"
+            android:checked="true"
+            android:contentDescription="@string/app_name" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:id="@+id/newCardTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/newcard_title"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/newCardSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/newcard_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circle_light_green">
+            <ImageView
+                android:id="@+id/newCardIcon"
+                android:layout_width="18dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:tint="#7A7F83"
+                android:src="@drawable/ic_new_card"
+                android:contentDescription="@string/app_name" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- Expanded section for New Card fields (collapsible) -->
+    <LinearLayout
+        android:id="@+id/newCardExpandedSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="15dp"
+        android:orientation="vertical">
+
+        <include
+            android:id="@+id/contactSection"
+            layout="@layout/item_contact_information_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <LinearLayout
+            android:id="@+id/cardFieldsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Card Number (box with vertical gap below) -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/input_background"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="0dp">
+
+                <EditText
+                    android:id="@+id/panEditText"
+                    android:maxLength="23"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@android:color/transparent"
+                    android:hint="@string/card_number_label"
+                    android:inputType="number"
+                    android:textDirection="ltr"
+                    android:gravity="end|center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="60dp"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_input"
+                    android:textColorHint="@color/text_hint" />
+
+                <FrameLayout
+                    android:id="@+id/panAccessoryContainer"
+                    android:layout_width="48dp"
+                    android:layout_height="match_parent"
+                    android:layout_alignParentEnd="true"
+                    android:paddingEnd="12dp"
+                    android:paddingStart="4dp">
+
+                    <com.telr.android.payment.sdk.ui.components.LogoCarouselView
+                        android:id="@+id/panCarouselView"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical|end" />
+
+                    <ImageView
+                        android:id="@+id/panSchemeIcon"
+                        android:layout_width="30dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:adjustViewBounds="true"
+                        android:contentDescription="@string/card_number_label"
+                        android:visibility="gone" />
+
+                    <ProgressBar
+                        android:id="@+id/panSchemeLoading"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </RelativeLayout>
+
+            <TextView
+                android:id="@+id/panError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="0dp"
+                android:textColor="#D32F2F"
+                android:textSize="12sp"
+                android:text=""
+                android:paddingTop="4dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:layout_marginBottom="0dp"
+                android:visibility="gone"
+                android:gravity="start" />
+
+            <!-- Expiry and CVV as two separate boxes with dedicated error rows -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <!-- Expiry (MM / YY) column -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/input_background"
+                        android:paddingEnd="8dp">
+
+                        <EditText
+                            android:id="@+id/expiryMonthEditText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:minEms="2"
+                            android:background="@android:color/transparent"
+                            android:gravity="start|center_vertical"
+                            android:hint="@string/newcard_placeholder_month"
+                            android:inputType="number"
+                            android:maxLength="2"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="0dp"
+                            android:textSize="16sp"
+                            android:textColor="@color/text_input"
+                            android:textColorHint="@color/text_hint" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/expiry_separator"
+                            android:layout_marginStart="16dp"
+                            android:layout_marginEnd="16dp"
+                            android:textSize="16sp" />
+
+                        <EditText
+                            android:id="@+id/expiryYearEditText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:minEms="2"
+                            android:background="@android:color/transparent"
+                            android:gravity="start|center_vertical"
+                            android:hint="@string/newcard_placeholder_year"
+                            android:inputType="number"
+                            android:maxLength="2"
+                            android:paddingStart="0dp"
+                            android:paddingEnd="15dp"
+                            android:textSize="16sp"
+                            android:textColor="@color/text_input"
+                            android:textColorHint="@color/text_hint" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/expiryError"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="0dp"
+                        android:textColor="#D32F2F"
+                        android:textSize="12sp"
+                        android:text=""
+                        android:paddingTop="4dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:visibility="gone"
+                        android:gravity="start" />
+                </LinearLayout>
+
+                <!-- CVV column -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/input_background">
+
+                        <EditText
+                            android:id="@+id/cvvEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent"
+                            android:gravity="start|center_vertical"
+                            android:hint="@string/newcard_placeholder_cvv"
+                            android:inputType="numberPassword"
+                            android:digits="0123456789"
+                            android:maxLength="4"
+                            android:paddingStart="15dp"
+                            android:paddingEnd="15dp"
+                            android:textAlignment="viewStart"
+                            android:textSize="16sp"
+                            android:textColor="@color/text_input"
+                            android:textColorHint="@color/text_hint" />
+                    </RelativeLayout>
+
+                    <TextView
+                        android:id="@+id/cvvError"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="0dp"
+                        android:textColor="#D32F2F"
+                        android:textSize="12sp"
+                        android:text=""
+                        android:paddingTop="4dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:visibility="gone"
+                        android:gravity="start" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Save Card Checkbox -->
+            <CheckBox
+                android:id="@+id/saveCardCheckBox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="20dp"
+                android:text="@string/save_card_for_later_label"
+                android:textSize="17sp"
+                android:textColor="@color/text_save_card"
+                android:button="@drawable/checkbox_square_selector"
+                android:paddingStart="8dp"
+                android:visibility="gone" />
+
+            <!-- Pay Button with Progress Indicator -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="20dp">
+
+                <Button
+                    android:id="@+id/payButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:background="@drawable/rounded_corners_button"
+                    android:elevation="0dp"
+                    android:text="@string/pay"
+                    android:textColor="@android:color/white"
+                    android:textSize="16sp"
+                    android:textAllCaps="false" />
+
+                <ProgressBar
+                    android:id="@+id/payButtonProgress"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="16dp"
+                    android:indeterminateTint="@android:color/white"
+                    android:visibility="gone" />
+            </RelativeLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
