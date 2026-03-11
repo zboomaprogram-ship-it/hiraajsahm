@@ -646,12 +646,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   strokeWidth: 2.5,
                 ),
               )
-            : Text(
-                _isVendor ? 'إنشاء سوقي' : 'إنشاء حساب',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _isVendor ? 'إنشاء سوقي' : 'إنشاء حساب',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
       ),

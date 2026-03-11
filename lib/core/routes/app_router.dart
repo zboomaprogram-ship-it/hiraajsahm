@@ -45,6 +45,7 @@ import '../../features/profile/presentation/screens/profile_screen.dart';
 
 // Settings & Requests
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/about_app_screen.dart';
 import '../../features/settings/presentation/screens/contact_us_screen.dart';
 import '../../features/settings/presentation/screens/change_password_screen.dart';
 import '../../features/settings/presentation/screens/webview_screen.dart';
@@ -258,6 +259,9 @@ class AppRouter {
       // --- Settings & Webview ---
       case Routes.settings:
         return _buildRoute(const SettingsScreen(), settings);
+
+      case Routes.aboutApp:
+        return _buildRoute(const AboutAppScreen(), settings);
 
       case Routes.contactUs:
         return _buildRoute(const ContactUsScreen(), settings);

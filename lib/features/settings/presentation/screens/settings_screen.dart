@@ -139,6 +139,8 @@ class SettingsScreen extends StatelessWidget {
                             Routes.changePassword,
                           ),
                         ),
+                        _buildDivider(),
+                        _buildDeleteAccountTile(context, isDark),
                       ], isDark),
                     ),
                     SizedBox(height: 24.h),
@@ -391,6 +393,98 @@ class SettingsScreen extends StatelessWidget {
       context,
       Routes.webView,
       arguments: {'title': title, 'url': url},
+    );
+  }
+
+  Widget _buildDeleteAccountTile(BuildContext context, bool isDark) {
+    return ListTile(
+      leading: Container(
+        width: 40.w,
+        height: 40.w,
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: Icon(Icons.delete_forever_outlined, color: AppColors.error, size: 22.sp),
+      ),
+      title: Text(
+        'حذف الحساب',
+        style: TextStyle(
+          fontSize: 16.sp,
+          fontWeight: FontWeight.w500,
+          color: AppColors.error,
+        ),
+      ),
+      subtitle: Text(
+        'حذف حسابك نهائياً',
+        style: TextStyle(fontSize: 13.sp, color: AppColors.textSecondary),
+      ),
+      trailing: Icon(
+        Icons.arrow_forward_ios_rounded,
+        color: AppColors.error,
+        size: 16.sp,
+      ),
+      onTap: () => _showDeleteAccountDialog(context),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 28.sp),
+            SizedBox(width: 8.w),
+            const Expanded(child: Text('حذف الحساب')),
+          ],
+        ),
+        content: const Text(
+          'هل أنت متأكد من حذف حسابك؟ \n\nهذا الإجراء لا يمكن التراجع عنه وسيتم حذف جميع بياناتك نهائياً.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final authCubit = context.read<AuthCubit>();
+              final userId = authCubit.currentUser?.id;
+              if (userId != null) {
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('جاري حذف الحساب...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                try {
+                  await authCubit.deleteAccount(userId);
+                  if (context.mounted) {
+                    AppRouter.navigateAndRemoveUntil(context, Routes.splash);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('فشل في حذف الحساب: $e'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('حذف نهائياً'),
+          ),
+        ],
+      ),
     );
   }
 }

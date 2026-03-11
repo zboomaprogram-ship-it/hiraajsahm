@@ -17,6 +17,7 @@ class Routes {
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile'; // Added
   static const String settings = '/settings';
+  static const String aboutApp = '/about-app';
   static const String contactUs = '/contact-us';
   static const String changePassword = '/change-password';
   static const String webView = '/webview';

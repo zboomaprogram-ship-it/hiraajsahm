@@ -137,6 +137,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   /// Get current user's pack ID
   int? _getCurrentPackId() {
+    // If registering as vendor, Bronze (29026) is the default included tier
+    if (widget.vendorRegistrationData != null) return 29026;
+
     final authCubit = context.read<AuthCubit>();
     return authCubit.currentUser?.subscriptionPackId;
   }
@@ -158,12 +161,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
 
     final currentPackId = _getCurrentPackId();
+
+    // SPECIAL LOGIC FOR BRONZE (29026) DURING VENDOR REGISTRATION
+    if (widget.vendorRegistrationData != null && pack.id == 29026) {
+      // Upgrade to vendor silently and show dialog
+      context.read<VendorUpgradeCubit>().upgradeToVendor(
+        userId: context.read<AuthCubit>().currentUser!.id,
+        shopName: widget.vendorRegistrationData!.shopName,
+        phone: widget.vendorRegistrationData!.phone,
+        shopLink: widget.vendorRegistrationData!.shopLink,
+      );
+      
+      _showAlreadySubscribedDialog(isDefault: true);
+      return;
+    }
+
     final currentLevel = _getTierLevel(currentPackId);
     final newLevel = _getTierLevel(pack.id);
 
     // Prevent purchasing same tier
     if (currentPackId == pack.id) {
-      _showAlreadySubscribedDialog();
+      _showAlreadySubscribedDialog(isDefault: pack.id == 29026);
       return;
     }
 
@@ -246,7 +264,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  void _showAlreadySubscribedDialog() {
+  void _showAlreadySubscribedDialog({bool isDefault = false}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -260,10 +278,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const Expanded(child: Text('أنت مشترك بالفعل')),
           ],
         ),
-        content: const Text('أنت مشترك في هذه الباقة حالياً.'),
+        content: Text(
+          isDefault
+              ? 'أنت تمتلك هذه الباقة بالفعل، إنها الباقة الافتراضية.'
+              : 'أنت مشترك في هذه الباقة حالياً.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (widget.vendorRegistrationData != null && isDefault) {
+                // If they were registering and selected default, return to main
+                AppRouter.navigateAndRemoveUntil(context, Routes.main);
+              }
+            },
             child: const Text('حسناً'),
           ),
         ],

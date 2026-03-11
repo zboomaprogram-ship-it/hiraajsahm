@@ -166,12 +166,15 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
                       borderRadius: BorderRadius.circular(16.r),
                     ),
                   ),
-                  child: Text(
-                    'المتابعة لاختيار الباقة',
-                    style: TextStyle(
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'المتابعة لاختيار الباقة',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),

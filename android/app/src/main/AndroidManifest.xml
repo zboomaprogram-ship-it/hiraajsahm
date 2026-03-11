@@ -10,9 +10,9 @@
   <!-- <application android:label="hiraajsahm" android:name="${applicationName}" android:icon="@mipmap/launcher_icon"> -->
    <application
         android:label="حراج السهم"
-        tools:replace="android:label"
+        tools:replace="android:label,android:icon"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         <!-- OneSignal Notification Icons (for Android 5.0+) -->
         <meta-data 
             android:name="com.onesignal.NotificationDefaultSmallIcon" 
@@ -55,7 +55,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyD2nMf6REHhlMWqGkYdd3vuGmoUGgjTqek" />
+            android:value="AIzaSyDl5bO63kW9ukQkEEyqdg40oSFh1R8mOSM" />
 
     </application>
   <!-- Required to query activities that can process text, see:

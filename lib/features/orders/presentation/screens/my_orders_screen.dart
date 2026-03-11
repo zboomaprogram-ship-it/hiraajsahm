@@ -62,9 +62,13 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             controller: _tabController,
             indicatorColor: AppColors.primary,
             indicatorWeight: 3,
-            labelColor: AppColors.primary,
+            labelColor: Colors.white,
             unselectedLabelColor: AppColors.textSecondary,
-            labelStyle: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold),
+            labelStyle: TextStyle(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
             tabs: const [
               Tab(text: 'الطلبات الحالية'),
               Tab(text: 'السجل'),

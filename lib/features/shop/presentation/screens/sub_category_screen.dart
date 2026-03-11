@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
@@ -20,6 +20,7 @@ class SubCategoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
 
     final displayedCategories = [
       parentCategory.copyWith(name: 'الكل'),
@@ -51,10 +52,10 @@ class SubCategoryScreen extends StatelessWidget {
       body: GridView.builder(
         padding: EdgeInsets.all(20.w),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          crossAxisCount: isTablet ? 3 : 2,
           mainAxisSpacing: 16.h,
           crossAxisSpacing: 16.w,
-          childAspectRatio: 1.1,
+          childAspectRatio: isTablet ? 1.2 : 1.1,
         ),
         itemCount: displayedCategories.length,
         itemBuilder: (context, index) {
@@ -97,33 +98,6 @@ class SubCategoryScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 60.w,
-              height: 60.w,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: category.hasImage
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(30.r),
-                      child: CachedNetworkImage(
-                        imageUrl: category.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Icon(
-                          Icons.category_rounded,
-                          color: AppColors.primary,
-                          size: 30.sp,
-                        ),
-                      ),
-                    )
-                  : Icon(
-                      Icons.category_rounded,
-                      color: AppColors.primary,
-                      size: 30.sp,
-                    ),
-            ),
-            SizedBox(height: 12.h),
             Text(
               category.name,
               textAlign: TextAlign.center,
@@ -133,7 +107,7 @@ class SubCategoryScreen extends StatelessWidget {
                 color: isDark ? AppColors.textLight : AppColors.textPrimary,
               ),
             ),
-            SizedBox(height: 4.h),
+            SizedBox(height: 8.h),
             Text(
               '${category.count} منتج',
               style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary),

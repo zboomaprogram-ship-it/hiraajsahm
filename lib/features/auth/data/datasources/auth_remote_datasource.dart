@@ -638,7 +638,7 @@ class AuthRemoteDataSource {
       );
 
       final wcUrl =
-          '${AppConfig.baseUrl}${AppConfig.wcCustomersEndpoint}/$id?consumer_key=${AppConfig.wcConsumerKey}&consumer_secret=${AppConfig.wcConsumerSecret}&force=true';
+          '${AppConfig.baseUrl}${AppConfig.wcCustomersEndpoint}/$userId?consumer_key=${AppConfig.wcConsumerKey}&consumer_secret=${AppConfig.wcConsumerSecret}&force=true';
 
       await cleanDio.delete(wcUrl);
       return const Right(true);
@@ -656,6 +656,8 @@ class AuthRemoteDataSource {
 
       if (data is Map<String, dynamic>) {
         message = data['message'] ?? data['error'] ?? message;
+        // Strip HTML tags from the message
+        message = message.replaceAll(RegExp(r'<[^>]*>'), '');
       }
 
       switch (e.response?.statusCode) {
@@ -664,7 +666,7 @@ class AuthRemoteDataSource {
         case 401:
           return AuthFailure(message: message);
         case 403:
-          return AuthFailure(message: 'Access denied');
+          return AuthFailure(message: message);
         case 404:
           return ServerFailure(message: 'Resource not found');
         case 500:

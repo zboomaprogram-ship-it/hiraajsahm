@@ -109,6 +109,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
@@ -133,7 +134,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                   .read<VendorProfileCubit>()
                   .loadVendorProfile(widget.vendorId),
               color: AppColors.primary,
-              child: _buildContent(context, data, isDark),
+              child: _buildContent(context, data, isDark, isTablet),
             );
           }
 
@@ -196,6 +197,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
     BuildContext context,
     VendorProfileLoaded state,
     bool isDark,
+    bool isTablet,
   ) {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -251,8 +253,8 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                   padding: EdgeInsets.symmetric(horizontal: 16.w),
                   sliver: SliverGrid(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.65,
+                      crossAxisCount: isTablet ? 3 : 2,
+                      childAspectRatio: isTablet ? 0.8 : 0.65,
                       crossAxisSpacing: 12.w,
                       mainAxisSpacing: 12.h,
                     ),

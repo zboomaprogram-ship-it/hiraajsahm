@@ -565,6 +565,31 @@ class AuthCubit extends Cubit<AuthState> {
     await logout();
   }
 
+  /// Delete user account permanently
+  Future<void> deleteAccount(int userId) async {
+    emit(const AuthLoading());
+    final result = await _authRemoteDataSource.deleteUser(userId);
+    result.fold(
+      (failure) {
+        // Re-emit authenticated state on failure
+        if (_currentUser != null && _currentToken != null) {
+          emit(AuthAuthenticated(
+            user: _currentUser!,
+            token: _currentToken!,
+            message: 'فشل في حذف الحساب: ${failure.message}',
+          ));
+        } else {
+          emit(AuthFailure(message: failure.message));
+        }
+      },
+      (success) async {
+        await NotificationService().logout();
+        await _clearAuthData();
+        emit(const AuthUnauthenticated());
+      },
+    );
+  }
+
   Future<void> logout() async {
     emit(const AuthLoading());
     // Clear OneSignal user

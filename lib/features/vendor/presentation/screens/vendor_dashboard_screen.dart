@@ -33,11 +33,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       body: _buildCurrentTab(isDark),
-      bottomNavigationBar: _buildBottomNavBar(isDark),
+      bottomNavigationBar: _buildBottomNavBar(isDark, isTablet),
     );
   }
 
@@ -87,7 +88,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  Widget _buildBottomNavBar(bool isDark) {
+  Widget _buildBottomNavBar(bool isDark, bool isTablet) {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
@@ -102,7 +103,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         top: false,
         child: CurvedNavigationBar(
           index: _currentIndex,
-          height: 65,
+          height: isTablet ? 75 : 65,
           items: [
             Icon(
               Icons.dashboard_rounded,
@@ -187,7 +188,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           SliverToBoxAdapter(
             child: FadeInUp(
               duration: const Duration(milliseconds: 500),
-              child: _buildStatsGrid(context, state.stats),
+              child: _buildStatsGrid(context, state.stats, MediaQuery.of(context).size.width >= 600),
             ),
           ),
 
@@ -300,7 +301,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  Widget _buildStatsGrid(BuildContext context, VendorStatsModel stats) {
+  Widget _buildStatsGrid(BuildContext context, VendorStatsModel stats, bool isTablet) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final statItems = [
@@ -342,10 +343,10 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          crossAxisCount: isTablet ? 4 : 2,
           mainAxisSpacing: 16.h,
           crossAxisSpacing: 16.w,
-          childAspectRatio: 1.1, // Reduced for more height to avoid overflow
+          childAspectRatio: isTablet ? 1.5 : 1.1, // Reduced for more height to avoid overflow
         ),
         itemCount: statItems.length,
         itemBuilder: (context, index) {

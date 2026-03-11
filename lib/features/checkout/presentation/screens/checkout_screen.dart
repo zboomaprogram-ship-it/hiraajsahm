@@ -44,12 +44,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       icon: Icons.money_rounded,
     ),
     _PaymentMethod(
-      id: 'bacs',
-      title: 'تحويل بنكي',
-      subtitle: 'تحويل إلى حسابنا البنكي',
-      icon: Icons.account_balance_rounded,
-    ),
-    _PaymentMethod(
       id: 'online',
       title: 'دفع إلكتروني',
       subtitle: 'Telr - بطاقة ائتمانية / مدى / Apple Pay / Google Pay',
@@ -87,6 +81,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _addressController.text = user.address ?? '';
       _cityController.text = user.city ?? '';
     }
+
+    // If virtual/subscription product, force online payment by default
+    final cartState = context.read<CartCubit>().state;
+    if (cartState is CartLoaded) {
+      final isVirtual = cartState.items.isNotEmpty &&
+          cartState.items.every((i) => i.product.virtual);
+      if (isVirtual) {
+        _selectedPaymentMethod = 'online';
+      }
+    }
   }
 
   @override
@@ -104,15 +108,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void _placeOrder() {
     // Check if Subscription in Cart
     final cartState = context.read<CartCubit>().state;
-    bool isSubscription = false;
     String calculatedPaymentType = 'full';
-
     if (cartState is CartLoaded) {
-      isSubscription = cartState.items.any((item) {
-        final id = item.product.id;
-        final name = item.product.name;
-        return [29026, 29030, 29318].contains(id) || name.contains('باقة');
-      });
 
       // Determine Payment Type from Cart Items (Inspection vs Full)
       final depositItem = cartState.items.firstWhere(
@@ -129,7 +126,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
 
-    if (isSubscription || _formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate()) {
       _checkoutCubit.placeOrder(
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),

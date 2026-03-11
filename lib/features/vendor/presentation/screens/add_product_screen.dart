@@ -30,8 +30,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _regularPriceController = TextEditingController();
-  final _salePriceController = TextEditingController();
-  final _stockController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController(); // Added
 
@@ -66,9 +64,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ? p.regularPrice
           : p.price;
 
-      _salePriceController.text = p.salePrice;
-      _stockController.text =
-          p.stockQuantity?.toString() ?? '1'; // Improved stock pre-fill
       _descriptionController.text = p.description;
 
       // Pre-fill Category names if available
@@ -90,8 +85,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void dispose() {
     _nameController.dispose();
     _regularPriceController.dispose();
-    _salePriceController.dispose();
-    _stockController.dispose();
     _descriptionController.dispose();
     _locationController.dispose(); // Added
     super.dispose();
@@ -362,10 +355,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _addProductCubit.updateProduct(
         productId: widget.productToEdit!.id,
         name: _nameController.text.trim(),
-        price: _regularPriceController.text.trim(),
-        salePrice: _salePriceController.text.trim(),
+        price: _regularPriceController.text.trim().isEmpty ? '0' : _regularPriceController.text.trim(),
+        salePrice: '',
         categoryId: categoryId,
-        stockQuantity: int.tryParse(_stockController.text.trim()) ?? 1,
+        stockQuantity: 1,
         description: _descriptionController.text.trim(),
         newImages: _selectedImages, // Only passing new images
         address: _locationController.text.trim(), // Changed
@@ -373,10 +366,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     } else {
       _addProductCubit.uploadProduct(
         name: _nameController.text.trim(),
-        price: _regularPriceController.text.trim(),
-        salePrice: _salePriceController.text.trim(),
+        price: _regularPriceController.text.trim().isEmpty ? '0' : _regularPriceController.text.trim(),
+        salePrice: '',
         categoryId: categoryId,
-        stockQuantity: int.tryParse(_stockController.text.trim()) ?? 1,
+        stockQuantity: 1,
         description: _descriptionController.text.trim(),
         images: _selectedImages,
         address: _locationController.text.trim(), // Changed
@@ -498,35 +491,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   SizedBox(height: 16.h),
 
-                  // Prices (Regular & Sale)
+                  // Regular Price (Optional)
                   FadeInUp(
                     delay: const Duration(milliseconds: 150),
                     duration: const Duration(milliseconds: 300),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _regularPriceController,
-                            label: 'السعر',
-                            hint: '15000',
-                            icon: Icons.attach_money_rounded,
-                            keyboardType: TextInputType.number,
-                            isDark: isDark,
-                          ),
-                        ),
-                        SizedBox(width: 16.w),
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _salePriceController,
-                            label: 'سعر التخفيض',
-                            hint: 'اختياري',
-                            icon: Icons.percent_rounded,
-                            keyboardType: TextInputType.number,
-                            isDark: isDark,
-                            isRequired: false,
-                          ),
-                        ),
-                      ],
+                    child: _buildTextField(
+                      controller: _regularPriceController,
+                      label: 'السعر (اختياري)',
+                      hint: '0',
+                      icon: Icons.attach_money_rounded,
+                      keyboardType: TextInputType.number,
+                      isDark: isDark,
+                      isRequired: false,
                     ),
                   ),
                   SizedBox(height: 16.h),
@@ -552,20 +528,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   SizedBox(height: 16.h),
 
-                  // Stock Quantity
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 250),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildTextField(
-                      controller: _stockController,
-                      label: 'الكمية المتاحة',
-                      hint: 'مثال: 1',
-                      icon: Icons.numbers_rounded,
-                      keyboardType: TextInputType.number,
-                      isDark: isDark,
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
+
 
                   // Description
                   FadeInUp(
@@ -648,13 +611,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                     children: [
                                       Icon(Icons.add_rounded, size: 24.sp),
                                       SizedBox(width: 12.w),
-                                      Text(
-                                        widget.productToEdit != null
-                                            ? 'تحديث الاعلان'
-                                            : 'نشر الاعلان',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.bold,
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          widget.productToEdit != null
+                                              ? 'تحديث الاعلان'
+                                              : 'نشر الاعلان',
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
                                     ],

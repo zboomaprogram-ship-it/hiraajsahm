@@ -1,0 +1,119 @@
+Analyzing hiraajsahm...                                         
+
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:13:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:14:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:15:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:16:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:18:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:20:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:28:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:29:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:32:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:33:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:41:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:42:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:45:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:46:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/api/api_interceptors.dart:47:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/follow_service.dart:24:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/follow_service.dart:26:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/follow_service.dart:41:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/follow_service.dart:43:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/follow_service.dart:65:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:28:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:47:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:55:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:57:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:65:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:75:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:83:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:85:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:91:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:100:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:107:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:114:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:124:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:132:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:137:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:152:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:154:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:172:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:174:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:184:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:186:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:194:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/core/services/notification_service.dart:196:7 • avoid_print
+   info • The imported package 'http' isn't a dependency of the importing package • lib/core/services/telr_payment_service.dart:2:8 • depend_on_referenced_packages
+   info • Angle brackets will be interpreted as HTML • lib/core/services/telr_payment_service.dart:57:64 • unintended_html_in_doc_comment
+   info • The type parameter name 'Type' matches a visible type name • lib/core/usecases/usecase.dart:10:24 • avoid_types_as_parameter_names
+   info • Use interpolation to compose strings and values • lib/features/auth/data/datasources/auth_remote_datasource.dart:142:11 • prefer_interpolation_to_compose_strings
+   info • Don't invoke 'print' in production code • lib/features/auth/data/datasources/auth_remote_datasource.dart:256:11 • avoid_print
+   info • Use interpolation to compose strings and values • lib/features/auth/data/datasources/auth_remote_datasource.dart:285:11 • prefer_interpolation_to_compose_strings
+   info • Don't invoke 'print' in production code • lib/features/auth/data/datasources/auth_remote_datasource.dart:339:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/datasources/auth_remote_datasource.dart:346:9 • avoid_print
+   info • Use interpolation to compose strings and values • lib/features/auth/data/datasources/auth_remote_datasource.dart:368:11 • prefer_interpolation_to_compose_strings
+warning • The exception variable 'e' isn't used, so the 'catch' clause can be removed • lib/features/auth/data/datasources/auth_remote_datasource.dart:440:30 • unused_catch_clause
+   info • Use interpolation to compose strings and values • lib/features/auth/data/datasources/auth_remote_datasource.dart:509:11 • prefer_interpolation_to_compose_strings
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:111:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:112:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:113:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:114:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:115:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:272:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:273:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:274:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:278:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/data/models/user_model.dart:300:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:142:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:147:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:152:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:158:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:165:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:169:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:176:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:183:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:184:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:187:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:197:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:204:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:508:16 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:509:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/auth/presentation/cubit/auth_cubit.dart:531:9 • avoid_print
+warning • The declaration '_buildDivider' isn't referenced • lib/features/auth/presentation/screens/login_screen.dart:389:10 • unused_element
+warning • The declaration '_buildSocialLogin' isn't referenced • lib/features/auth/presentation/screens/login_screen.dart:415:10 • unused_element
+   info • The private field _isVendor could be 'final' • lib/features/auth/presentation/screens/register_screen.dart:45:8 • prefer_final_fields
+   info • Unnecessary braces in a string interpolation • lib/features/auth/presentation/screens/register_screen.dart:516:39 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/features/auth/presentation/screens/register_screen.dart:516:48 • unnecessary_brace_in_string_interps
+   info • Statements in an if should be enclosed in a block • lib/features/checkout/presentation/cubit/checkout_cubit.dart:135:13 • curly_braces_in_flow_control_structures
+   info • Don't use 'BuildContext's across async gaps • lib/features/checkout/presentation/screens/checkout_screen.dart:904:33 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/checkout/presentation/screens/checkout_screen.dart:906:25 • use_build_context_synchronously
+   info • The imported package 'webview_flutter_android' isn't a dependency of the importing package • lib/features/checkout/presentation/screens/telr_webview_screen.dart:3:8 • depend_on_referenced_packages
+   info • The imported package 'webview_flutter_wkwebview' isn't a dependency of the importing package • lib/features/checkout/presentation/screens/telr_webview_screen.dart:4:8 • depend_on_referenced_packages
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/views/home_screen.dart:149:17 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/views/home_screen.dart:151:17 • use_build_context_synchronously
+   info • Don't invoke 'print' in production code • lib/features/notifications/presentation/cubit/notifications_cubit.dart:65:7 • avoid_print
+warning • Unused import: '../../../../core/routes/app_router.dart' • lib/features/notifications/presentation/screens/notifications_screen.dart:6:8 • unused_import
+   info • Don't invoke 'print' in production code • lib/features/orders/presentation/cubit/orders_cubit.dart:170:7 • avoid_print
+warning • A value for optional parameter 'trailing' isn't ever given • lib/features/profile/presentation/screens/profile_screen.dart:1224:10 • unused_element_parameter
+warning • The declaration '_buildLanguageOption' isn't referenced • lib/features/settings/presentation/screens/settings_screen.dart:252:10 • unused_element
+   info • Statements in an if should be enclosed in a block • lib/features/shop/data/models/product_model.dart:181:11 • curly_braces_in_flow_control_structures
+   info • Use interpolation to compose strings and values • lib/features/shop/presentation/cubit/product_details_cubit.dart:41:12 • prefer_interpolation_to_compose_strings
+   info • Don't invoke 'print' in production code • lib/features/shop/presentation/cubit/product_details_cubit.dart:72:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/shop/presentation/cubit/product_details_cubit.dart:75:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/shop/presentation/cubit/product_details_cubit.dart:88:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/shop/presentation/cubit/products_cubit.dart:257:7 • avoid_print
+warning • The operand can't be 'null', so the condition is always 'true' • lib/features/shop/presentation/widgets/service_provider_card.dart:55:39 • unnecessary_null_comparison
+warning • The '!' will have no effect because the receiver can't be null • lib/features/shop/presentation/widgets/service_provider_card.dart:55:67 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/shop/presentation/widgets/service_provider_card.dart:57:52 • unnecessary_non_null_assertion
+warning • The operand can't be 'null', so the condition is always 'true' • lib/features/shop/presentation/widgets/service_provider_card.dart:117:43 • unnecessary_null_comparison
+warning • Unused import: '../../core/theme/colors.dart' • lib/features/splash/splash_screen.dart:6:8 • unused_import
+   info • Statements in an if should be enclosed in a block • lib/features/vendor/data/models/store_model.dart:170:11 • curly_braces_in_flow_control_structures
+   info • Don't invoke 'print' in production code • lib/features/vendor/presentation/cubit/add_product_cubit.dart:95:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/vendor/presentation/cubit/add_product_cubit.dart:179:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/features/vendor/presentation/cubit/vendor_profile_cubit.dart:437:7 • avoid_print
+warning • The declaration '_pickLocation' isn't referenced • lib/features/vendor/presentation/screens/add_product_screen.dart:323:16 • unused_element
+warning • The declaration '_buildQuickActions' isn't referenced • lib/features/vendor/presentation/screens/vendor_dashboard_screen.dart:544:10 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/features/vendor/presentation/screens/vendor_products_tab.dart:50:15 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/vendor/presentation/screens/vendor_products_tab.dart:275:9 • use_build_context_synchronously
+   info • The imported package 'flutter_localizations' isn't a dependency of the importing package • lib/main.dart:6:8 • depend_on_referenced_packages
+

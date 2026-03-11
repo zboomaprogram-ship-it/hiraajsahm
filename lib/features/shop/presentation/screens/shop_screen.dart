@@ -242,7 +242,6 @@ class _ShopScreenState extends State<ShopScreen> {
               if (category == null) {
                 return _buildCategoryChip(
                   name: 'الكل',
-                  icon: Icons.grid_view_rounded,
                   isSelected: _selectedCategoryId == null,
                   isDark: isDark,
                   onTap: () => _onCategorySelected(null),
@@ -251,7 +250,6 @@ class _ShopScreenState extends State<ShopScreen> {
 
               return _buildCategoryChip(
                 name: category.name,
-                icon: _getCategoryIcon(category),
                 isSelected: isSelected,
                 isDark: isDark,
                 onTap: () => _onCategorySelected(category.id),
@@ -265,7 +263,6 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _buildCategoryChip({
     required String name,
-    required IconData icon,
     required bool isSelected,
     required bool isDark,
     required VoidCallback onTap,
@@ -294,17 +291,9 @@ class _ShopScreenState extends State<ShopScreen> {
               : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark
-                        ? AppColors.textLightSecondary
-                        : AppColors.textSecondary),
-              size: 18.sp,
-            ),
-            SizedBox(width: 8.w),
             Text(
               name,
               style: TextStyle(
@@ -323,42 +312,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  IconData _getCategoryIcon(CategoryModel category) {
-    final slug = category.slug.toLowerCase();
-    final name = category.name.toLowerCase();
 
-    if (slug.contains('camel') ||
-        name.contains('إبل') ||
-        name.contains('ابل')) {
-      return Icons.pets;
-    }
-    if (slug.contains('sheep') ||
-        name.contains('غنم') ||
-        name.contains('ماعز')) {
-      return Icons.grass;
-    }
-    if (slug.contains('bird') ||
-        name.contains('طيور') ||
-        name.contains('دجاج')) {
-      return Icons.flutter_dash;
-    }
-    if (slug.contains('slaughter') ||
-        name.contains('ذبائح') ||
-        name.contains('لحم')) {
-      return Icons.restaurant;
-    }
-    if (slug.contains('equip') ||
-        name.contains('مستلزمات') ||
-        name.contains('أدوات')) {
-      return Icons.construction;
-    }
-    if (slug.contains('service') ||
-        name.contains('خدمات') ||
-        name.contains('نقل')) {
-      return Icons.local_shipping;
-    }
-    return Icons.category;
-  }
 
   Widget _buildProductsGrid(bool isDark, bool isTablet) {
     return BlocBuilder<ProductsCubit, ProductsState>(

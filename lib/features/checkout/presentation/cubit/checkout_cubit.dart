@@ -146,6 +146,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           return;
         }
       }
+      
+      // Ensure last name is not empty for WooCommerce and Telr (which require it)
+      if (finalLastName.trim().isEmpty) {
+        finalLastName = finalFirstName.isNotEmpty ? finalFirstName : ' ';
+      }
 
       // Get user ID
       final userId = await _storageService.getUserId();
@@ -164,7 +169,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       final orderData = {
         'payment_method': paymentMethod,
         'payment_method_title': _getPaymentMethodTitle(paymentMethod),
-        'set_paid': paymentMethod == 'cod' ? false : false,
+        'set_paid': paymentMethod == 'online' ? true : false,
         'customer_id': userId ?? 0, // CRITICAL: Link order to user
         'billing': {
           'first_name': finalFirstName,
@@ -252,12 +257,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     switch (method) {
       case 'cod':
         return 'الدفع عند الاستلام';
-      case 'bacs':
-        return 'تحويل بنكي';
       case 'online':
-        return 'دفع إلكتروني - Telr';
+        return 'دفع إلكتروني';
       default:
-        return 'الدفع عند الاستلام';
+        return method;
     }
   }
 

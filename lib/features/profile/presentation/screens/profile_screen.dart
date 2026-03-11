@@ -354,7 +354,8 @@ class ProfileScreen extends StatelessWidget {
                           _MenuItem(
                             icon: Icons.info_outline_rounded,
                             title: 'عن التطبيق',
-                            onTap: () {},
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.aboutApp),
                           ),
                           _MenuItem(
                             icon: Icons.logout_rounded,
