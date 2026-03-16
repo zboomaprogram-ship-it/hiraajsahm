@@ -451,34 +451,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildTextField(
-                controller: _cityController,
-                label: 'المدينة',
-                hint: 'أدخل المدينة',
-                icon: Icons.location_city_rounded,
-                isDark: isDark,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'مطلوب';
-                  }
-                  return null;
-                },
+              child: GestureDetector(
+                onTap: _pickLocation,
+                child: AbsorbPointer(
+                  child: _buildTextField(
+                    controller: _cityController,
+                    label: 'المدينة',
+                    hint: 'أدخل المدينة',
+                    icon: Icons.location_city_rounded,
+                    isDark: isDark,
+                    readOnly: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'مطلوب';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
               ),
             ),
             SizedBox(width: 16.w),
             Expanded(
-              child: _buildTextField(
-                controller: _regionController,
-                label: 'المنطقة',
-                hint: 'أدخل المنطقة',
-                icon: Icons.map_rounded,
-                isDark: isDark,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'مطلوب';
-                  }
-                  return null;
-                },
+              child: GestureDetector(
+                onTap: _pickLocation,
+                child: AbsorbPointer(
+                  child: _buildTextField(
+                    controller: _regionController,
+                    label: 'المنطقة',
+                    hint: 'أدخل المنطقة',
+                    icon: Icons.map_rounded,
+                    isDark: isDark,
+                    readOnly: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'مطلوب';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
               ),
             ),
           ],
@@ -515,10 +527,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _lng = result['lng'].toString();
         _locationController.text = ' (${_lat}, ${_lng})';
 
-        if (result['city'] != null && _cityController.text.isEmpty) {
+        if (result['city'] != null) {
           _cityController.text = result['city'];
         }
-        if (result['region'] != null && _regionController.text.isEmpty) {
+        if (result['region'] != null) {
           _regionController.text = result['region'];
         }
       });

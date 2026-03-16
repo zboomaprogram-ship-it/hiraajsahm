@@ -1575,10 +1575,29 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildServiceProvidersSection(BuildContext context, bool isDark) {
+    // 1. Get vendor's subscription tier
+    final vendorState = context.read<VendorProfileCubit>().state;
+    String vendorTier = widget.product.vendorTier;
+    if (vendorState is VendorProfileLoaded && vendorState.store.id == widget.product.vendorId) {
+      vendorTier = vendorState.store.vendorTier;
+    }
+
+    final tier = vendorTier.toLowerCase();
+    final isVendorBronzeOrUnsubscribed = tier.isEmpty || tier == 'bronze' || tier == 'unsubscribed';
+
+    // 2. Get viewer info
     final authState = context.read<AuthCubit>().state;
     String? userCity;
+    bool isProductOwner = false;
+
     if (authState is AuthAuthenticated) {
       userCity = authState.user.city;
+      isProductOwner = authState.user.id == widget.product.vendorId;
+    }
+
+    // 3. Fully hide slider if vendor isn't subscribed AND viewer isn't the owner
+    if (isVendorBronzeOrUnsubscribed && !isProductOwner) {
+      return const SizedBox.shrink();
     }
 
     return BlocProvider(
@@ -1587,7 +1606,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             ..fetchServiceProviders(userCity: userCity),
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: 10.h),
-        child: ServiceProvidersSlider(userCity: userCity),
+        child: ServiceProvidersSlider(
+          userCity: userCity,
+          isVendorBronzeOrUnsubscribed: isVendorBronzeOrUnsubscribed,
+          isProductOwner: isProductOwner,
+        ),
       ),
     );
   }

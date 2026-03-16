@@ -9,11 +9,13 @@ import '../../data/models/vendor_registration_data.dart';
 class VendorUpgradeSheet extends StatefulWidget {
   final int userId;
   final String userPhone;
+  final String userName;
 
   const VendorUpgradeSheet({
     super.key,
     required this.userId,
     required this.userPhone,
+    required this.userName,
   });
 
   @override
@@ -90,10 +92,9 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
               // Fields
               _buildTextField(
                 controller: _shopNameController,
-                label: 'اسم السوق',
-                hint: 'مثال: سوق الأناقة',
+                label: 'اسم السوق (اختياري)',
+                hint: 'سيتم استخدام اسمك إذا تركته فارغاً',
                 icon: Icons.store,
-                validator: (value) => value?.isEmpty ?? true ? 'مطلوب' : null,
               ),
               SizedBox(height: 16.h),
               _buildTextField(
@@ -104,14 +105,14 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
                 keyboardType: TextInputType.phone,
                 validator: (value) => value?.isEmpty ?? true ? 'مطلوب' : null,
               ),
-              SizedBox(height: 16.h),
-              _buildTextField(
-                controller: _shopLinkController,
-                label: 'رابط السوق (اختياري)',
-                hint: 'https://example.com',
-                icon: Icons.link,
-                keyboardType: TextInputType.url,
-              ),
+              // SizedBox(height: 16.h),
+              // _buildTextField(
+              //   controller: _shopLinkController,
+              //   label: 'رابط السوق (اختياري)',
+              //   hint: 'https://example.com',
+              //   icon: Icons.link,
+              //   keyboardType: TextInputType.url,
+              // ),
               SizedBox(height: 32.h),
 
               // Action Button
@@ -138,26 +139,34 @@ class _VendorUpgradeSheetState extends State<VendorUpgradeSheet> {
                 ),
                 child: ElevatedButton(
                   onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Update user profile metadata with the new phone number
-                      final phone = _phoneController.text.trim();
+                    // All fields are optional now, so we don't strictly need .validate()
+                    // but it doesn't hurt if we add regex validators later.
+
+                    // Update user profile metadata if phone is provided
+                    final phone = _phoneController.text.trim();
+                    if (phone.isNotEmpty) {
                       context.read<AuthCubit>().updateUserMetadata(
                         phone: phone,
                       );
-
-                      Navigator.pop(context);
-                      Navigator.pushNamed(
-                        context,
-                        Routes.vendorSubscription,
-                        arguments: VendorRegistrationData(
-                          shopName: _shopNameController.text.trim(),
-                          phone: _phoneController.text.trim(),
-                          shopLink: _shopLinkController.text.trim().isEmpty
-                              ? null
-                              : _shopLinkController.text.trim(),
-                        ),
-                      );
                     }
+
+                    final shopName = _shopNameController.text.trim().isEmpty
+                        ? widget.userName
+                        : _shopNameController.text.trim();
+
+                    Navigator.pop(context);
+                    Navigator.pushNamed(
+                      context,
+                      Routes.vendorSubscription,
+                      arguments: VendorRegistrationData(
+                        shopName: shopName,
+                        // phone: phone.isEmpty ? widget.userPhone : phone,
+                        phone: _phoneController.text.trim(),
+                        shopLink: _shopLinkController.text.trim().isEmpty
+                            ? null
+                            : _shopLinkController.text.trim(),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,

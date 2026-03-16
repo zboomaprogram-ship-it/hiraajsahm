@@ -5,7 +5,7 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../cubit/vendor_profile_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
-import 'location_picker_screen.dart';
+import '../../../../core/widgets/location_picker_screen.dart';
 import '../../../../core/widgets/mini_map_preview.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -411,20 +411,32 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                           Row(
                             children: [
                               Expanded(
-                                child: _buildTextField(
-                                  controller: _cityController,
-                                  label: 'المدينة',
-                                  icon: Icons.location_city_rounded,
-                                  isDark: isDark,
+                                child: GestureDetector(
+                                  onTap: () => _openLocationPicker(context),
+                                  child: AbsorbPointer(
+                                    child: _buildTextField(
+                                      controller: _cityController,
+                                      label: 'المدينة',
+                                      icon: Icons.location_city_rounded,
+                                      isDark: isDark,
+                                      readOnly: true,
+                                    ),
+                                  ),
                                 ),
                               ),
                               SizedBox(width: 16.w),
                               Expanded(
-                                child: _buildTextField(
-                                  controller: _stateController,
-                                  label: 'المنطقة',
-                                  icon: Icons.map_outlined,
-                                  isDark: isDark,
+                                child: GestureDetector(
+                                  onTap: () => _openLocationPicker(context),
+                                  child: AbsorbPointer(
+                                    child: _buildTextField(
+                                      controller: _stateController,
+                                      label: 'المنطقة',
+                                      icon: Icons.map_outlined,
+                                      isDark: isDark,
+                                      readOnly: true,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -442,21 +454,7 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                             latLong: _locationController.text,
                             isDark: isDark,
                             label: 'الموقع الجغرافي',
-                            onTap: () async {
-                              final result = await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => LocationPickerScreen(
-                                    initialLocation: _locationController.text,
-                                  ),
-                                ),
-                              );
-                              if (result != null) {
-                                setState(() {
-                                  _locationController.text = result;
-                                });
-                              }
-                            },
+                            onTap: () => _openLocationPicker(context),
                           ),
                           SizedBox(height: 24.h),
                           Text(
@@ -602,5 +600,31 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
         ),
       ],
     );
+  }
+  Future<void> _openLocationPicker(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LocationPickerScreen(),
+      ),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        final lat = result['lat'];
+        final lng = result['lng'];
+        _locationController.text = '$lat,$lng';
+        
+        if (result['city'] != null) {
+          _cityController.text = result['city'];
+        }
+        if (result['region'] != null) {
+          _stateController.text = result['region'];
+        }
+        if (result['address'] != null && _streetController.text.isEmpty) {
+          _streetController.text = result['address'];
+        }
+      });
+    }
   }
 }

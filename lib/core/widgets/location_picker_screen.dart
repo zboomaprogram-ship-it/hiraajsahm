@@ -109,6 +109,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   Future<void> _getAddressFromLatLng(LatLng position) async {
     try {
+      // Force Arabic locale for geocoding
+      await setLocaleIdentifier('ar');
+      
       List<Placemark> placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,

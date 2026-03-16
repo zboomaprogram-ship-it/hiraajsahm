@@ -547,23 +547,24 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   SizedBox(height: 16.h),
 
                   // Product Location (New Field - Map Picker)
-                  // FadeInUp(
-                  //   delay: const Duration(milliseconds: 325),
-                  //   duration: const Duration(milliseconds: 300),
-                  //   child: GestureDetector(
-                  //     onTap: _pickLocation,
-                  //     child: AbsorbPointer(
-                  //       child: _buildTextField(
-                  //         controller: _locationController,
-                  //         label: 'عنوان الاعلان (مطلوب)',
-                  //         hint: 'اختر الموقع من الخريطة',
-                  //         icon: Icons.location_on_outlined,
-                  //         isDark: isDark,
-                  //         isRequired: true,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 325),
+                    duration: const Duration(milliseconds: 300),
+                    child: GestureDetector(
+                      onTap: _pickLocation,
+                      child: AbsorbPointer(
+                        child: _buildTextField(
+                          controller: _locationController,
+                          label: 'عنوان الاعلان (مطلوب)',
+                          hint: 'اختر الموقع من الخريطة',
+                          icon: Icons.location_on_outlined,
+                          isDark: isDark,
+                          isRequired: true,
+                          readOnly: true,
+                        ),
+                      ),
+                    ),
+                  ),
                   SizedBox(height: 32.h),
 
                   // Submit Button
@@ -1001,11 +1002,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
     TextInputType? keyboardType,
     int maxLines = 1,
     bool isRequired = true,
+    bool readOnly = false,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      readOnly: readOnly,
       validator: isRequired
           ? (value) {
               if (value == null || value.isEmpty) {

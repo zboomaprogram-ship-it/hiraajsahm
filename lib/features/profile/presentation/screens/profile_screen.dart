@@ -233,8 +233,8 @@ class ProfileScreen extends StatelessWidget {
             if (state.user.isVendor)
               SliverToBoxAdapter(child: SizedBox(height: 12.h)),
 
-            // Upgrade Subscription Card (Only for Vendors)
-            if (state.user.isVendor)
+            // Upgrade Subscription Card (Only for Vendors, hide if already on top tier)
+            if (state.user.isVendor && state.user.subscriptionPackId != 29318)
               SliverToBoxAdapter(
                 child: FadeInUp(
                   delay: const Duration(milliseconds: 100),
@@ -765,6 +765,7 @@ class ProfileScreen extends StatelessWidget {
       builder: (context) => VendorUpgradeSheet(
         userId: currentUsers.id,
         userPhone: currentUsers.phone ?? '',
+        userName: currentUsers.displayName,
       ),
     );
   }

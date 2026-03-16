@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import FirebaseCore
+import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -9,10 +10,12 @@ import FirebaseCore
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     // ✅ Configure Firebase FIRST, before plugin registration
-    // This prevents race condition crash (EXC_BAD_ACCESS)
     if FirebaseApp.app() == nil {
       FirebaseApp.configure()
     }
+    
+    // ✅ Register Google Maps
+    GMSServices.provideAPIKey("AIzaSyDl5bO63kW9ukQkEEyqdg40oSFh1R8mOSM")
     
     // ✅ Then register plugins
     GeneratedPluginRegistrant.register(with: self)

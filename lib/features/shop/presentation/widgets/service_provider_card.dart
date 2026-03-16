@@ -51,10 +51,9 @@ class ServiceProviderCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
-                child:
-                    provider.imageUrl != null && provider.imageUrl!.isNotEmpty
+                child: provider.imageUrl.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: provider.imageUrl!,
+                        imageUrl: provider.imageUrl,
                         height: 140.h,
                         width: double.infinity,
                         fit: BoxFit.cover,
@@ -114,7 +113,7 @@ class ServiceProviderCard extends StatelessWidget {
                   provider.vehicleDetails,
                   isDark,
                 ),
-                if (provider.pricePerKilo != null)
+                if (provider.pricePerKilo.isNotEmpty)
                   _buildInfoRow(
                     Icons.payments_outlined,
                     '${provider.pricePerKilo} ر.س / كم',
