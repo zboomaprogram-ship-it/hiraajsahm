@@ -293,8 +293,8 @@ class AddProductCubit extends Cubit<AddProductState> {
         ],
         'stock_quantity': stockQuantity,
         'manage_stock': true,
-        // FORCE PENDING STATUS ON UPDATE
-        'status': 'pending',
+        // FORCE publish STATUS ON UPDATE
+        'status': 'publish',
         'meta_data': [
           {'key': '_product_location', 'value': address},
         ],
