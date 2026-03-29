@@ -109,8 +109,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   Future<void> _getAddressFromLatLng(LatLng position) async {
     try {
-      // Force Arabic locale for geocoding
-      await setLocaleIdentifier('ar');
+      try {
+        await setLocaleIdentifier('ar');
+      } catch (_) {
+        // Ignored. setLocaleIdentifier is mostly iOS only and throws on Android.
+      }
       
       List<Placemark> placemarks = await placemarkFromCoordinates(
         position.latitude,
@@ -122,15 +125,38 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         setState(() {
-          _city = place.locality ?? place.subAdministrativeArea;
-          _region = place.administrativeArea;
-          _address = '${place.street}, ${place.subLocality}, ${place.locality}';
+          final locality = place.locality ?? '';
+          final subAdmin = place.subAdministrativeArea ?? '';
+          final name = place.name ?? '';
+          final subLocality = place.subLocality ?? '';
+          
+          // Robust fallback chain for empty Geocoder responses on Emulators
+          _city = locality.isNotEmpty ? locality : 
+                 (subAdmin.isNotEmpty ? subAdmin : 
+                 (subLocality.isNotEmpty ? subLocality : name));
+                 
+          _region = place.administrativeArea?.isNotEmpty == true 
+              ? place.administrativeArea! 
+              : place.country ?? '';
+              
+          _address = '${place.street ?? ''}, ${place.subLocality ?? ''}, $_city'.replaceAll(RegExp(r'^, |, $'), '').trim();
+          if (_address.isEmpty || _address == ', , ') {
+            _address = '${position.latitude},${position.longitude}';
+          }
+        });
+      } else {
+        setState(() {
+          _address = '${position.latitude},${position.longitude}';
+          _city = '';
+          _region = '';
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _address = 'تعذر تحديد العنوان';
+        _address = '${position.latitude},${position.longitude}';
+        _city = '';
+        _region = '';
       });
     }
   }

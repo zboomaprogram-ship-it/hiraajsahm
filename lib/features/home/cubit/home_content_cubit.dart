@@ -61,37 +61,73 @@ class HomeContentCubit extends Cubit<HomeContentState> {
       ),
       super(const HomeContentInitial());
 
-  /// Load home content - latest products and featured items
-  Future<void> loadHomeContent() async {
-    if (state is HomeContentLoading) return;
+  int? _currentCategoryId;
+  String? _currentRegion;
+
+  // Cache WC categories to avoid massive sequential recursion
+  List<dynamic>? _cachedWcCategories;
+
+  /// Get active region
+  String? get activeRegion => _currentRegion;
+
+  /// Get active category
+  int? get activeCategory => _currentCategoryId;
+
+  /// Load home content - latest products and featured items (with optional filters)
+  Future<void> loadHomeContent({int? categoryId, String? region}) async {
+    // If not matching current filters, ignore "already loading" state
+    final isNewFilters =
+        categoryId != _currentCategoryId || region != _currentRegion;
+    if (state is HomeContentLoading && !isNewFilters) return;
+
+    _currentCategoryId = categoryId;
+    _currentRegion = region;
 
     emit(const HomeContentLoading());
 
     try {
-      const productsUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
+      String productsUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
       const alZabayehProductId = 29318;
-      const excludeCategoryId = 122;
+      const excludeCategoryId = 122; // Packages
+
+      // If a category is selected, fetch ALL descendant subcategory IDs from WC API
+      String? categoryFilter;
+      if (categoryId != null) {
+        final subIds = await _fetchAllDescendantIds(categoryId);
+        final allIds = [categoryId, ...subIds];
+        categoryFilter = allIds.join(',');
+      }
+
+      // To avoid Dio encoding commas as '%2C' which WC API ignores,
+      // we append it directly to the URL.
+      if (categoryFilter != null) {
+        productsUrl = '$productsUrl?category=$categoryFilter';
+      }
+
+      // Build Query Parameters
+      final latestParams = <String, dynamic>{
+        'per_page': region != null || categoryId != null ? 50 : 10,
+        'orderby': 'date',
+        'order': 'desc',
+        'consumer_key': AppConfig.wcConsumerKey,
+        'consumer_secret': AppConfig.wcConsumerSecret,
+      };
+
+      final featuredParams = <String, dynamic>{
+        'per_page': region != null || categoryId != null ? 20 : 5,
+        'featured': true,
+        'consumer_key': AppConfig.wcConsumerKey,
+        'consumer_secret': AppConfig.wcConsumerSecret,
+      };
 
       // Prepare both requests
       final latestRequest = _cleanDio.get(
         productsUrl,
-        queryParameters: {
-          'per_page': 10,
-          'orderby': 'date',
-          'order': 'desc',
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        },
+        queryParameters: latestParams,
       );
-
       final featuredRequest = _cleanDio.get(
         productsUrl,
-        queryParameters: {
-          'per_page': 5,
-          'featured': true,
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        },
+        queryParameters: featuredParams,
       );
 
       // Execute in parallel
@@ -110,7 +146,7 @@ class HomeContentCubit extends Cubit<HomeContentState> {
 
       if (latestResponse.statusCode == 200) {
         final List<dynamic> data = latestResponse.data;
-        final latestProducts = data
+        var latestProducts = data
             .map((json) => ProductModel.fromJson(json))
             .where((product) => product.status == 'publish')
             .where((product) => product.id != alZabayehProductId)
@@ -128,6 +164,27 @@ class HomeContentCubit extends Cubit<HomeContentState> {
               .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
               .toList();
         }
+
+        // Apply Region Filter client-side
+        if (region != null && region.isNotEmpty && region != 'الكل') {
+          latestProducts = latestProducts.where((p) {
+            final loc = p.productLocation?.toLowerCase() ?? '';
+            final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
+            return loc.contains(region) || vendorLoc.contains(region);
+          }).toList();
+
+          featuredProducts = featuredProducts.where((p) {
+            final loc = p.productLocation?.toLowerCase() ?? '';
+            final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
+            return loc.contains(region) || vendorLoc.contains(region);
+          }).toList();
+        }
+
+        // Limit results for UI after filtering
+        if (latestProducts.length > 20)
+          latestProducts = latestProducts.sublist(0, 20);
+        if (featuredProducts.length > 10)
+          featuredProducts = featuredProducts.sublist(0, 10);
 
         emit(
           HomeContentLoaded(
@@ -149,9 +206,48 @@ class HomeContentCubit extends Cubit<HomeContentState> {
     }
   }
 
-  /// Refresh home content
+  /// Fetch ALL descendant subcategory IDs from the WC categories API
+  Future<List<int>> _fetchAllDescendantIds(int parentId) async {
+    try {
+      if (_cachedWcCategories == null) {
+        const url = 'https://hiraajsahm.com/wp-json/wc/v3/products/categories';
+        final response = await _cleanDio.get(
+          url,
+          queryParameters: {
+            'per_page': 100,
+            'consumer_key': AppConfig.wcConsumerKey,
+            'consumer_secret': AppConfig.wcConsumerSecret,
+          },
+        );
+        if (response.statusCode == 200 && response.data is List) {
+          _cachedWcCategories = response.data as List;
+        } else {
+          return [];
+        }
+      }
+
+      final List<int> ids = [];
+      // Find direct children
+      final children = _cachedWcCategories!.where(
+        (cat) => cat['parent'] == parentId,
+      );
+      for (final cat in children) {
+        final id = cat['id'] as int;
+        ids.add(id);
+        // Recursively find sub-children
+        ids.addAll(await _fetchAllDescendantIds(id));
+      }
+      return ids;
+    } catch (_) {}
+    return [];
+  }
+
+  /// Refresh home content with existing filters
   Future<void> refresh() async {
     emit(const HomeContentInitial());
-    await loadHomeContent();
+    await loadHomeContent(
+      categoryId: _currentCategoryId,
+      region: _currentRegion,
+    );
   }
 }

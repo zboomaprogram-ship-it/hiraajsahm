@@ -93,13 +93,19 @@ class ProductsCubit extends Cubit<ProductsState> {
       ),
       super(const ProductsInitial());
 
+  // Cache of resolved category filter strings
+  String? _resolvedCategoryFilter;
+  
+  // Cache WC categories to avoid massive sequential recursion
+  List<dynamic>? _cachedWcCategories;
+
   /// Load products with optional filters
   Future<void> loadProducts({
     int? categoryId,
     String? search,
     bool refresh = false,
   }) async {
-    if (state is ProductsLoading) return;
+    if (state is ProductsLoading && !refresh) return;
 
     emit(const ProductsLoading());
 
@@ -112,16 +118,24 @@ class ProductsCubit extends Cubit<ProductsState> {
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
 
+      // Use base URL
+      String fullUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
+
       if (categoryId != null) {
-        queryParams['category'] = categoryId;
+        // Fetch ALL descendant subcategory IDs for this category
+        final subIds = await _fetchAllDescendantIds(categoryId);
+        final allIds = [categoryId, ...subIds];
+        _resolvedCategoryFilter = allIds.join(',');
+        
+        // Append directly to URL to avoid Dio translating ',' to '%2C'
+        fullUrl = '$fullUrl?category=$_resolvedCategoryFilter';
+      } else {
+        _resolvedCategoryFilter = null;
       }
 
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
       }
-
-      // Use direct URL to avoid baseUrl issues
-      const fullUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
 
       final response = await _cleanDio.get(
         fullUrl,
@@ -155,7 +169,7 @@ class ProductsCubit extends Cubit<ProductsState> {
           ),
         );
       } else {
-        emit(const ProductsError(message: 'فشل في تحميل المنتجات'));
+        emit(const ProductsError(message: 'فشل في تحميل الاعلانات'));
       }
     } on DioException catch (e) {
       String errorMessage = 'خطأ في الاتصال بالخادم';
@@ -185,15 +199,15 @@ class ProductsCubit extends Cubit<ProductsState> {
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
 
-      if (currentState.categoryId != null) {
-        queryParams['category'] = currentState.categoryId;
+      String fullUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
+
+      if (currentState.categoryId != null && _resolvedCategoryFilter != null) {
+        fullUrl = '$fullUrl?category=$_resolvedCategoryFilter';
       }
 
       if (currentState.search != null && currentState.search!.isNotEmpty) {
         queryParams['search'] = currentState.search;
       }
-
-      const fullUrl = 'https://hiraajsahm.com/wp-json/wc/v3/products';
 
       final response = await _cleanDio.get(
         fullUrl,
@@ -262,5 +276,34 @@ class ProductsCubit extends Cubit<ProductsState> {
   /// Clear filters
   Future<void> clearFilters() async {
     await loadProducts();
+  }
+
+  /// Fetch ALL descendant subcategory IDs from the WC categories API
+  Future<List<int>> _fetchAllDescendantIds(int parentId) async {
+    try {
+      if (_cachedWcCategories == null) {
+        const url = 'https://hiraajsahm.com/wp-json/wc/v3/products/categories';
+        final response = await _cleanDio.get(url, queryParameters: {
+          'per_page': 100,
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        });
+        if (response.statusCode == 200 && response.data is List) {
+          _cachedWcCategories = response.data as List;
+        } else {
+          return [];
+        }
+      }
+
+      final List<int> ids = [];
+      final children = _cachedWcCategories!.where((cat) => cat['parent'] == parentId);
+      for (final cat in children) {
+        final id = cat['id'] as int;
+        ids.add(id);
+        ids.addAll(await _fetchAllDescendantIds(id));
+      }
+      return ids;
+    } catch (_) {}
+    return [];
   }
 }

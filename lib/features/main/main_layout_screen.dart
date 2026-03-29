@@ -15,14 +15,16 @@ import '../cart/presentation/cubit/cart_cubit.dart';
 /// Main Layout Screen with Bottom Navigation
 /// Container for the main app tabs
 class MainLayoutScreen extends StatefulWidget {
-  const MainLayoutScreen({super.key});
+  final int initialIndex;
+  
+  const MainLayoutScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainLayoutScreen> createState() => _MainLayoutScreenState();
 }
 
 class _MainLayoutScreenState extends State<MainLayoutScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   final GlobalKey<CurvedNavigationBarState> _bottomNavKey = GlobalKey();
 
   final List<Widget> _screens = [
@@ -38,6 +40,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,

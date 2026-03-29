@@ -20,6 +20,7 @@ import '../widgets/service_providers_slider.dart';
 import '../cubit/service_providers_cubit.dart';
 import '../../../../core/widgets/mini_map_preview.dart';
 import '../../../../features/vendor/presentation/cubit/vendor_profile_cubit.dart';
+import 'package:geocoding/geocoding.dart';
 
 /// Product Details Screen
 /// Full product view with image slider, info, and action buttons
@@ -39,10 +40,68 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
 
+  String _resolvedLocation = 'جاري التحديد...';
+
   @override
   void initState() {
     super.initState();
     _initVideoPlayer();
+    _resolveLocation();
+  }
+
+  void _resolveLocation() async {
+    final locText =
+        widget.product.productLocation ?? widget.product.vendorAddress;
+    if (locText == null || locText.isEmpty) {
+      if (mounted) setState(() => _resolvedLocation = 'غير محدد');
+      return;
+    }
+
+    if (locText.contains(',')) {
+      final parts = locText.split(',');
+      final lat = double.tryParse(parts[0].trim());
+      final lng = double.tryParse(parts[1].trim());
+
+      if (lat != null && lng != null) {
+        try {
+          // Set Arabic locale for geocoding
+          try {
+            await setLocaleIdentifier('ar');
+          } catch (_) {
+            // Fallback: setLocaleIdentifier may not work on all platforms
+          }
+          final placemarks = await placemarkFromCoordinates(lat, lng);
+          if (placemarks.isNotEmpty) {
+            final place = placemarks.first;
+            final city =
+                place.locality ??
+                place.subAdministrativeArea ??
+                place.administrativeArea ??
+                '';
+            final region = place.administrativeArea ?? '';
+            final name = [
+              city,
+              region,
+            ].where((e) => e.isNotEmpty).toSet().join('، ');
+
+            if (mounted)
+              setState(
+                () => _resolvedLocation = name.isNotEmpty
+                    ? name
+                    : 'محدد على الخريطة',
+              );
+          } else {
+            if (mounted) setState(() => _resolvedLocation = 'محدد على الخريطة');
+          }
+        } catch (e) {
+          if (mounted) setState(() => _resolvedLocation = 'محدد على الخريطة');
+        }
+      } else {
+        if (mounted) setState(() => _resolvedLocation = locText);
+      }
+    } else {
+      if (mounted) setState(() => _resolvedLocation = locText);
+    }
   }
 
   void _initVideoPlayer() {
@@ -237,22 +296,30 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                   }
 
                                   if (location != null && location.isNotEmpty) {
-                                    return Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 20.w,
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          MiniMapPreview(
-                                            latLong: location,
-                                            isDark: isDark,
-                                            label: 'موقع السوق',
-                                            height: 180,
-                                          ),
-                                          SizedBox(height: 12.h),
-                                        ],
-                                      ),
-                                    );
+                                    // Make sure it's valid lat/lng before showing map
+                                    final parts = location.split(',');
+                                    if (parts.length == 2 &&
+                                        double.tryParse(parts[0].trim()) !=
+                                            null &&
+                                        double.tryParse(parts[1].trim()) !=
+                                            null) {
+                                      return Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 20.w,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            MiniMapPreview(
+                                              latLong: location,
+                                              isDark: isDark,
+                                              label: 'الموقع على الخريطة',
+                                              height: 180,
+                                            ),
+                                            SizedBox(height: 12.h),
+                                          ],
+                                        ),
+                                      );
+                                    }
                                   }
                                   return const SizedBox.shrink();
                                 },
@@ -657,9 +724,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               SizedBox(width: 8.w),
               Expanded(
                 child: Text(
-                  product.productLocation ??
-                      product.vendorAddress ??
-                      'غير محدد',
+                  _resolvedLocation,
                   style: TextStyle(
                     fontSize: 14.sp,
                     color: AppColors.textSecondary,
@@ -733,6 +798,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
     return Container(
       padding: EdgeInsets.all(20.w),
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -747,6 +813,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           SizedBox(height: 12.h),
           Text(
             plainText,
+            textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: 14.sp,
               color: AppColors.textSecondary,
@@ -971,10 +1038,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     'عرض السوق',
                     style: TextStyle(fontSize: 13.sp, color: AppColors.primary),
                   ),
-                  if ((product.productLocation != null &&
-                          product.productLocation!.isNotEmpty) ||
-                      (product.vendorAddress != null &&
-                          product.vendorAddress!.isNotEmpty)) ...[
+                  if (_resolvedLocation != 'غير محدد' &&
+                      _resolvedLocation != 'جاري التحديد...') ...[
                     SizedBox(height: 6.h),
                     Row(
                       children: [
@@ -986,7 +1051,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         SizedBox(width: 4.w),
                         Expanded(
                           child: Text(
-                            product.productLocation ?? product.vendorAddress!,
+                            _resolvedLocation,
                             style: TextStyle(
                               fontSize: 12.sp,
                               color: AppColors.textSecondary,
@@ -1578,12 +1643,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     // 1. Get vendor's subscription tier
     final vendorState = context.read<VendorProfileCubit>().state;
     String vendorTier = widget.product.vendorTier;
-    if (vendorState is VendorProfileLoaded && vendorState.store.id == widget.product.vendorId) {
+    if (vendorState is VendorProfileLoaded &&
+        vendorState.store.id == widget.product.vendorId) {
       vendorTier = vendorState.store.vendorTier;
     }
 
     final tier = vendorTier.toLowerCase();
-    final isVendorBronzeOrUnsubscribed = tier.isEmpty || tier == 'bronze' || tier == 'unsubscribed';
+    final isVendorBronzeOrUnsubscribed =
+        tier.isEmpty || tier == 'bronze' || tier == 'unsubscribed';
 
     // 2. Get viewer info
     final authState = context.read<AuthCubit>().state;

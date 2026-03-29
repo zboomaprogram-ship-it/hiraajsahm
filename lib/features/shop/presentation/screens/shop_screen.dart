@@ -8,6 +8,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/widgets/product_grid_shimmer.dart';
 import '../cubit/products_cubit.dart';
+import '../cubit/zabayeh_products_cubit.dart';
 import '../cubit/categories_cubit.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/category_model.dart';
@@ -18,12 +19,14 @@ class ShopScreen extends StatefulWidget {
   final String? initialSearch;
   final int? initialCategoryId;
   final String? initialCategoryName;
+  final bool hasExplicitCategory; // true when args were passed
 
   const ShopScreen({
     super.key,
     this.initialSearch,
     this.initialCategoryId,
     this.initialCategoryName,
+    this.hasExplicitCategory = false,
   });
 
   @override
@@ -34,12 +37,16 @@ class _ShopScreenState extends State<ShopScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   int? _selectedCategoryId;
+  int? _selectedSubCategoryId;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _selectedCategoryId = widget.initialCategoryId;
+    // Default to Zabayeh (78) only when opened from bottom tab (no explicit args)
+    _selectedCategoryId = widget.hasExplicitCategory
+        ? widget.initialCategoryId // null = all products
+        : 78; // bottom tab = Zabayeh
     _searchController.text = widget.initialSearch ?? '';
 
     final categoriesState = context.read<CategoriesCubit>().state;
@@ -48,10 +55,19 @@ class _ShopScreenState extends State<ShopScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProductsCubit>().loadProducts(
-        categoryId: _selectedCategoryId,
-        search: widget.initialSearch,
-      );
+      if (_selectedCategoryId == 78) {
+        context.read<ZabayehProductsCubit>().loadProducts(
+          categoryId: _selectedCategoryId,
+          search: widget.initialSearch,
+          refresh: false,
+        );
+      } else {
+        context.read<ProductsCubit>().loadProducts(
+          categoryId: _selectedCategoryId,
+          search: widget.initialSearch,
+          refresh: false,
+        );
+      }
     });
   }
 
@@ -67,11 +83,6 @@ class _ShopScreenState extends State<ShopScreen> {
         _scrollController.position.maxScrollExtent - 200) {
       context.read<ProductsCubit>().loadMoreProducts();
     }
-  }
-
-  void _onCategorySelected(int? categoryId) {
-    setState(() => _selectedCategoryId = categoryId);
-    context.read<ProductsCubit>().loadProducts(categoryId: categoryId);
   }
 
   void _onSearch(String query) {
@@ -95,11 +106,14 @@ class _ShopScreenState extends State<ShopScreen> {
             duration: const Duration(milliseconds: 300),
             child: _buildSearchBar(isDark),
           ),
-          FadeInDown(
-            delay: const Duration(milliseconds: 100),
-            duration: const Duration(milliseconds: 300),
-            child: _buildCategoryFilter(isDark, isTablet),
-          ),
+          
+          // Show main categories ONLY if this is the generic Shop Screen (not strictly Zabayeh tab)
+          if (widget.hasExplicitCategory)
+            _buildCategories(context, isDark, isTablet),
+            
+          // Always show subcategories (if a parent category is selected)
+          _buildSubCategories(isDark, isTablet),
+            
           Expanded(child: _buildProductsGrid(isDark, isTablet)),
         ],
       ),
@@ -107,23 +121,37 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(bool isDark) {
-    String title = 'السوق'; // Changed
-    if (widget.initialCategoryName != null) {
-      title = widget.initialCategoryName!;
-    } else if (widget.initialSearch != null &&
-        widget.initialSearch!.isNotEmpty) {
+    final isZabayeh = _selectedCategoryId == 78;
+    String title =
+        widget.initialCategoryName ?? (isZabayeh ? 'الذبائح' : 'الاعلانات');
+    if (widget.initialSearch != null && widget.initialSearch!.isNotEmpty) {
       title = 'نتائج البحث';
     }
 
     return AppBar(
-      backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+      backgroundColor: isZabayeh
+          ? AppColors.error
+          : (isDark ? AppColors.surfaceDark : Colors.white),
       elevation: 0,
+      flexibleSpace: isZabayeh
+          ? Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFE53935), Color(0xFFD32F2F)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            )
+          : null,
       leading: Navigator.canPop(context)
           ? IconButton(
               onPressed: () => Navigator.pop(context),
               icon: Icon(
                 Icons.arrow_back_ios_rounded,
-                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                color: isZabayeh
+                    ? Colors.white
+                    : (isDark ? AppColors.textLight : AppColors.textPrimary),
               ),
             )
           : null,
@@ -132,7 +160,9 @@ class _ShopScreenState extends State<ShopScreen> {
         style: TextStyle(
           fontSize: 22.sp,
           fontWeight: FontWeight.bold,
-          color: isDark ? AppColors.textLight : AppColors.textPrimary,
+          color: isZabayeh
+              ? Colors.white
+              : (isDark ? AppColors.textLight : AppColors.textPrimary),
         ),
       ),
       centerTitle: true,
@@ -156,13 +186,17 @@ class _ShopScreenState extends State<ShopScreen> {
           },
           icon: Icon(
             Icons.list_alt_rounded,
-            color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            color: _selectedCategoryId == 78
+                ? Colors.white
+                : (isDark ? AppColors.textLight : AppColors.textPrimary),
             size: 24.sp,
           ),
           label: Text(
             'طلباتي',
             style: TextStyle(
-              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              color: _selectedCategoryId == 78
+                  ? Colors.white
+                  : (isDark ? AppColors.textLight : AppColors.textPrimary),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -194,7 +228,9 @@ class _ShopScreenState extends State<ShopScreen> {
           hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14.sp),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: AppColors.primary,
+            color: _selectedCategoryId == 78
+                ? AppColors.error
+                : AppColors.primary,
             size: 24.sp,
           ),
           suffixIcon: _searchController.text.isNotEmpty
@@ -220,214 +256,379 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildCategoryFilter(bool isDark, bool isTablet) {
-    return SizedBox(
-      height: isTablet ? 60.h : 50.h,
-      child: BlocBuilder<CategoriesCubit, CategoriesState>(
-        builder: (context, state) {
-          List<CategoryModel?> categories = [null];
-          if (state is CategoriesLoaded) {
-            categories.addAll(state.categories);
-          }
+  // Icon mapping for categories based on slug or name
+  IconData _getCategoryIcon(CategoryModel category) {
+    final slug = category.slug.toLowerCase();
+    final name = category.name.toLowerCase();
 
-          return ListView.separated(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
+    if (slug.contains('camel') || name.contains('إبل') || name.contains('ابل')) {
+      return Icons.pets;
+    } else if (slug.contains('sheep') || name.contains('غنم') || name.contains('ماعز')) {
+      return Icons.grass;
+    } else if (slug.contains('bird') || name.contains('طيور') || name.contains('دجاج')) {
+      return Icons.flutter_dash;
+    } else if (slug.contains('slaughter') || name.contains('ذبائح') || name.contains('لحم')) {
+      return Icons.restaurant;
+    } else if (slug.contains('equip') || name.contains('مستلزمات') || name.contains('أدوات')) {
+      return Icons.construction;
+    } else if (slug.contains('service') || name.contains('خدمات') || name.contains('نقل')) {
+      return Icons.local_shipping;
+    }
+    return Icons.category;
+  }
+
+  // Color mapping for categories
+  Color _getCategoryColor(int index) {
+    final colors = [
+      const Color(0xFFD4A574), // Camel brown
+      const Color(0xFF8BC34A), // Green
+      const Color(0xFF03A9F4), // Blue
+      const Color(0xFFE91E63), // Pink
+      const Color(0xFF9C27B0), // Purple
+      const Color(0xFFFF9800), // Orange
+      const Color(0xFF00BCD4), // Cyan
+      const Color(0xFF795548), // Brown
+    ];
+    return colors[index % colors.length];
+  }
+
+  void _onCategoryTap(CategoryModel category) {
+    setState(() {
+      if (_selectedCategoryId == category.id) {
+        // Toggle OFF (revert to "All")
+        _selectedCategoryId = null;
+        _selectedSubCategoryId = null;
+        context.read<ProductsCubit>().loadProducts(
+          categoryId: null,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+        );
+      } else {
+        // Toggle ON
+        _selectedCategoryId = category.id;
+        _selectedSubCategoryId = null;
+        context.read<ProductsCubit>().loadProducts(
+          categoryId: category.id,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+        );
+      }
+    });
+  }
+
+  void _onSubCategoryTap(CategoryModel subCategory) {
+    setState(() {
+      if (_selectedSubCategoryId == subCategory.id) {
+        // Toggle OFF subcategory, revert to parent
+        _selectedSubCategoryId = null;
+        context.read<ProductsCubit>().loadProducts(
+          categoryId: _selectedCategoryId,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+        );
+      } else {
+        // Toggle ON
+        _selectedSubCategoryId = subCategory.id;
+        context.read<ProductsCubit>().loadProducts(
+          categoryId: subCategory.id,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+        );
+      }
+    });
+  }
+
+  Widget _buildCategoryItem(CategoryModel category, IconData icon, Color color, bool isDark, bool isTablet) {
+    final isSelected = _selectedCategoryId == category.id;
+
+    return GestureDetector(
+      onTap: () => _onCategoryTap(category),
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: isTablet ? 110.w : 80.w,
+            height: isTablet ? 55.h : 48.h,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary
+                  : (isDark ? AppColors.surfaceVariantDark : Colors.grey[200]),
+              borderRadius: BorderRadius.circular(12.r),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withAlpha(77), // 0.3 opacity
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4.w),
+              child: Text(
+                category.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.white : AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategories(BuildContext context, bool isDark, bool isTablet) {
+    return BlocBuilder<CategoriesCubit, CategoriesState>(
+      builder: (context, state) {
+        if (state is! CategoriesLoaded) return const SizedBox.shrink();
+
+        final categories = state.categories.where((c) => c.parent == 0).toList();
+        if (categories.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          height: isTablet ? 70.h : 60.h,
+          margin: EdgeInsets.only(top: 8.h),
+          child: ListView.separated(
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
             scrollDirection: Axis.horizontal,
             itemCount: categories.length,
-            separatorBuilder: (_, __) => SizedBox(width: 12.w),
+            separatorBuilder: (_, __) => SizedBox(width: 16.w),
             itemBuilder: (context, index) {
               final category = categories[index];
-              final isSelected = category?.id == _selectedCategoryId;
-
-              if (category == null) {
-                return _buildCategoryChip(
-                  name: 'الكل',
-                  isSelected: _selectedCategoryId == null,
-                  isDark: isDark,
-                  onTap: () => _onCategorySelected(null),
-                );
-              }
-
-              return _buildCategoryChip(
-                name: category.name,
-                isSelected: isSelected,
-                isDark: isDark,
-                onTap: () => _onCategorySelected(category.id),
+              return _buildCategoryItem(
+                category,
+                _getCategoryIcon(category),
+                _getCategoryColor(index),
+                isDark,
+                isTablet,
               );
             },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip({
-    required String name,
-    required bool isSelected,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary
-              : (isDark ? AppColors.cardDark : Colors.white),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              name,
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark
-                          ? AppColors.textLightSecondary
-                          : AppColors.textPrimary),
-              ),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
+  Widget _buildSubCategories(bool isDark, bool isTablet) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: _selectedCategoryId == null
+          ? const SizedBox.shrink()
+          : BlocBuilder<CategoriesCubit, CategoriesState>(
+              builder: (context, state) {
+                if (state is CategoriesLoaded) {
+                  final subCategories = CategoryModel.getSubCategories(
+                    state.categories,
+                    _selectedCategoryId!,
+                  );
 
+                  if (subCategories.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
 
-  Widget _buildProductsGrid(bool isDark, bool isTablet) {
-    return BlocBuilder<ProductsCubit, ProductsState>(
-      builder: (context, state) {
-        if (state is ProductsLoading) {
-          return Padding(
-            padding: EdgeInsets.only(top: 16.h),
-            child: ProductGridShimmer(itemCount: isTablet ? 9 : 6),
-          );
-        }
-
-        if (state is ProductsError) {
-          return Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.w),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline_rounded,
-                    size: 64.sp,
-                    color: AppColors.error,
-                  ),
-                  SizedBox(height: 16.h),
-                  Text(
-                    state.message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  SizedBox(height: 24.h),
-                  ElevatedButton.icon(
-                    onPressed: () => context.read<ProductsCubit>().loadProducts(
-                      categoryId: _selectedCategoryId,
-                    ),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('إعادة المحاولة'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        if (state is ProductsLoaded) {
-          if (state.products.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 64.sp,
-                    color: AppColors.textSecondary,
-                  ),
-                  SizedBox(height: 16.h),
-                  Text(
-                    'لا توجد اعلانات',
-                    style: TextStyle(
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => context.read<ProductsCubit>().loadProducts(
-              categoryId: _selectedCategoryId,
-              refresh: true,
-            ),
-            color: AppColors.primary,
-            child: GridView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.all(16.w),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: isTablet ? 3 : 2,
-                mainAxisSpacing: 16.h,
-                crossAxisSpacing: 16.w,
-                childAspectRatio: isTablet ? 0.8 : 0.65,
-              ),
-              itemCount: state.products.length + (state.hasReachedMax ? 0 : 1),
-              itemBuilder: (context, index) {
-                if (index >= state.products.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(
-                        color: AppColors.primary,
-                      ),
+                  return Container(
+                    margin: EdgeInsets.only(top: 16.h, bottom: 8.h),
+                    height: isTablet ? 45.h : 38.h,
+                    child: ListView.separated(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: subCategories.length,
+                      separatorBuilder: (_, __) => SizedBox(width: 8.w),
+                      itemBuilder: (context, index) {
+                        final subCat = subCategories[index];
+                        final isSelected = _selectedSubCategoryId == subCat.id;
+                        
+                        return GestureDetector(
+                          onTap: () => _onSubCategoryTap(subCat),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: EdgeInsets.symmetric(horizontal: 16.w),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : (isDark ? AppColors.surfaceDark : Colors.white),
+                              borderRadius: BorderRadius.circular(20.r),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.primary.withAlpha(77),
+                              ),
+                            ),
+                            child: Text(
+                              subCat.name,
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                color: isSelected ? Colors.white : AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 }
-                return FadeInUp(
-                  duration: const Duration(milliseconds: 300),
-                  delay: Duration(milliseconds: (index % 10) * 50),
-                  child: _buildProductCard(
-                    state.products[index],
-                    isDark,
-                    isTablet,
-                  ),
-                );
+                return const SizedBox.shrink();
               },
             ),
-          );
-        }
-
-        return const SizedBox.shrink();
-      },
     );
+  }
+
+  Widget _buildProductsGrid(bool isDark, bool isTablet) {
+    if (_selectedCategoryId == 78) {
+      return BlocBuilder<ZabayehProductsCubit, ProductsState>(
+        builder: (context, state) => _buildGridInner(context, state, isDark, isTablet),
+      );
+    } else {
+      return BlocBuilder<ProductsCubit, ProductsState>(
+        builder: (context, state) => _buildGridInner(context, state, isDark, isTablet),
+      );
+    }
+  }
+
+  Widget _buildGridInner(BuildContext context, ProductsState state, bool isDark, bool isTablet) {
+    if (state is ProductsLoading) {
+      return Padding(
+        padding: EdgeInsets.only(top: 16.h),
+        child: ProductGridShimmer(itemCount: isTablet ? 9 : 6),
+      );
+    }
+
+    if (state is ProductsError) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(40.w),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 64.sp,
+                color: AppColors.error,
+              ),
+              SizedBox(height: 16.h),
+              Text(
+                state.message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              SizedBox(height: 24.h),
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (_selectedCategoryId == 78) {
+                    context.read<ZabayehProductsCubit>().loadProducts(
+                      categoryId: _selectedCategoryId,
+                    );
+                  } else {
+                    context.read<ProductsCubit>().loadProducts(
+                      categoryId: _selectedCategoryId,
+                    );
+                  }
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('إعادة المحاولة'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (state is ProductsLoaded) {
+      if (state.products.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _selectedCategoryId == 78
+                    ? Icons.storefront_rounded
+                    : Icons.inventory_2_outlined,
+                size: 64.sp,
+                color: _selectedCategoryId == 78
+                    ? AppColors.error.withValues(alpha: 0.5)
+                    : AppColors.textSecondary,
+              ),
+              SizedBox(height: 16.h),
+              Text(
+                'لا توجد اعلانات',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return RefreshIndicator(
+        onRefresh: () {
+          if (_selectedCategoryId == 78) {
+            return context.read<ZabayehProductsCubit>().loadProducts(
+              categoryId: _selectedCategoryId,
+              refresh: true,
+            );
+          } else {
+            return context.read<ProductsCubit>().loadProducts(
+              categoryId: _selectedCategoryId,
+              refresh: true,
+            );
+          }
+        },
+        color: _selectedCategoryId == 78
+            ? AppColors.error
+            : AppColors.primary,
+        child: GridView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(16.w),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isTablet ? 3 : 2,
+            mainAxisSpacing: 16.h,
+            crossAxisSpacing: 16.w,
+            childAspectRatio: isTablet ? 0.8 : 0.65,
+          ),
+          itemCount: state.products.length + (state.hasReachedMax ? 0 : 1),
+          itemBuilder: (context, index) {
+            if (index >= state.products.length) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: CircularProgressIndicator(
+                    color: _selectedCategoryId == 78
+                        ? AppColors.error
+                        : AppColors.primary,
+                  ),
+                ),
+              );
+            }
+            return FadeInUp(
+              duration: const Duration(milliseconds: 300),
+              delay: Duration(milliseconds: (index % 10) * 50),
+              child: _buildProductCard(
+                state.products[index],
+                isDark,
+                isTablet,
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {

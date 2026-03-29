@@ -22,6 +22,7 @@ import 'core/localization/localization_manager.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/vendor/presentation/cubit/vendor_dashboard_cubit.dart';
 import 'features/shop/presentation/cubit/products_cubit.dart';
+import 'features/shop/presentation/cubit/zabayeh_products_cubit.dart';
 import 'features/shop/presentation/cubit/categories_cubit.dart';
 import 'features/shop/presentation/cubit/qna_cubit.dart';
 import 'features/cart/presentation/cubit/cart_cubit.dart';
@@ -113,6 +114,7 @@ class MyApp extends StatelessWidget {
 
         // Shop & Content Cubits
         BlocProvider<ProductsCubit>(create: (_) => di.sl<ProductsCubit>()),
+        BlocProvider<ZabayehProductsCubit>(create: (_) => di.sl<ZabayehProductsCubit>()),
         BlocProvider<CategoriesCubit>(create: (_) => CategoriesCubit()),
         BlocProvider<HomeContentCubit>(create: (_) => HomeContentCubit()),
         BlocProvider<CartCubit>(create: (_) => di.sl<CartCubit>()),

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import '../../../../core/config/app_config.dart';
 import '../../data/models/store_model.dart';
 import '../../../shop/data/models/product_model.dart';
@@ -201,6 +202,31 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
 
       if (isClosed) return;
       if (response.statusCode == 200) {
+        // Sync standalone meta keys to WooCommerce specifically for custom WordPress plugins
+        try {
+          final cleanDio = Dio(
+            BaseOptions(
+              baseUrl: AppConfig.baseUrl,
+              headers: {
+                'Authorization': 'Basic ${base64Encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}',
+                'Content-Type': 'application/json',
+              },
+            ),
+          );
+          await cleanDio.put(
+            '${AppConfig.wcCustomersEndpoint}/$vendorId',
+            data: {
+              'meta_data': [
+                if (city != null) {'key': 'city', 'value': city},
+                if (state != null) {'key': 'region', 'value': state},
+                if (location != null) {'key': 'location', 'value': location},
+              ]
+            },
+          );
+        } catch (e) {
+          print('Warning: Syncing WP User meta failed $e');
+        }
+
         emit(const VendorProfileUpdateSuccess('تم تحديث الملف الشخصي بنجاح'));
         // Reload profile to show changes
         loadVendorProfile(vendorId);
@@ -281,10 +307,40 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
 
   /// Fetch store details from Dokan API
   Future<StoreModel> _fetchStoreDetails(int vendorId) async {
-    final response = await _dio.get(
-      '${AppConfig.dokanStoreEndpoint}/$vendorId',
-    );
+    try {
+      final response = await _dio.get(
+        '${AppConfig.dokanStoreEndpoint}/$vendorId',
+      );
+      return _processStoreResponse(response);
+    } catch (e) {
+      if (e is DioException && e.response?.statusCode == 404) {
+        // Fallback: Try unauthenticated "Clean" Dio
+        final probeDio = Dio(
+          BaseOptions(
+            baseUrl: AppConfig.baseUrl,
+            connectTimeout: AppConfig.connectTimeout,
+            receiveTimeout: AppConfig.receiveTimeout,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          ),
+        );
+        try {
+          final response = await probeDio.get(
+            '${AppConfig.dokanStoreEndpoint}/$vendorId',
+          );
+          return _processStoreResponse(response);
+        } catch (_) {
+          // Both failed
+          throw Exception('عذراً، هذا المتجر غير موجود أو تم إيقافه.');
+        }
+      }
+      rethrow;
+    }
+  }
 
+  StoreModel _processStoreResponse(Response response) {
     if (response.statusCode == 200) {
       final data = response.data;
 
@@ -293,75 +349,86 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
         if (data.isEmpty) {
           throw Exception('عذراً، هذا المتجر غير موجود أو تم إيقافه.');
         }
-        // If it's a list but not empty, try taking the first item if it's a map
         if (data.first is Map<String, dynamic>) {
           return StoreModel.fromJson(data.first);
         }
       }
 
-      // Normal case: It is a Map
       if (data is Map<String, dynamic>) {
-        // 🛡️ Extra Safety: Sanitize fields that might be empty lists []
-        // PHP sometimes sends "address": [] instead of "address": {}
-        if (data['address'] is List) {
-          data['address'] = null; // Set to null to avoid StoreModel crash
-        }
-        if (data['social'] is List) {
-          data['social'] = null;
-        }
-
+        if (data['address'] is List) data['address'] = null;
+        if (data['social'] is List) data['social'] = null;
         return StoreModel.fromJson(data);
       }
-
       throw Exception('تنسيق بيانات المتجر غير صالح');
     }
-
     throw Exception('فشل في تحميل بيانات المتجر');
   }
 
-  /// Fetch vendor products from WooCommerce API
+  /// Fetch vendor products using multiple possible endpoints/strategies
   Future<_ProductsResult> _fetchVendorProducts(
     int vendorId, {
     required int page,
   }) async {
-    final response = await _dio.get(
-      '${AppConfig.dokanStoreEndpoint}/$vendorId/products',
-      queryParameters: {
-        'per_page': _perPage,
-        'page': page,
-        'publish': true,
-        'consumer_key': AppConfig.wcConsumerKey,
-        'consumer_secret': AppConfig.wcConsumerSecret,
-      },
+    // 1. Create a clean, unauthenticated Dio for probing data
+    final probeDio = Dio(
+      BaseOptions(
+        baseUrl: AppConfig.baseUrl,
+        connectTimeout: AppConfig.connectTimeout,
+        receiveTimeout: AppConfig.receiveTimeout,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      ),
     );
 
-    if (response.statusCode == 200) {
-      // 🛑 FIX: Ensure we actually got a List
-      if (response.data is! List) {
-        // If we got a Map, it might be an error object or empty result treated weirdly
-        return _ProductsResult(products: [], hasMore: false);
+    final queryParams = {
+      'per_page': _perPage,
+      'page': page,
+      'publish': true,
+      'consumer_key': AppConfig.wcConsumerKey,
+      'consumer_secret': AppConfig.wcConsumerSecret,
+    };
+
+    // We'll try 2 paths for reliability:
+    // A: Dokan Store Endpoint
+    // B: WC Products with 'vendor' filter
+    final List<String> paths = [
+      '${AppConfig.dokanStoreEndpoint}/$vendorId/products',
+      '${AppConfig.wcProductsEndpoint}?vendor=$vendorId',
+    ];
+
+    for (final path in paths) {
+      try {
+        final response = await probeDio.get(path, queryParameters: queryParams);
+        if (response.statusCode == 200 && response.data is List) {
+          final List<dynamic> data = response.data;
+          final products = data
+              .map((json) => ProductModel.fromJson(json))
+              .where((product) {
+                final name = product.name.toLowerCase();
+                return !name.contains('باقة') &&
+                    !name.contains('عضوية') &&
+                    !name.contains('subscription') &&
+                    !name.contains('membership') &&
+                    product.id != 29318;
+              })
+              .toList();
+
+          final totalPages =
+              int.tryParse(response.headers.value('x-wp-totalpages') ?? '1') ??
+              1;
+          return _ProductsResult(products: products, hasMore: page < totalPages);
+        }
+      } catch (e) {
+        // Continue to next path
       }
-
-      final List<dynamic> data = response.data;
-      final products = data.map((json) => ProductModel.fromJson(json)).where((
-        product,
-      ) {
-        // Filter out subscription packs
-        final name = product.name.toLowerCase();
-        return !name.contains('باقة') &&
-            !name.contains('عضوية') &&
-            !name.contains('subscription') &&
-            !name.contains('membership') &&
-            product.id != 29318;
-      }).toList();
-
-      final totalPages =
-          int.tryParse(response.headers.value('x-wp-totalpages') ?? '1') ?? 1;
-
-      return _ProductsResult(products: products, hasMore: page < totalPages);
     }
 
-    throw Exception('فشل في تحميل منتجات البائع');
+    // Final fallback: empty list instead of crashing
+    return _ProductsResult(products: [], hasMore: false);
   }
 
   /// Fetch store reviews from Dokan API
@@ -434,7 +501,11 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
 
       return sortedReviews;
     } catch (e) {
-      print('❌ Aggressive probe fatal error: $e');
+      if (e is DioException && e.response?.statusCode == 404) {
+        // Just return empty, No need to log "Fatal Error" for a missing endpoint
+        return [];
+      }
+      print('❌ Review Aggressive probe handled error: $e');
       return [];
     }
   }

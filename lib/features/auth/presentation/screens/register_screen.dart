@@ -31,15 +31,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _storeNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _storeUrlController = TextEditingController();
-  final _addressController = TextEditingController(); // Added
-  final _cityController = TextEditingController(); // Added
-  final _regionController = TextEditingController(); // Added
-  final _locationController =
-      TextEditingController(); // Added (to show coordinates)
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _regionController = TextEditingController();
+  final _locationController = TextEditingController();
 
   String? _lat;
   String? _lng;
 
+  bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isVendor = false;
@@ -480,15 +480,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _regionController,
                     label: 'المنطقة',
                     hint: 'أدخل المنطقة',
-                    icon: Icons.map_rounded,
+                    icon: Icons.map_outlined,
                     isDark: isDark,
                     readOnly: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'مطلوب';
-                      }
-                      return null;
-                    },
                   ),
                 ),
               ),

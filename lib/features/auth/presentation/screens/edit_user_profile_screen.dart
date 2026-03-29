@@ -7,7 +7,7 @@ import 'dart:io';
 import '../../../../core/theme/colors.dart';
 import '../cubit/auth_cubit.dart';
 import '../../../../core/widgets/custom_button.dart';
-import '../../../vendor/presentation/screens/location_picker_screen.dart';
+import '../../../../core/widgets/location_picker_screen.dart';
 
 class EditUserProfileScreen extends StatefulWidget {
   const EditUserProfileScreen({super.key});
@@ -45,10 +45,15 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
     if (state is AuthAuthenticated) {
       final user = state.user;
       final names = user.displayName.split(' ');
-      _firstNameController.text = names.isNotEmpty ? names.first : '';
-      _lastNameController.text = names.length > 1
-          ? names.sublist(1).join(' ')
-          : '';
+      
+      _firstNameController.text = user.firstName?.isNotEmpty == true 
+          ? user.firstName! 
+          : (names.isNotEmpty ? names.first : '');
+          
+      _lastNameController.text = user.lastName?.isNotEmpty == true 
+          ? user.lastName! 
+          : (names.length > 1 ? names.sublist(1).join(' ') : '');
+          
       _emailController.text = user.email;
       // Phone might not be directly in UserModel root depending heavily on API.
       // But we can check if we have it or user inputs it.
@@ -99,27 +104,24 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
   }
 
   Future<void> _pickLocation() async {
-    // Navigate to LocationPickerScreen
-    // Reusing the one from vendor module or creating a shared one.
-    // Assuming 'LocationPickerScreen' is available or need import.
-    // If it is in vendor module, we might need to move it or import it.
-    // Let's check imports.
-    // We need to import 'LocationPickerScreen' from vendor module.
-
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const LocationPickerScreen(), // Need import
+        builder: (_) => const LocationPickerScreen(),
       ),
     );
 
-    if (result != null && result is String) {
+    if (result != null && result is Map) {
       setState(() {
-        // Determine if result is just lat,long or address.
-        // LocationPickerScreen usually returns lat,long string.
-        // We can try to reverse geocode it here or just save it.
-        // Since other controllers use text, we save it to _locationController.
-        _locationController.text = result;
+        if (result['city'] != null) {
+          _cityController.text = result['city'];
+        }
+        if (result['region'] != null) {
+          _regionController.text = result['region'];
+        }
+        if (result['lat'] != null && result['lng'] != null) {
+          _locationController.text = '${result['lat']},${result['lng']}';
+        }
       });
     }
   }
@@ -306,20 +308,32 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildTextField(
-                          controller: _cityController,
-                          label: 'المدينة',
-                          icon: Icons.location_city,
-                          isDark: isDark,
+                        child: GestureDetector(
+                          onTap: _pickLocation,
+                          child: AbsorbPointer(
+                            child: _buildTextField(
+                              controller: _cityController,
+                              label: 'المدينة',
+                              icon: Icons.location_city,
+                              isDark: isDark,
+                              readOnly: true,
+                            ),
+                          ),
                         ),
                       ),
                       SizedBox(width: 16.w),
                       Expanded(
-                        child: _buildTextField(
-                          controller: _regionController,
-                          label: 'المنطقة',
-                          icon: Icons.map,
-                          isDark: isDark,
+                        child: GestureDetector(
+                          onTap: _pickLocation,
+                          child: AbsorbPointer(
+                            child: _buildTextField(
+                              controller: _regionController,
+                              label: 'المنطقة',
+                              icon: Icons.map,
+                              isDark: isDark,
+                              readOnly: true,
+                            ),
+                          ),
                         ),
                       ),
                     ],

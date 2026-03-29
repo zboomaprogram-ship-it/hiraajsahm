@@ -207,6 +207,7 @@ class AddProductCubit extends Cubit<AddProductState> {
         'category_id': categoryId,
         'stock_quantity': stockQuantity,
         'images': imageIds, // Just send the list of IDs [101, 102]
+        'status': 'publish', // Enforce publish status
         'meta_data': [
           {'key': '_product_location', 'value': address},
         ],
@@ -230,9 +231,32 @@ class AddProductCubit extends Cubit<AddProductState> {
       if (response.statusCode == 200 && response.data['success'] == true) {
         await _storageService.incrementPostCount();
         final productId = response.data['product_id'];
+
+        // Enforce publish status and address via direct WC API call if custom endpoint ignored it
+        try {
+          final wcUrl =
+              '${AppConfig.baseUrl}${AppConfig.wcProductsEndpoint}/$productId';
+          print('WC API Fallback URL (ADD): $wcUrl');
+          await _cleanDio.put(
+            wcUrl,
+            queryParameters: {
+              'consumer_key': AppConfig.wcConsumerKey,
+              'consumer_secret': AppConfig.wcConsumerSecret,
+            },
+            data: {
+              'status': 'publish',
+              'meta_data': [
+                {'key': '_product_location', 'value': address},
+              ],
+            },
+          );
+        } catch (e) {
+          print('WC API fallback error on add: $e');
+        }
+
         emit(AddProductSuccess(productId: productId));
       } else {
-        emit(const AddProductError(message: 'فشل في إنشاء المنتج'));
+        emit(const AddProductError(message: 'فشل في إنشاء الاعلان'));
       }
     } on DioException catch (e) {
       String errorMessage = 'خطأ في الاتصال بالخادم';
@@ -323,9 +347,29 @@ class AddProductCubit extends Cubit<AddProductState> {
       );
 
       if (response.statusCode == 200) {
+        // Enforce location saving via WooCommerce API since Dokan sometimes drops meta
+        try {
+          final wcUrl =
+              '${AppConfig.baseUrl}${AppConfig.wcProductsEndpoint}/$productId';
+          await _cleanDio.put(
+            wcUrl,
+            queryParameters: {
+              'consumer_key': AppConfig.wcConsumerKey,
+              'consumer_secret': AppConfig.wcConsumerSecret,
+            },
+            data: {
+              'meta_data': [
+                {'key': '_product_location', 'value': address},
+              ],
+            },
+          );
+        } catch (e) {
+          print('WC API fallback error on update: $e');
+        }
+
         emit(AddProductSuccess(productId: productId));
       } else {
-        emit(const AddProductError(message: 'فشل في تحديث المنتج'));
+        emit(const AddProductError(message: 'فشل في تحديث الاعلان'));
       }
     } on DioException catch (e) {
       String errorMessage = 'خطأ في الاتصال بالخادم';

@@ -67,12 +67,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (authState is AuthAuthenticated) {
       final user = authState.user;
 
-      // Parse Name
-      final nameParts = user.displayName.split(' ');
-      if (nameParts.isNotEmpty) {
-        _firstNameController.text = nameParts.first;
-        if (nameParts.length > 1) {
-          _lastNameController.text = nameParts.sublist(1).join(' ');
+      // Use explicit first/last name if available, fallback to splitting displayName
+      if (user.firstName != null && user.firstName!.isNotEmpty) {
+        _firstNameController.text = user.firstName!;
+        _lastNameController.text = user.lastName ?? '';
+      } else {
+        final nameParts = user.displayName.split(' ');
+        if (nameParts.isNotEmpty) {
+          _firstNameController.text = nameParts.first;
+          if (nameParts.length > 1) {
+            _lastNameController.text = nameParts.sublist(1).join(' ');
+          }
         }
       }
 
@@ -167,6 +172,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     required String amount,
     required String customerEmail,
     required String customerName,
+    required bool isSubscription,
   }) async {
     try {
       final telrService = sl<TelrPaymentService>();
@@ -200,7 +206,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
 
       if (success == true) {
-        _checkoutCubit.completePayment(orderId);
+        _checkoutCubit.completePayment(orderId, isSubscription: isSubscription);
       } else {
         _checkoutCubit.failPayment('تم إلغاء عملية الدفع أو فشلها.');
       }
@@ -220,7 +226,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           BlocListener<CheckoutCubit, CheckoutState>(
             listener: (context, state) {
               if (state is CheckoutSuccess) {
-                _showSuccessDialog(context, state.orderId);
+                _showSuccessDialog(context, state.orderId, isSubscription: state.isSubscription);
               } else if (state is CheckoutFailure) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -237,6 +243,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   amount: state.amount,
                   customerEmail: state.customerEmail,
                   customerName: state.customerName,
+                  isSubscription: state.isSubscription,
                 );
               }
             },
@@ -850,7 +857,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _showSuccessDialog(BuildContext context, int orderId) {
+  void _showSuccessDialog(
+    BuildContext context,
+    int orderId, {
+    bool isSubscription = false,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -902,7 +913,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   // Refresh user data to get updated subscription info
                   await context.read<AuthCubit>().checkAuthStatus();
                   if (context.mounted) {
-                    AppRouter.navigateAndRemoveUntil(context, Routes.main);
+                    if (isSubscription) {
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        Routes.main,
+                        (route) => false,
+                        arguments: {'initialIndex': 3},
+                      );
+                    } else {
+                      AppRouter.navigateAndRemoveUntil(context, Routes.main);
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(

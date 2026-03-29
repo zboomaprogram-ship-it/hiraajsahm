@@ -25,11 +25,16 @@ class CheckoutProcessing extends CheckoutState {
 class CheckoutSuccess extends CheckoutState {
   final int orderId;
   final String orderKey;
+  final bool isSubscription;
 
-  const CheckoutSuccess({required this.orderId, required this.orderKey});
+  const CheckoutSuccess({
+    required this.orderId,
+    required this.orderKey,
+    this.isSubscription = false,
+  });
 
   @override
-  List<Object?> get props => [orderId, orderKey];
+  List<Object?> get props => [orderId, orderKey, isSubscription];
 }
 
 class CheckoutFailure extends CheckoutState {
@@ -47,16 +52,24 @@ class CheckoutAwaitingPayment extends CheckoutState {
   final String amount;
   final String customerEmail;
   final String customerName;
+  final bool isSubscription;
 
   const CheckoutAwaitingPayment({
     required this.orderId,
     required this.amount,
     required this.customerEmail,
     required this.customerName,
+    this.isSubscription = false,
   });
 
   @override
-  List<Object?> get props => [orderId, amount, customerEmail, customerName];
+  List<Object?> get props => [
+    orderId,
+    amount,
+    customerEmail,
+    customerName,
+    isSubscription,
+  ];
 }
 
 class CheckoutCubit extends Cubit<CheckoutState> {
@@ -165,6 +178,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           )
           .toList();
 
+      // Extract vendor name if available
+      String vendorName = '$finalFirstName $finalLastName'.trim();
+      final authState = _authCubit.state;
+      if (authState is AuthAuthenticated) {
+        final storeName = authState.user.vendorInfo?.storeName;
+        if (storeName != null && storeName.isNotEmpty) {
+          vendorName = storeName;
+        } else if (authState.user.displayName.isNotEmpty) {
+          vendorName = authState.user.displayName;
+        }
+      }
+
       // Build order payload
       final orderData = {
         'payment_method': paymentMethod,
@@ -189,8 +214,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         },
         'line_items': lineItems,
         'customer_note': notes ?? '',
+        'created_via': 'mobile_app',
         'meta_data': [
           {'key': '_payment_type', 'value': paymentType},
+          {'key': 'vendor_name', 'value': vendorName},
         ],
       };
 
@@ -218,11 +245,21 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           location: finalAddress,
         );
 
+        // Determine if this is a subscription by checking cart items
+        final cartState = _cartCubit.state;
+        bool isSubscription = false;
+        if (cartState is CartLoaded) {
+          isSubscription = cartState.items.any((item) => 
+            item.product.categories.any((cat) => cat.id == 122) || 
+            item.product.name.contains('باقة') || 
+            item.product.name.contains('اشتراك')
+          );
+        }
+
         // If online payment, emit awaiting payment state for Telr
         if (paymentMethod == 'online') {
-          final cartState2 = _cartCubit.state;
-          final total = cartState2 is CartLoaded
-              ? cartState2.total.toStringAsFixed(2)
+          final total = cartState is CartLoaded
+              ? cartState.total.toStringAsFixed(2)
               : '0.00';
           emit(
             CheckoutAwaitingPayment(
@@ -230,12 +267,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
               amount: total,
               customerEmail: finalEmail,
               customerName: '$finalFirstName $finalLastName'.trim(),
+              isSubscription: isSubscription,
             ),
           );
         } else {
           // Clear cart for non-online payments
           _cartCubit.clearCart();
-          emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey));
+          emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey, isSubscription: isSubscription));
         }
       } else {
         emit(const CheckoutFailure(message: 'فشل في إنشاء الطلب'));
@@ -265,9 +303,24 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   /// Mark payment as complete after Telr success
-  void completePayment(int orderId) {
+  Future<void> completePayment(int orderId, {bool isSubscription = false}) async {
+    try {
+      final url = 'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId';
+      
+      await _cleanDio.put(
+        url,
+        data: {'status': 'completed'},
+        queryParameters: {
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
+      );
+    } catch (e) {
+      print('CheckoutCubit: Failed to update order status to completed: $e');
+    }
+
     _cartCubit.clearCart();
-    emit(CheckoutSuccess(orderId: orderId, orderKey: ''));
+    emit(CheckoutSuccess(orderId: orderId, orderKey: '', isSubscription: isSubscription));
   }
 
   /// Mark payment as failed

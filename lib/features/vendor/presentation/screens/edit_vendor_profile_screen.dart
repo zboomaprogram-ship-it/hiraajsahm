@@ -6,7 +6,7 @@ import '../../../../core/di/injection_container.dart';
 import '../cubit/vendor_profile_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../../core/widgets/location_picker_screen.dart';
-import '../../../../core/widgets/mini_map_preview.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../data/models/store_model.dart';
@@ -25,11 +25,11 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
-  late TextEditingController _streetController;
   late TextEditingController _cityController;
   late TextEditingController _stateController;
-  late TextEditingController _biographyController;
+  late TextEditingController _streetController;
   late TextEditingController _locationController;
+  late TextEditingController _biographyController;
   late TextEditingController _fbController;
   late TextEditingController _igController;
   late TextEditingController _twitterController;
@@ -40,6 +40,9 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
   final ImagePicker _picker = ImagePicker();
   int? _newGravatarId;
   int? _newBannerId;
+
+  String? _lat;
+  String? _lng;
 
   @override
   void initState() {
@@ -136,11 +139,11 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
       vendorId: widget.vendorId,
       storeName: _nameController.text,
       phone: _phoneController.text,
-      street: _streetController.text,
+      street: _streetController.text.isNotEmpty ? _streetController.text : _cityController.text,
       city: _cityController.text,
       state: _stateController.text,
       biography: _biographyController.text,
-      location: _locationController.text,
+      location: _lat != null && _lng != null ? '$_lat,$_lng' : null,
       facebook: _fbController.text,
       instagram: _igController.text,
       twitter: _twitterController.text,
@@ -400,12 +403,19 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                           ),
                           SizedBox(height: 16.h),
                           _buildTextField(
-                            controller: _streetController,
-                            label: 'الشارع / العنوان',
+                            controller: _locationController,
+                            label: 'الموقع الجغرافي',
+                            hint: 'اضغط لتحديد الموقع',
                             icon: Icons.location_on_rounded,
                             isDark: isDark,
-                            maxLines: 2,
-                            validator: (val) => val!.isEmpty ? 'مطلوب' : null,
+                            readOnly: true,
+                            onTap: () => _openLocationPicker(context),
+                            validator: (val) {
+                              if (_lat == null || _lng == null) {
+                                return 'الرجاء تحديد الموقع';
+                              }
+                              return null;
+                            },
                           ),
                           SizedBox(height: 16.h),
                           Row(
@@ -417,9 +427,16 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                                     child: _buildTextField(
                                       controller: _cityController,
                                       label: 'المدينة',
+                                      hint: 'أدخل المدينة',
                                       icon: Icons.location_city_rounded,
                                       isDark: isDark,
                                       readOnly: true,
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'مطلوب';
+                                        }
+                                        return null;
+                                      },
                                     ),
                                   ),
                                 ),
@@ -432,6 +449,7 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                                     child: _buildTextField(
                                       controller: _stateController,
                                       label: 'المنطقة',
+                                      hint: 'أدخل المنطقة',
                                       icon: Icons.map_outlined,
                                       isDark: isDark,
                                       readOnly: true,
@@ -442,20 +460,6 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
                             ],
                           ),
                           SizedBox(height: 16.h),
-                          _buildTextField(
-                            controller: _biographyController,
-                            label: 'وصف السوق (النبذة)',
-                            icon: Icons.description_rounded,
-                            isDark: isDark,
-                            maxLines: 4,
-                          ),
-                          SizedBox(height: 16.h),
-                          MiniMapPreview(
-                            latLong: _locationController.text,
-                            isDark: isDark,
-                            label: 'الموقع الجغرافي',
-                            onTap: () => _openLocationPicker(context),
-                          ),
                           SizedBox(height: 24.h),
                           Text(
                             'وسائل التواصل الاجتماعي',
@@ -601,28 +605,24 @@ class _EditVendorProfileScreenState extends State<EditVendorProfileScreen> {
       ],
     );
   }
+
   Future<void> _openLocationPicker(BuildContext context) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LocationPickerScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
     );
 
     if (result != null && result is Map) {
       setState(() {
-        final lat = result['lat'];
-        final lng = result['lng'];
-        _locationController.text = '$lat,$lng';
-        
+        _lat = result['lat'].toString();
+        _lng = result['lng'].toString();
+        _locationController.text = ' ($_lat, $_lng)';
+
         if (result['city'] != null) {
           _cityController.text = result['city'];
         }
         if (result['region'] != null) {
           _stateController.text = result['region'];
-        }
-        if (result['address'] != null && _streetController.text.isEmpty) {
-          _streetController.text = result['address'];
         }
       });
     }

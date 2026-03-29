@@ -71,13 +71,16 @@ class CustomButton extends StatelessWidget {
         ),
       );
     }
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        fontSize: 14.sp,
-        fontWeight: FontWeight.w900,
-        color: isOutlined ? AppColors.primary : Colors.white,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w900,
+          color: isOutlined ? AppColors.primary : Colors.white,
+        ),
       ),
     );
   }

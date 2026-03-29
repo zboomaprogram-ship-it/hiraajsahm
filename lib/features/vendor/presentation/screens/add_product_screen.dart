@@ -13,6 +13,9 @@ import '../cubit/vendor_dashboard_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../shop/data/models/category_model.dart';
+import '../../../home/cubit/home_content_cubit.dart';
+import '../../../shop/presentation/cubit/products_cubit.dart';
+import '../cubit/vendor_products_cubit.dart';
 
 /// Add Product Screen - For Vendors
 import '../../../shop/data/models/product_model.dart';
@@ -32,6 +35,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _regularPriceController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController(); // Added
+  String _latLng = ''; // Track coordinates for map
 
   final List<File> _selectedImages = [];
   final List<String> _existingImageUrls = []; // Track existing images
@@ -75,6 +79,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
 
       _locationController.text = p.productLocation ?? '';
+      _latLng = p.productLocation ?? '';
 
       // Initialize existing images
       _existingImageUrls.addAll(p.images);
@@ -321,6 +326,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     if (result != null && result is Map) {
       setState(() {
+        _latLng = '${result['lat']},${result['lng']}';
         _locationController.text = result['address'];
       });
     }
@@ -355,24 +361,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _addProductCubit.updateProduct(
         productId: widget.productToEdit!.id,
         name: _nameController.text.trim(),
-        price: _regularPriceController.text.trim().isEmpty ? '0' : _regularPriceController.text.trim(),
+        price: _regularPriceController.text.trim().isEmpty
+            ? '0'
+            : _regularPriceController.text.trim(),
         salePrice: '',
         categoryId: categoryId,
         stockQuantity: 1,
         description: _descriptionController.text.trim(),
         newImages: _selectedImages, // Only passing new images
-        address: _locationController.text.trim(), // Changed
+        address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
       );
     } else {
       _addProductCubit.uploadProduct(
         name: _nameController.text.trim(),
-        price: _regularPriceController.text.trim().isEmpty ? '0' : _regularPriceController.text.trim(),
+        price: _regularPriceController.text.trim().isEmpty
+            ? '0'
+            : _regularPriceController.text.trim(),
         salePrice: '',
         categoryId: categoryId,
         stockQuantity: 1,
         description: _descriptionController.text.trim(),
         images: _selectedImages,
-        address: _locationController.text.trim(), // Changed
+        address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
       );
     }
   }
@@ -414,6 +424,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           } else if (state is AddProductSuccess) {
             // Refresh dashboard items count
             context.read<VendorDashboardCubit>().loadDashboard();
+            // Automatically refresh Home, Shop, and My Products screens
+            context.read<HomeContentCubit>().loadHomeContent();
+            context.read<ProductsCubit>().loadProducts(refresh: true);
+            context.read<VendorProductsCubit>().loadProducts();
             _showSuccessDialog(context);
           } else if (state is AddProductError) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -527,8 +541,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     child: _buildUpgradeBanner(isDark),
                   ),
                   SizedBox(height: 16.h),
-
-
 
                   // Description
                   FadeInUp(

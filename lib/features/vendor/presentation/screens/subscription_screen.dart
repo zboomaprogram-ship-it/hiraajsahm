@@ -81,6 +81,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         setState(() {
           _subscriptionPacks = data
               .map((json) => ProductModel.fromJson(json))
+              .where((pack) => pack.id != _zabayehPackId) // Hide Al-Zabayeh
               .toList();
           _isLoading = false;
         });
@@ -668,12 +669,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         size: 18.sp,
                       ),
                       SizedBox(width: 8.w),
-                      Text(
-                        'باقتك الحالية',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.success,
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'باقتك الحالية',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.success,
+                            ),
+                          ),
                         ),
                       ),
                     ] else ...[
@@ -685,17 +691,22 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                         SizedBox(width: 8.w),
                       ],
-                      Text(
-                        _isZabayehLocked(pack.id)
-                            ? 'مقيد - ترقية مطلوبة'
-                            : _getTierLevel(pack.id) >
-                                  _getTierLevel(_getCurrentPackId())
-                            ? 'ترقية الآن'
-                            : 'اشترك الآن',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _isZabayehLocked(pack.id)
+                                ? 'مقيد - ترقية مطلوبة'
+                                : _getTierLevel(pack.id) >
+                                      _getTierLevel(_getCurrentPackId())
+                                ? 'ترقية الآن'
+                                : 'اشترك الآن',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ],

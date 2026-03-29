@@ -15,6 +15,7 @@ import '../../features/auth/presentation/cubit/auth_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_cubit.dart';
 import '../../features/vendor/presentation/cubit/vendor_dashboard_cubit.dart';
 import '../../features/shop/presentation/cubit/products_cubit.dart';
+import '../../features/shop/presentation/cubit/zabayeh_products_cubit.dart';
 import '../../features/shop/presentation/cubit/product_details_cubit.dart';
 import '../../features/cart/presentation/cubit/cart_cubit.dart';
 import '../../features/vendor/presentation/cubit/vendor_products_cubit.dart';
@@ -138,6 +139,7 @@ Future<void> init() async {
 
   // Products Cubit
   sl.registerFactory(() => ProductsCubit(dio: sl<Dio>()));
+  sl.registerFactory(() => ZabayehProductsCubit(dio: sl<Dio>()));
   sl.registerFactory(() => ProductDetailsCubit(dio: sl<Dio>()));
 
   // Cart Cubit

@@ -38,8 +38,6 @@ class ProfileScreen extends StatelessWidget {
                       content: Text('تم تحديث الصورة الشخصية بنجاح'),
                     ),
                   );
-                  // Optionally refresh auth user data if needed to show new image instantly
-                  // context.read<AuthCubit>().refreshProfile();
                 } else if (profileState is ProfileError) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -58,6 +56,26 @@ class ProfileScreen extends StatelessWidget {
                   profileState,
                 );
               },
+            );
+          } else if (authState is AuthLoading &&
+              context.read<AuthCubit>().currentUser != null) {
+            // Keep showing the profile while loading in the background
+            return _buildCustomerProfile(
+              context,
+              AuthAuthenticated(
+                user: context.read<AuthCubit>().currentUser!,
+                token: context.read<AuthCubit>().currentToken!,
+              ),
+              isDark,
+              context.read<ProfileCubit>().state,
+            );
+          } else if (authState is AuthLoading) {
+            return Scaffold(
+              backgroundColor:
+                  isDark ? AppColors.backgroundDark : AppColors.background,
+              body: const Center(
+                child: CircularProgressIndicator(),
+              ),
             );
           }
 
@@ -234,7 +252,9 @@ class ProfileScreen extends StatelessWidget {
               SliverToBoxAdapter(child: SizedBox(height: 12.h)),
 
             // Upgrade Subscription Card (Only for Vendors, hide if already on top tier)
-            if (state.user.isVendor && state.user.subscriptionPackId != 29318)
+            if (state.user.isVendor &&
+                state.user.subscriptionPackId != 29318 &&
+                state.user.subscriptionPackId != 29030)
               SliverToBoxAdapter(
                 child: FadeInUp(
                   delay: const Duration(milliseconds: 100),

@@ -74,7 +74,9 @@ class AppRouter {
         return _buildRoute(const OnboardingScreen(), settings);
 
       case Routes.main:
-        return _buildRoute(const MainLayoutScreen(), settings);
+        final args = settings.arguments as Map<String, dynamic>?;
+        final initialIndex = args?['initialIndex'] as int? ?? 0;
+        return _buildRoute(MainLayoutScreen(initialIndex: initialIndex), settings);
 
       case Routes.home:
         return _buildRoute(const HomeScreen(), settings);
@@ -143,6 +145,7 @@ class AppRouter {
             initialSearch: args?['search'] as String?,
             initialCategoryId: args?['categoryId'] as int?,
             initialCategoryName: args?['categoryName'] as String?,
+            hasExplicitCategory: args != null,
           ),
           settings,
         );

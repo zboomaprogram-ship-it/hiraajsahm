@@ -8,9 +8,14 @@ import '../cubit/vendor_dashboard_cubit.dart';
 import '../../data/models/vendor_stats_model.dart';
 import 'vendor_products_tab.dart';
 import 'vendor_orders_tab.dart';
-// import 'vendor_settings_tab.dart'; // Replaced by profile
 import 'vendor_profile_screen.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../shop/data/models/product_model.dart';
+import '../../../cart/presentation/cubit/cart_cubit.dart';
+import '../../../../core/routes/routes.dart';
+import '../../../../core/routes/app_router.dart';
+import 'package:dio/dio.dart';
 
 /// Vendor Dashboard Screen
 /// Displays vendor statistics, charts, and quick actions
@@ -184,11 +189,24 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           // App Bar
           _buildAppBar(context),
 
+          // Zabayeh Subscription Prompt
+          SliverToBoxAdapter(
+            child: FadeInUp(
+              delay: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 200),
+              child: _buildZabayehPrompt(context),
+            ),
+          ),
+
           // Stats Cards
           SliverToBoxAdapter(
             child: FadeInUp(
               duration: const Duration(milliseconds: 500),
-              child: _buildStatsGrid(context, state.stats, MediaQuery.of(context).size.width >= 600),
+              child: _buildStatsGrid(
+                context,
+                state.stats,
+                MediaQuery.of(context).size.width >= 600,
+              ),
             ),
           ),
 
@@ -301,7 +319,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  Widget _buildStatsGrid(BuildContext context, VendorStatsModel stats, bool isTablet) {
+  Widget _buildStatsGrid(
+    BuildContext context,
+    VendorStatsModel stats,
+    bool isTablet,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final statItems = [
@@ -346,7 +368,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           crossAxisCount: isTablet ? 4 : 2,
           mainAxisSpacing: 16.h,
           crossAxisSpacing: 16.w,
-          childAspectRatio: isTablet ? 1.5 : 1.1, // Reduced for more height to avoid overflow
+          childAspectRatio: isTablet
+              ? 1.5
+              : 1.1, // Reduced for more height to avoid overflow
         ),
         itemCount: statItems.length,
         itemBuilder: (context, index) {
@@ -539,6 +563,139 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildZabayehPrompt(BuildContext context) {
+    final authState = context.read<AuthCubit>().state;
+    if (authState is! AuthAuthenticated) return const SizedBox.shrink();
+
+    final user = authState.user;
+    if (user.subscriptionPackId == 29318 || user.hasAlZabayehTier == true) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE53935), Color(0xFFD32F2F)],
+        ),
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.error.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ترقية إلى باقة الذبائح',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                SizedBox(height: 16.h),
+                ElevatedButton(
+                  onPressed: () => _handleZabayehSubscription(context, user),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.error,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                  ),
+                  child: const Text('اشترك الآن'),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 16.w),
+          Icon(
+            Icons.workspace_premium_rounded,
+            size: 64.sp,
+            color: Colors.white.withOpacity(0.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleZabayehSubscription(
+    BuildContext context,
+    UserModel user,
+  ) async {
+    // Only Silver (29028) or Gold (29030) can subscribe
+    if (user.subscriptionPackId == 29026 || user.subscriptionPackId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'يجب ترقية باقتك إلى الفضية أو الذهبية للاشتراك في الذبائح',
+          ),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: AppColors.error),
+      ),
+    );
+
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://hiraajsahm.com/wp-json/wc/v3/products/29318?consumer_key=ck_78ec6d3f6325ae403400781192045474f592b24a&consumer_secret=cs_0accb11f98ea7516ab4630e521748e73ce3d3b54',
+      );
+
+      // ignore: use_build_context_synchronously
+      Navigator.pop(context); // Close loading
+
+      if (response.statusCode == 200) {
+        final pack = ProductModel.fromJson(response.data);
+        // ignore: use_build_context_synchronously
+        context.read<CartCubit>().clearCart();
+        // ignore: use_build_context_synchronously
+        context.read<CartCubit>().addItem(pack);
+        // ignore: use_build_context_synchronously
+        AppRouter.navigateTo(context, Routes.checkout);
+      } else {
+        throw Exception('فشل في تحميل الباقة');
+      }
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      Navigator.pop(context); // Close loading
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'حدث خطأ أثناء تحميل الباقة، الرجاء المحاولة لاحقاً.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildQuickActions(BuildContext context) {

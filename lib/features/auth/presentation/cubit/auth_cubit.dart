@@ -138,7 +138,9 @@ class AuthCubit extends Cubit<AuthState> {
 
   /// Check authentication status on app start
   Future<void> checkAuthStatus() async {
-    emit(const AuthLoading());
+    if (_currentUser == null) {
+      emit(const AuthLoading());
+    }
     print('🔐 checkAuthStatus: Starting...');
 
     try {

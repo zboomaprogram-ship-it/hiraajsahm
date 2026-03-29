@@ -26,6 +26,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
+  int? _selectedParentCategoryId;
+  String _selectedRegion = 'الكل';
+  int? _selectedSubCategoryId;
+
+  final List<String> _saudiRegions = [
+    'الكل',
+    'الرياض',
+    'مكة المكرمة',
+    'المدينة المنورة',
+    'القصيم',
+    'الشرقية',
+    'عسير',
+    'تبوك',
+    'حائل',
+    'الحدود الشمالية',
+    'جازان',
+    'نجران',
+    'الباحة',
+    'الجوف',
+  ];
+
   // Icon mapping for categories based on slug or name
   IconData _getCategoryIcon(CategoryModel category) {
     final slug = category.slug.toLowerCase();
@@ -104,36 +125,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onCategoryTap(CategoryModel category) {
-    final categoriesState = context.read<CategoriesCubit>().state;
-    if (categoriesState is CategoriesLoaded) {
-      final subCategories = CategoryModel.getSubCategories(
-        categoriesState.categories,
-        category.id,
-      );
-
-      if (subCategories.isNotEmpty) {
-        AppRouter.navigateTo(
-          context,
-          Routes.subCategories,
-          arguments: {
-            'parentCategory': category,
-            'subCategories': subCategories,
-          },
+    setState(() {
+      if (_selectedParentCategoryId == category.id) {
+        // Toggle OFF
+        _selectedParentCategoryId = null;
+        _selectedSubCategoryId = null;
+        context.read<HomeContentCubit>().loadHomeContent(
+          categoryId: null,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
         );
-        return;
+      } else {
+        // Toggle ON
+        _selectedParentCategoryId = category.id;
+        _selectedSubCategoryId = null;
+        context.read<HomeContentCubit>().loadHomeContent(
+          categoryId: category.id,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+        );
       }
-    }
+    });
+  }
 
-    // Navigate to shop with category filter
-    AppRouter.navigateTo(
-      context,
-      Routes.products,
-      arguments: {'categoryId': category.id, 'categoryName': category.name},
-    );
+  void _onSubCategoryTap(CategoryModel subCategory) {
+    // Filter in-place; keep parent selected so subcategory row stays visible
+    setState(() {
+      if (_selectedSubCategoryId == subCategory.id) {
+        // Toggle OFF subcategory → revert to parent
+        _selectedSubCategoryId = null;
+        context.read<HomeContentCubit>().loadHomeContent(
+          categoryId: _selectedParentCategoryId,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+        );
+      } else {
+        _selectedSubCategoryId = subCategory.id;
+        context.read<HomeContentCubit>().loadHomeContent(
+          categoryId: subCategory.id,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+        );
+      }
+    });
+  }
+
+  void _onRegionSelected(String region) {
+    setState(() {
+      _selectedRegion = region;
+      context.read<HomeContentCubit>().loadHomeContent(
+        categoryId: _selectedParentCategoryId,
+        region: region == 'الكل' ? null : region,
+      );
+    });
   }
 
   void _onViewAllProducts() {
-    AppRouter.navigateTo(context, Routes.products);
+    // Pass explicit null so ShopScreen loads ALL products, not Zabayeh
+    AppRouter.navigateTo(context, Routes.products, arguments: {
+      'categoryId': null,
+      'categoryName': null,
+    });
   }
 
   @override
@@ -152,7 +200,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         color: AppColors.primary,
         child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           slivers: [
             // Header with Search
             SliverToBoxAdapter(child: _buildHeader(context, isDark)),
@@ -164,6 +214,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildCategories(context, isDark, isTablet),
               ),
             ),
+
+            // Subcategories (Animated depending on selection)
+            SliverToBoxAdapter(child: _buildSubCategories(isDark, isTablet)),
+
+            // Region Filter
+            // SliverToBoxAdapter(
+            //   child: FadeInUp(
+            //     delay: const Duration(milliseconds: 100),
+            //     duration: const Duration(milliseconds: 400),
+            //     child: _buildRegionFilter(isDark),
+            //   ),
+            // ),
 
             // Latest Listings Section
             SliverToBoxAdapter(
@@ -453,17 +515,31 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isDark,
     bool isTablet,
   ) {
+    final isSelected = _selectedParentCategoryId == category.id;
+
     return GestureDetector(
       onTap: () => _onCategoryTap(category),
       child: Column(
         children: [
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             width: isTablet ? 110.w : 80.w,
-            height: isTablet ? 55.h : 48.h, // Adjusted representing a flat card
+            height: isTablet ? 55.h : 48.h,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceVariantDark : Colors.grey[200],
+              color: isSelected
+                  ? AppColors.primary
+                  : (isDark ? AppColors.surfaceVariantDark : Colors.grey[200]),
               borderRadius: BorderRadius.circular(12.r),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withAlpha(77), // 0.3 opacity
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [],
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 4.w),
@@ -475,9 +551,151 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.white : AppColors.textPrimary),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubCategories(bool isDark, bool isTablet) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: _selectedParentCategoryId == null
+          ? const SizedBox.shrink()
+          : BlocBuilder<CategoriesCubit, CategoriesState>(
+              builder: (context, state) {
+                if (state is CategoriesLoaded) {
+                  final subCategories = CategoryModel.getSubCategories(
+                    state.categories,
+                    _selectedParentCategoryId!,
+                  );
+
+                  if (subCategories.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Container(
+                    margin: EdgeInsets.only(top: 16.h),
+                    height: isTablet ? 45.h : 38.h,
+                    child: ListView.separated(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: subCategories.length,
+                      separatorBuilder: (_, __) => SizedBox(width: 8.w),
+                      itemBuilder: (context, index) {
+                        final subCat = subCategories[index];
+                        return GestureDetector(
+                          onTap: () => _onSubCategoryTap(subCat),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: EdgeInsets.symmetric(horizontal: 16.w),
+                            decoration: BoxDecoration(
+                              color: _selectedSubCategoryId == subCat.id
+                                  ? AppColors.primary
+                                  : (isDark
+                                      ? AppColors.surfaceDark
+                                      : Colors.white),
+                              borderRadius: BorderRadius.circular(20.r),
+                              border: Border.all(
+                                color: _selectedSubCategoryId == subCat.id
+                                    ? AppColors.primary
+                                    : AppColors.primary.withAlpha(77),
+                              ),
+                            ),
+                            child: Text(
+                              subCat.name,
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                color: _selectedSubCategoryId == subCat.id
+                                    ? Colors.white
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+    );
+  }
+
+  Widget _buildRegionFilter(bool isDark) {
+    return Padding(
+      padding: EdgeInsets.only(top: 24.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_on_rounded,
+                  size: 18.sp,
+                  color: AppColors.primary,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'المنطقة',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 38.h,
+            child: ListView.separated(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              scrollDirection: Axis.horizontal,
+              itemCount: _saudiRegions.length,
+              separatorBuilder: (_, __) => SizedBox(width: 8.w),
+              itemBuilder: (context, index) {
+                final region = _saudiRegions[index];
+                final isSelected = _selectedRegion == region;
+
+                return GestureDetector(
+                  onTap: () => _onRegionSelected(region),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary
+                          : (isDark
+                                ? AppColors.surfaceVariantDark
+                                : Colors.grey[200]),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      region,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white : AppColors.textPrimary),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

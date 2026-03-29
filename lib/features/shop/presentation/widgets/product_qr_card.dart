@@ -55,7 +55,7 @@ class ProductQRCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'رمز QR للمنتج',
+                      'رمز QR للسلعه',
                       style: TextStyle(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.bold,
@@ -63,7 +63,7 @@ class ProductQRCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'امسح الرمز للوصول السريع للمنتج',
+                      'امسح الرمز للوصول السريع للسلعه',
                       style: TextStyle(
                         fontSize: 12.sp,
                         color: AppColors.textSecondary,
