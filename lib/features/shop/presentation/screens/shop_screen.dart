@@ -14,6 +14,8 @@ import '../../data/models/product_model.dart';
 import '../../data/models/category_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/data/regions_service.dart';
+import '../../auth/presentation/cubit/auth_cubit.dart';
+import '../widgets/product_card.dart';
 
 /// Shop Screen - All Products with Dynamic Categories Filter
 class ShopScreen extends StatefulWidget {
@@ -1041,140 +1043,6 @@ class _ShopScreenState extends State<ShopScreen> {
                               horizontal: 12.w,
                               vertical: 6.h,
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning,
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                            child: Text(
-                              'نفذت الكمية',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? AppColors.textLight
-                              : AppColors.textPrimary,
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (product.hasDiscount)
-                              Padding(
-                                padding: EdgeInsets.only(bottom: 2.h),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 6.w,
-                                        vertical: 2.h,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.secondary,
-                                        borderRadius: BorderRadius.circular(
-                                          4.r,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '${product.discountPercentage.round()}%',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10.sp,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 4.w),
-                                    Text(
-                                      '${product.regularPrice} ر.س',
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        color: AppColors.textSecondary,
-                                        decoration: TextDecoration.lineThrough,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            Text(
-                              '${product.price} ر.س',
-                              style: TextStyle(
-                                fontSize: 16.sp,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.secondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        GestureDetector(
-                          onTap: isOutOfStock
-                              ? null
-                              : () {
-                                  context.read<CartCubit>().addItem(product);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('تمت الإضافة إلى طلباتي'),
-                                      backgroundColor: AppColors.success,
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                          child: Container(
-                            padding: EdgeInsets.all(8.w),
-                            decoration: BoxDecoration(
-                              color: isOutOfStock
-                                  ? AppColors.textSecondary.withValues(
-                                      alpha: 0.3,
-                                    )
-                                  : AppColors.primary,
-                              borderRadius: BorderRadius.circular(10.r),
-                            ),
-                            child: Icon(
-                              isOutOfStock
-                                  ? Icons.remove_shopping_cart_outlined
-                                  : Icons.add_shopping_cart_rounded,
-                              color: isOutOfStock
-                                  ? AppColors.textSecondary
-                                  : Colors.white,
-                              size: 18.sp,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
