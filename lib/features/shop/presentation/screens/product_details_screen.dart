@@ -1646,6 +1646,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
     if (authState is AuthAuthenticated) {
       userCity = authState.user.city;
+      
+      // Smart check: If userCity looks like raw coordinates (lat,lng),
+      // try using the region as a fallback search term if it's a name.
+      final coordinatePattern = RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$');
+      if (userCity != null && coordinatePattern.hasMatch(userCity!)) {
+          final userRegion = authState.user.region;
+          if (userRegion != null && !coordinatePattern.hasMatch(userRegion)) {
+              userCity = userRegion;
+          }
+      }
+      
       isProductOwner = authState.user.id == widget.product.vendorId;
     }
 

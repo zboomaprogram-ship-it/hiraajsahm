@@ -22,9 +22,10 @@ class UserModel extends Equatable {
   final int? subscriptionPackId;
   final String? subscriptionEndDate;
   final String? customerQrUrl; // Added
-  final String? city; // Added
   final String? region; // Added
+  final String? city; // Added
   final bool hasAlZabayehTier; // Al-Zabayeh add-on tier
+  final String? downPaymentValue; // Added
 
   const UserModel({
     required this.id,
@@ -44,6 +45,7 @@ class UserModel extends Equatable {
     this.city, // Added
     this.region, // Added
     this.hasAlZabayehTier = false,
+    this.downPaymentValue, // Added
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -129,8 +131,11 @@ class UserModel extends Equatable {
     // Parse City & Region from meta_data if not directly available
     String? city;
     String? region;
+    String? downPaymentValue;
+
     if (json['meta_data'] != null) {
       final meta = json['meta_data'] as List;
+      
       final cityItem = meta.firstWhere(
         (i) => i['key'] == 'city',
         orElse: () => null,
@@ -142,6 +147,14 @@ class UserModel extends Equatable {
         orElse: () => null,
       );
       if (regionItem != null) region = regionItem['value'].toString();
+
+      final downPaymentItem = meta.firstWhere(
+        (i) => i['key'] == 'add_down_payment_field',
+        orElse: () => null,
+      );
+      if (downPaymentItem != null) {
+        downPaymentValue = downPaymentItem['value'].toString();
+      }
     }
     // Fallback to billing if meta not found
     city ??= json['billing']?['city'];
@@ -169,6 +182,7 @@ class UserModel extends Equatable {
       city: city, // Added
       region: region, // Added
       hasAlZabayehTier: alZabayeh,
+      downPaymentValue: downPaymentValue, // Added
     );
   }
 
@@ -201,6 +215,7 @@ class UserModel extends Equatable {
       'city': city,
       'region': region,
       'has_al_zabayeh_tier': hasAlZabayehTier,
+      'add_down_payment_field': downPaymentValue,
     };
   }
 
@@ -222,6 +237,7 @@ class UserModel extends Equatable {
     String? city,
     String? region,
     bool? hasAlZabayehTier,
+    String? downPaymentValue,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -241,6 +257,7 @@ class UserModel extends Equatable {
       city: city ?? this.city,
       region: region ?? this.region,
       hasAlZabayehTier: hasAlZabayehTier ?? this.hasAlZabayehTier,
+      downPaymentValue: downPaymentValue ?? this.downPaymentValue,
     );
   }
 
@@ -256,14 +273,20 @@ class UserModel extends Equatable {
     // If no pack ID, they are effectively "None" (which we treat as Bronze/Free)
     if (subscriptionPackId == null) return SubscriptionStatus.none;
 
-    // Date checking disabled for now
-    // if (subscriptionEndDate != null && subscriptionEndDate != 'unlimited') {
-    //   final end = DateTime.tryParse(subscriptionEndDate!);
-    //   // If date is past, it's expired
-    //   if (end != null && end.isBefore(DateTime.now())) {
-    //     return SubscriptionStatus.expired;
-    //   }
-    // }
+    // Re-enabled expiry checking for all tiers
+    if (subscriptionEndDate != null &&
+        subscriptionEndDate != 'unlimited' &&
+        subscriptionEndDate!.isNotEmpty) {
+      try {
+        final end = DateTime.tryParse(subscriptionEndDate!);
+        // If date is past, it's expired
+        if (end != null && end.isBefore(DateTime.now())) {
+          return SubscriptionStatus.expired;
+        }
+      } catch (e) {
+        print('⚠️ Error parsing subscription end date: $e');
+      }
+    }
     return SubscriptionStatus.active;
   }
 
@@ -313,6 +336,7 @@ class UserModel extends Equatable {
     firstName,
     lastName,
     phone,
+    address,
     avatarUrl,
     role,
     isVendor,
@@ -323,6 +347,7 @@ class UserModel extends Equatable {
     city,
     region,
     hasAlZabayehTier,
+    downPaymentValue,
   ];
 }
 

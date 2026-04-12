@@ -501,6 +501,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
+    final user = context.read<AuthCubit>().currentUser;
+    final downPayment = user?.downPaymentValue;
+
     if (widget.productToEdit != null) {
       _addProductCubit.updateProduct(
         productId: widget.productToEdit!.id,
@@ -516,6 +519,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
         region: _selectedRegion,
         city: _selectedCity,
+        downPayment: downPayment,
       );
     } else {
       _addProductCubit.uploadProduct(
@@ -531,6 +535,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
         region: _selectedRegion,
         city: _selectedCity,
+        downPayment: downPayment,
       );
     }
   }

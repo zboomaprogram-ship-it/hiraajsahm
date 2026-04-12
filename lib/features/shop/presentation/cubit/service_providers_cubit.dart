@@ -43,10 +43,13 @@ class ServiceProvidersCubit extends Cubit<ServiceProvidersState> {
   ServiceProvidersCubit(this._service) : super(ServiceProvidersInitial());
 
   Future<void> fetchServiceProviders({String? userCity}) async {
+    print('📍 SERVICE PROVIDER SEARCH: Initializing for city: "${userCity ?? "empty"}"');
     emit(ServiceProvidersLoading());
     try {
       // Use the new service method that filters by city on the server
       final providers = await _service.getServiceProviders(userCity ?? '');
+      
+      print('✅ SERVICE PROVIDER SEARCH: Found ${providers.length} providers for "${userCity ?? "any"}"');
 
       emit(
         ServiceProvidersLoaded(
@@ -56,6 +59,7 @@ class ServiceProvidersCubit extends Cubit<ServiceProvidersState> {
         ),
       );
     } catch (e) {
+      print('❌ SERVICE PROVIDER SEARCH ERROR: $e');
       // No mock data as per user's specific request for API implementation
       emit(ServiceProvidersError(e.toString()));
     }

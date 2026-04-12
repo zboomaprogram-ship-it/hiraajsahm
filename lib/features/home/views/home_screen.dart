@@ -195,15 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       filterRegion = user.region;
       
-      // Re-add snackbar as requested by user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم تحديد الموقع: ${user.region}, ${user.city ?? ""}'),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      
+      // Print to console as requested by user (instead of snackbar)
+      print('📍 CURRENT LOCATION DETECTED: Region: ${user.region}, City: ${user.city}');
       debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
     }
 

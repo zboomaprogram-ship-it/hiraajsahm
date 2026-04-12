@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/services/storage_service.dart';
 import '../models/request_model.dart';
 import '../models/service_provider_model.dart';
@@ -114,7 +115,7 @@ class RequestsService {
   Future<List<ServiceProviderModel>> getServiceProviders(String city) async {
     try {
       final response = await _dio.get(
-        '/custom/v1/service-providers',
+        AppConfig.serviceProvidersEndpoint,
         queryParameters: {'city': city},
       );
 

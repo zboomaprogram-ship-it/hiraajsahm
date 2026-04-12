@@ -187,17 +187,18 @@ add_action('save_post', function ($post_id) {
 
 // 4️⃣ REST API Endpoint (تطبيق الجوال)
 add_action('rest_api_init', function () {
+    // Standardizing to hiraajsahm/v1 to match app config
+    register_rest_route('hiraajsahm/v1', '/service-providers', array(
+        'methods' => 'GET',
+        'callback' => 'hiraaj_rest_get_providers',
+        'permission_callback' => '__return_true',
+    ));
+    
+    // Fallback for custom/v1
     register_rest_route('custom/v1', '/service-providers', array(
         'methods' => 'GET',
         'callback' => 'hiraaj_rest_get_providers',
         'permission_callback' => '__return_true',
-        'args' => array(
-            'city' => array(
-                'required' => false,
-                'type' => 'string',
-                'sanitize_callback' => 'sanitize_text_field',
-            ),
-        ),
     ));
 });
 
@@ -211,17 +212,6 @@ function hiraaj_rest_get_providers($request)
         'posts_per_page' => -1,
     );
 
-    if (!empty($city)) {
-        // App sends full address sometimes, we need a LIKE query
-        $args['meta_query'] = array(
-            array(
-                'key' => '_p_city',
-                'value' => trim($city),
-                'compare' => 'LIKE',
-            ),
-        );
-    }
-
     $query = new WP_Query($args);
     $providers = array();
 
@@ -230,22 +220,40 @@ function hiraaj_rest_get_providers($request)
             $query->the_post();
             $id = get_the_ID();
 
-            $image_url = '';
-            if (has_post_thumbnail($id)) {
-                $image_url = get_the_post_thumbnail_url($id, 'medium');
+            $p_city = get_post_meta($id, '_p_city', true);
+            
+            // Logic: Improved matching for "User Map" addresses
+            $is_match = true;
+            if (!empty($city)) {
+                $is_match = false;
+                $search = trim(mb_strtolower($city));
+                $p_city_clean = trim(mb_strtolower($p_city));
+                
+                // Match if search string contains provider city (e.g. "Riyadh, KSA" vs "Riyadh")
+                // OR if provider city contains search string (e.g. "Riyadh" vs "Riya")
+                if (mb_strpos($search, $p_city_clean) !== false || 
+                    mb_strpos($p_city_clean, $search) !== false) {
+                    $is_match = true;
+                }
             }
 
-            // Map the user's custom meta fields back to what the app expects
-            $providers[] = array(
-                'id' => $id,
-                'name' => get_the_title(),
-                'phone' => get_post_meta($id, '_c_phone', true),
-                'city' => get_post_meta($id, '_p_city', true),
-                'role' => get_post_meta($id, '_p_role', true) === 'transporter' ? 'نقل' : 'فحص',
-                'vehicle_details' => get_post_meta($id, '_v_details', true),
-                'price_per_kilo' => get_post_meta($id, '_p_km', true),
-                'image_url' => $image_url,
-            );
+            if ($is_match) {
+                $image_url = '';
+                if (has_post_thumbnail($id)) {
+                    $image_url = get_the_post_thumbnail_url($id, 'medium');
+                }
+
+                $providers[] = array(
+                    'id' => $id,
+                    'name' => get_the_title(),
+                    'phone' => get_post_meta($id, '_c_phone', true),
+                    'city' => $p_city,
+                    'role' => get_post_meta($id, '_p_role', true) === 'transporter' ? 'نقل' : 'فحص',
+                    'vehicle_details' => get_post_meta($id, '_v_details', true),
+                    'price_per_kilo' => get_post_meta($id, '_p_km', true),
+                    'image_url' => $image_url,
+                );
+            }
         }
         wp_reset_postdata();
     }

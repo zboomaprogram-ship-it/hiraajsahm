@@ -14,15 +14,20 @@ class HtmlUtils {
       final matches = regExp.allMatches(html);
       items = matches.map((match) => match.group(1) ?? '').toList();
     } 
-    // 2. Fallback: Split by <br> or newlines if no <li>
-    else {
-      items = html.split(RegExp(r'<br\s*/?>|\n', caseSensitive: false));
+    
+    // 2. If no <li>, or as a combined approach, split by block tags and breaks
+    if (items.isEmpty) {
+      // Replace block tags with a consistent delimiter then split
+      // We handle <p>, <br>, <div>, and <li> (if not already handled)
+      String cleaned = html.replaceAll(RegExp(r'</?(p|br|div|li)\s*/?>', caseSensitive: false), '\n');
+      items = cleaned.split('\n');
     }
 
     return items
         .map((text) => stripHtmlTags(text)) // Strip tags from each item
         .map((text) => _cleanPrefixes(text)) // Strip numbers like /1 or 1.
-        .where((text) => text.length > 2) // Filter out very short lines/empty
+        .where((text) => text.trim().length > 2) // Filter out very short lines/empty
+        .map((text) => text.trim())
         .toList();
   }
 

@@ -563,16 +563,9 @@ class _ShopScreenState extends State<ShopScreen> {
         }
         filterRegion = user.region;
         
-        // Re-add snackbar as requested by user
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('تم تحديد الموقع: ${user.region}, ${user.city ?? ""}'),
-                backgroundColor: AppColors.primary,
-                duration: const Duration(seconds: 3),
-            ),
-        );
-        
-        debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
+        // Print to console as requested by user (instead of snackbar)
+        print('📍 CURRENT LOCATION DETECTED (SHOP): Region: ${user.region}, City: ${user.city}');
+        debugPrint('📍 SELECTED LOCATION (SHOP): Region: ${user.region}, City: ${user.city}');
     }
 
     setState(() {

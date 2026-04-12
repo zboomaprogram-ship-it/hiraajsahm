@@ -109,6 +109,7 @@ class AddProductCubit extends Cubit<AddProductState> {
     required String address, // Changed from location
     String? region,
     String? city,
+    String? downPayment,
   }) async {
     // 1. Check Limits (Real-time)
     final userId = await _storageService.getUserId();
@@ -214,6 +215,7 @@ class AddProductCubit extends Cubit<AddProductState> {
           {'key': '_product_location', 'value': address},
           if (region != null) {'key': '_product_region', 'value': region},
           if (city != null) {'key': '_product_city', 'value': city},
+          if (downPayment != null) {'key': 'add_down_payment_field', 'value': downPayment},
         ],
       };
 
@@ -253,6 +255,8 @@ class AddProductCubit extends Cubit<AddProductState> {
                 {'key': '_product_location', 'value': address},
                 if (region != null) {'key': '_product_region', 'value': region},
                 if (city != null) {'key': '_product_city', 'value': city},
+                if (downPayment != null)
+                  {'key': 'add_down_payment_field', 'value': downPayment},
               ],
             },
           );
@@ -291,6 +295,7 @@ class AddProductCubit extends Cubit<AddProductState> {
     required String address, // Changed from location
     String? region,
     String? city,
+    String? downPayment,
   }) async {
     emit(const AddProductUploading());
 
@@ -331,6 +336,8 @@ class AddProductCubit extends Cubit<AddProductState> {
           {'key': '_product_location', 'value': address},
           if (region != null) {'key': '_product_region', 'value': region},
           if (city != null) {'key': '_product_city', 'value': city},
+          if (downPayment != null)
+            {'key': 'add_down_payment_field', 'value': downPayment},
         ],
       };
 
@@ -372,6 +379,8 @@ class AddProductCubit extends Cubit<AddProductState> {
                 {'key': '_product_location', 'value': address},
                 if (region != null) {'key': '_product_region', 'value': region},
                 if (city != null) {'key': '_product_city', 'value': city},
+                if (downPayment != null)
+                  {'key': 'add_down_payment_field', 'value': downPayment},
               ],
             },
           );

@@ -659,9 +659,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             SizedBox(height: 16.h),
 
             // Features List
-            ...(HtmlUtils.extractListItems(pack.description).isNotEmpty
-                    ? HtmlUtils.extractListItems(pack.description)
-                    : tierInfo.features)
+            ...HtmlUtils.extractListItems(pack.description)
                 .map(
                   (feature) => Padding(
                     padding: EdgeInsets.only(bottom: 8.h),
@@ -792,12 +790,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
         shadowColor: const Color(0xFFFFD700),
         buttonColor: const Color(0xFFFFB300),
-        features: [
-          'عرض مميز للإعلانات',
-          'دعم فني متقدم',
-          'إحصائيات مفصلة',
-          'بدون عمولة',
-        ],
+        features: [],
       );
     } else if (nameLower.contains('فضي') ||
         nameLower.contains('silver') ||
