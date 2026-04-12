@@ -195,7 +195,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       filterRegion = user.region;
       
-      // Print the resolved region and city to the console
+      // Re-add snackbar as requested by user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم تحديد الموقع: ${user.region}, ${user.city ?? ""}'),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      
       debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
     }
 
@@ -304,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // City Filter (Cascading)
-            if (_selectedRegion != 'الكل')
+            if (_selectedRegion != 'الكل' && _selectedRegion != 'الموقع الحالي')
               SliverToBoxAdapter(
                 key: ValueKey('city_filter_sliver_$_selectedRegion'),
                 child: FadeInUp(

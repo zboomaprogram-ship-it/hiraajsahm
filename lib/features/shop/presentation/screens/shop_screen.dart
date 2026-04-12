@@ -155,7 +155,7 @@ class _ShopScreenState extends State<ShopScreen> {
           ),
 
           // City Filter (Cascading)
-          if (_selectedRegion != 'الكل')
+          if (_selectedRegion != 'الكل' && _selectedRegion != 'الموقع الحالي')
             _buildCityFilter(isDark),
             
           Expanded(child: _buildProductsGrid(isDark, isTablet)),
@@ -563,7 +563,15 @@ class _ShopScreenState extends State<ShopScreen> {
         }
         filterRegion = user.region;
         
-        // Print the resolved region and city to the console
+        // Re-add snackbar as requested by user
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('تم تحديد الموقع: ${user.region}, ${user.city ?? ""}'),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 3),
+            ),
+        );
+        
         debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
     }
 
