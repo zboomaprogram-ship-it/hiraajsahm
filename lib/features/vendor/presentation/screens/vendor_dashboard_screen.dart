@@ -637,12 +637,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                 ),
                 SizedBox(height: 8.h),
                 Text(
-                  _zabayehDescription ?? 'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
+                  _zabayehDescription ?? '',
                   style: TextStyle(
                     fontSize: 12.sp,
                     color: Colors.white.withOpacity(0.9),
                   ),
-                  maxLines: 2,
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 16.h),

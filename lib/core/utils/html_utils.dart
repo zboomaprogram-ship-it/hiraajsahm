@@ -2,25 +2,35 @@
 class HtmlUtils {
   /// Extracts list items (<li>...</li>) from an HTML string
   /// and returns them as a list of plain strings.
+  /// If no <li> tags found, splits by <br> or newlines.
   static List<String> extractListItems(String html) {
     if (html.isEmpty) return [];
 
-    // Simple regex to match <li>...</li> content
-    final regExp = RegExp(r'<li>(.*?)</li>', dotAll: true);
-    final matches = regExp.allMatches(html);
+    List<String> items = [];
 
-    return matches.map((match) {
-      // Get the inner text and strip any remaining internal HTML tags
-      String text = match.group(1) ?? '';
-      return stripHtmlTags(text).trim();
-    }).where((text) => text.isNotEmpty).toList();
+    // 1. Try matching <li>...</li> content
+    if (html.contains('<li')) {
+      final regExp = RegExp(r'<li>(.*?)</li>', dotAll: true);
+      final matches = regExp.allMatches(html);
+      items = matches.map((match) => match.group(1) ?? '').toList();
+    } 
+    // 2. Fallback: Split by <br> or newlines if no <li>
+    else {
+      items = html.split(RegExp(r'<br\s*/?>|\n', caseSensitive: false));
+    }
+
+    return items
+        .map((text) => stripHtmlTags(text)) // Strip tags from each item
+        .map((text) => _cleanPrefixes(text)) // Strip numbers like /1 or 1.
+        .where((text) => text.length > 2) // Filter out very short lines/empty
+        .toList();
   }
 
   /// Removes all HTML tags from a string
   static String stripHtmlTags(String html) {
     if (html.isEmpty) return '';
     
-    // Replace <br> and <p> with newlines before stripping
+    // Replace <br> and <p> with spaces/newlines before stripping
     String text = html.replaceAll(RegExp(r'<br\s*/?>|<p\s*/?>', caseSensitive: false), '\n');
     
     // Strip all other tags
@@ -35,5 +45,26 @@ class HtmlUtils {
         .replaceAll('&#39;', "'")
         .replaceAll('&nbsp;', ' ')
         .trim();
+  }
+
+  /// Internal helper to remove prefixes like "/1", "1.", "-", etc.
+  static String _cleanPrefixes(String text) {
+    if (text.isEmpty) return '';
+    
+    // Match common list prefixes: "/", "/1 ", "1. ", "1- ", "- ", etc.
+    final prefixPattern = RegExp(r'^\s*([/\d\.\-\s]+)(.*)$');
+    final match = prefixPattern.firstMatch(text);
+    
+    if (match != null) {
+      final prefix = match.group(1) ?? '';
+      final content = match.group(2) ?? '';
+      
+      // If the prefix actually looks like a numbering/delimiter prefix
+      if (RegExp(r'[\d/\.\-]').hasMatch(prefix)) {
+        return content.trim();
+      }
+    }
+    
+    return text.trim();
   }
 }

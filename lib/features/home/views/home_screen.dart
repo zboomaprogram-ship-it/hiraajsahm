@@ -194,19 +194,42 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
       filterRegion = user.region;
+      
+      // Print the resolved region
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم تحديد الموقع: ${user.region}'),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
 
     setState(() {
       _selectedRegion = region;
       _selectedCity = 'الكل';
-      _saudiCities = ['الكل'];
+      _saudiCities = region == 'الموقع الحالي' ? [] : ['الكل'];
     });
 
     if (filterRegion != 'الكل' && filterRegion != 'الموقع الحالي') {
         final cities = await RegionsService().getCitiesForRegion(filterRegion!);
         if (mounted) {
           setState(() {
-            _saudiCities = ['الكل', ...cities];
+            // Hide 'الكل' if it's the current location mode
+            if (region == 'الموقع الحالي') {
+              _saudiCities = cities;
+              if (cities.isNotEmpty) {
+                // Optionally auto-select user's city if it's in the list
+                final userCity = context.read<AuthCubit>().currentUser?.city;
+                if (userCity != null && cities.contains(userCity)) {
+                  _selectedCity = userCity;
+                } else if (cities.isNotEmpty) {
+                  _selectedCity = cities.first;
+                }
+              }
+            } else {
+              _saudiCities = ['الكل', ...cities];
+            }
           });
         }
     }

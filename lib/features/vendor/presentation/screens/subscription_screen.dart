@@ -644,7 +644,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             if (pack.description.isNotEmpty || pack.shortDescription.isNotEmpty)
               Text(
                 HtmlUtils.stripHtmlTags(
-                  pack.description.isNotEmpty ? pack.description : pack.shortDescription,
+                  pack.description.isNotEmpty
+                      ? pack.description
+                      : pack.shortDescription,
                 ),
                 style: TextStyle(
                   fontSize: 14.sp,
@@ -661,32 +663,31 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ? HtmlUtils.extractListItems(pack.description)
                     : tierInfo.features)
                 .map(
-              (feature) => Padding(
-              (feature) => Padding(
-                padding: EdgeInsets.only(bottom: 8.h),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      color: AppColors.success,
-                      size: 18.sp,
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: Text(
-                        feature,
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: isDark
-                              ? AppColors.textLight
-                              : AppColors.textPrimary,
+                  (feature) => Padding(
+                    padding: EdgeInsets.only(bottom: 8.h),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: 18.sp,
                         ),
-                      ),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              color: isDark
+                                  ? AppColors.textLight
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
             SizedBox(height: 16.h),
 
             // Subscribe Button
@@ -816,7 +817,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
         shadowColor: const Color(0xFF808080),
         buttonColor: const Color(0xFF9E9E9E),
-        features: ['ظهور أفضل في البحث', 'دعم فني سريع', 'عمولة مخفضة'],
+        features: [],
       );
     } else if (nameLower.contains('الذبائح') || nameLower.contains('zabayeh')) {
       return _TierInfo(
@@ -827,12 +828,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
         shadowColor: AppColors.error,
         buttonColor: AppColors.error,
-        features: [
-          'شارة الزباية المميزة',
-          'أولوية في العرض',
-          'دعم VIP',
-          'بدون عمولة',
-        ],
+        features: [],
       );
     } else {
       // Bronze / Default
@@ -850,8 +846,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ],
         ),
         shadowColor: const Color(0xFFCD7F32),
-        buttonColor: const Color(0xFFCD7F32),
-        features: ['حساب تاجر أساسي', 'إضافة إعلانات', 'دعم فني'],
+        buttonColor: AppColors.primary,
+        features: [],
       );
     }
   }
