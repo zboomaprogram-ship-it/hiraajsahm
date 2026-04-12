@@ -14,7 +14,7 @@ import '../../data/models/product_model.dart';
 import '../../data/models/category_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/data/regions_service.dart';
-import '../../auth/presentation/cubit/auth_cubit.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../widgets/product_card.dart';
 
 /// Shop Screen - All Products with Dynamic Categories Filter
@@ -921,132 +921,9 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
-    final isOutOfStock =
-        product.stockStatus == 'outofstock' || product.stockQuantity == 0;
-
-    return GestureDetector(
-      onTap: () => AppRouter.navigateTo(
-        context,
-        Routes.productDetails,
-        arguments: product,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 3,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20.r),
-                    ),
-                    child: product.images.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: product.images.first,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            placeholder: (context, url) => Container(
-                              color: AppColors.surface,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) =>
-                                _buildPlaceholderImage(),
-                          )
-                        : _buildPlaceholderImage(),
-                  ),
-                  if (product.hasDiscount)
-                    Positioned(
-                      top: 8.h,
-                      left: 8.w,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          '${product.discountPercentage.toStringAsFixed(0)}%-',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Status Banners
-                  if (product.isLocked)
-                    Positioned(
-                      top: 15.h,
-                      left: -25.w,
-                      child: Transform.rotate(
-                        angle: -0.785398, // -45 degrees
-                        child: Container(
-                          width: 100.w,
-                          padding: EdgeInsets.symmetric(vertical: 4.h),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            'قيد المعاينة',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  else if (isOutOfStock)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(20.r),
-                          ),
-                          color: Colors.black.withValues(alpha: 0.5),
-                        ),
-                        child: Center(
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12.w,
-                              vertical: 6.h,
-                            ),
-            ),
-          ],
-        ),
-      ),
+    return ProductCard(
+      product: product,
+      isTablet: isTablet,
     );
   }
 

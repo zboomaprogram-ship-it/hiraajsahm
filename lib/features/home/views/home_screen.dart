@@ -14,7 +14,7 @@ import '../../shop/data/models/product_model.dart';
 import '../../shop/data/models/category_model.dart';
 // ✅ Import Notification Cubit
 import '../../notifications/presentation/cubit/notifications_cubit.dart';
-import '../../../cart/presentation/cubit/cart_cubit.dart';
+import '../../cart/presentation/cubit/cart_cubit.dart';
 import '../../auth/presentation/cubit/auth_cubit.dart';
 import '../../shop/presentation/widgets/product_card.dart';
 
@@ -965,32 +965,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
-    return GestureDetector(
-      onTap: () {
-        AppRouter.navigateTo(
-          context,
-          Routes.productDetails,
-          arguments: product,
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.card,
-          borderRadius: BorderRadius.circular(20.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 16,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ProductCard(
+      product: product,
+      isTablet: isTablet,
     );
   }
 }
