@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<String> _saudiRegions = [
     'الكل',
+    'الموقع الحالي',
   ];
   List<String> _saudiCities = [
     'الكل',

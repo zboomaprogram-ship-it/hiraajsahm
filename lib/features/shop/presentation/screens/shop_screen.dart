@@ -43,7 +43,7 @@ class _ShopScreenState extends State<ShopScreen> {
   int? _selectedSubCategoryId;
   String _selectedRegion = 'الكل';
   String _selectedCity = 'الكل';
-  List<String> _saudiRegions = ['الكل'];
+  List<String> _saudiRegions = ['الكل', 'الموقع الحالي'];
   List<String> _saudiCities = ['الكل'];
 
   @override

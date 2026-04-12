@@ -15,6 +15,7 @@ import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../data/models/vendor_registration_data.dart';
 import '../../presentation/cubit/vendor_upgrade_cubit.dart';
 import '../../presentation/cubit/vendor_upgrade_state.dart';
+import '../../../../core/utils/html_utils.dart';
 
 /// Subscription Screen - Display vendor subscription tiers
 class SubscriptionScreen extends StatefulWidget {
@@ -640,19 +641,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             SizedBox(height: 8.h),
 
             // Description
-            if (pack.shortDescription.isNotEmpty)
+            if (pack.description.isNotEmpty || pack.shortDescription.isNotEmpty)
               Text(
-                pack.shortDescription.replaceAll(RegExp(r'<[^>]*>'), ''),
+                HtmlUtils.stripHtmlTags(
+                  pack.description.isNotEmpty ? pack.description : pack.shortDescription,
+                ),
                 style: TextStyle(
                   fontSize: 14.sp,
                   color: AppColors.textSecondary,
                   height: 1.5,
                 ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             SizedBox(height: 16.h),
 
             // Features List
-            ...tierInfo.features.map(
+            ...(HtmlUtils.extractListItems(pack.description).isNotEmpty
+                    ? HtmlUtils.extractListItems(pack.description)
+                    : tierInfo.features)
+                .map(
+              (feature) => Padding(
               (feature) => Padding(
                 padding: EdgeInsets.only(bottom: 8.h),
                 child: Row(

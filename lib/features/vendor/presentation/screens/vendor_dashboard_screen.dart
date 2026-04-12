@@ -17,6 +17,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import 'package:dio/dio.dart';
 import '../../../settings/presentation/screens/webview_screen.dart';
+import '../../../../core/utils/html_utils.dart';
 
 /// Vendor Dashboard Screen
 /// Displays vendor statistics, charts, and quick actions
@@ -29,11 +30,31 @@ class VendorDashboardScreen extends StatefulWidget {
 
 class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
   int _currentIndex = 0;
+  String? _zabayehDescription;
 
   @override
   void initState() {
     super.initState();
     context.read<VendorDashboardCubit>().loadDashboard();
+    _loadZabayehPackInfo();
+  }
+
+  Future<void> _loadZabayehPackInfo() async {
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://hiraajsahm.com/wp-json/wc/v3/products/29318?consumer_key=ck_78ec6d3f6325ae403400781192045474f592b24a&consumer_secret=cs_0accb11f98ea7516ab4630e521748e73ce3d3b54',
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            _zabayehDescription = HtmlUtils.stripHtmlTags(response.data['description'] ?? '');
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading Zabayeh pack info: $e');
+    }
   }
 
   @override
@@ -616,11 +637,13 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                 ),
                 SizedBox(height: 8.h),
                 Text(
-                  'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
+                  _zabayehDescription ?? 'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
                   style: TextStyle(
                     fontSize: 12.sp,
                     color: Colors.white.withOpacity(0.9),
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 16.h),
                 ElevatedButton(
