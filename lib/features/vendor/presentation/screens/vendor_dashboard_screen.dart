@@ -30,7 +30,7 @@ class VendorDashboardScreen extends StatefulWidget {
 
 class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
   int _currentIndex = 0;
-  String? _zabayehDescription;
+  List<String> _zabayehFeatures = [];
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       if (response.statusCode == 200) {
         if (mounted) {
           setState(() {
-            _zabayehDescription = HtmlUtils.stripHtmlTags(response.data['description'] ?? '');
+            _zabayehFeatures = HtmlUtils.extractListItems(response.data['description'] ?? '');
           });
         }
       }
@@ -636,15 +636,34 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                Text(
-                  _zabayehDescription ?? '',
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    color: Colors.white.withOpacity(0.9),
+                ..._zabayehFeatures.map((feature) => Padding(
+                  padding: EdgeInsets.only(bottom: 4.h),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 14.sp),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          feature,
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                )),
+                if (_zabayehFeatures.isEmpty)
+                   Text(
+                    'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
                 SizedBox(height: 16.h),
                 ElevatedButton(
                   onPressed: () => _handleZabayehSubscription(context, user),

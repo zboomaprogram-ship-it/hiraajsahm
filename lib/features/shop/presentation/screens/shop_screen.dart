@@ -563,14 +563,8 @@ class _ShopScreenState extends State<ShopScreen> {
         }
         filterRegion = user.region;
         
-        // Print the resolved region
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('تم تحديد الموقع: ${user.region}'),
-                backgroundColor: AppColors.primary,
-                duration: const Duration(seconds: 2),
-            ),
-        );
+        // Print the resolved region and city to the console
+        debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
     }
 
     setState(() {
