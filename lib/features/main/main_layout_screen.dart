@@ -61,6 +61,9 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width >= 600;
+    final iconSize = isTablet ? 30.w : 26.w;
+    final navHeight = isTablet ? 80.0 : 70.0;
 
     return BlocListener<CartCubit, CartState>(
       listener: (context, state) {
@@ -87,28 +90,28 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
             child: CurvedNavigationBar(
               key: _bottomNavKey,
               index: _currentIndex,
-              height: 70,
+              height: navHeight,
               items: [
                 Image.asset(
                   'assets/icons/home.png',
-                  width: 26.w,
-                  height: 26.w,
+                  width: iconSize,
+                  height: iconSize,
                   color: _currentIndex == 0
                       ? Colors.white
                       : const Color(0xFF1B4965),
                 ),
                 Image.asset(
                   'assets/icons/store.png',
-                  width: 26.w,
-                  height: 26.w,
+                  width: iconSize,
+                  height: iconSize,
                   color: _currentIndex == 1
                       ? Colors.white
                       : const Color(0xFF1B4965),
                 ),
                 Image.asset(
                   'assets/icons/contract.png',
-                  width: 26.w,
-                  height: 26.w,
+                  width: iconSize,
+                  height: iconSize,
                   color: _currentIndex == 2
                       ? Colors.white
                       : const Color(0xFF1B4965),
@@ -116,8 +119,8 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
 
                 Image.asset(
                   'assets/icons/user.png',
-                  width: 26.w,
-                  height: 26.w,
+                  width: iconSize,
+                  height: iconSize,
                   color: _currentIndex == 3
                       ? Colors.white
                       : const Color(0xFF1B4965),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/data/regions_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:animate_do/animate_do.dart';
@@ -13,6 +14,7 @@ import '../../shop/data/models/product_model.dart';
 import '../../shop/data/models/category_model.dart';
 // ✅ Import Notification Cubit
 import '../../notifications/presentation/cubit/notifications_cubit.dart';
+import '../../cart/presentation/cubit/cart_cubit.dart';
 
 /// Hiraaj Sahm - Home Screen
 /// Livestock marketplace home with categories, auctions, and products
@@ -28,23 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int? _selectedParentCategoryId;
   String _selectedRegion = 'الكل';
+  String _selectedCity = 'الكل';
   int? _selectedSubCategoryId;
 
-  final List<String> _saudiRegions = [
+  List<String> _saudiRegions = [
     'الكل',
-    'الرياض',
-    'مكة المكرمة',
-    'المدينة المنورة',
-    'القصيم',
-    'الشرقية',
-    'عسير',
-    'تبوك',
-    'حائل',
-    'الحدود الشمالية',
-    'جازان',
-    'نجران',
-    'الباحة',
-    'الجوف',
+  ];
+  List<String> _saudiCities = [
+    'الكل',
   ];
 
   // Icon mapping for categories based on slug or name
@@ -104,6 +97,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // ✅ Load Notifications to get badge count
     context.read<NotificationsCubit>().loadNotifications();
+
+    _loadRegions();
+  }
+
+  Future<void> _loadRegions() async {
+    final names = await RegionsService().getRegionNames();
+    if (mounted) {
+      setState(() {
+        _saudiRegions = ['الكل', 'الموقع الحالي', ...names];
+      });
+      print('🏘️ HomeScreen Regions Loaded: ${names.length} names found');
+    }
   }
 
   @override
@@ -132,7 +137,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: null,
-          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
         // Toggle ON
@@ -140,7 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: category.id,
-          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       }
     });
@@ -154,26 +161,75 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: _selectedParentCategoryId,
-          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
         _selectedSubCategoryId = subCategory.id;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: subCategory.id,
-          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       }
     });
   }
 
-  void _onRegionSelected(String region) {
+  void _onRegionSelected(String region) async {
+    if (_selectedRegion == region) return;
+
+    String? filterRegion = region;
+    if (region == 'الموقع الحالي') {
+      final user = context.read<AuthCubit>().currentUser;
+      if (user == null || user.region == null || user.region!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      filterRegion = user.region;
+    }
+
     setState(() {
       _selectedRegion = region;
-      context.read<HomeContentCubit>().loadHomeContent(
-        categoryId: _selectedParentCategoryId,
-        region: region == 'الكل' ? null : region,
-      );
+      _selectedCity = 'الكل';
+      _saudiCities = ['الكل'];
     });
+
+    if (filterRegion != 'الكل' && filterRegion != 'الموقع الحالي') {
+        final cities = await RegionsService().getCitiesForRegion(filterRegion!);
+        if (mounted) {
+          setState(() {
+            _saudiCities = ['الكل', ...cities];
+          });
+        }
+    }
+
+    // Trigger content reload
+    if (mounted) {
+      context.read<HomeContentCubit>().loadHomeContent(
+            categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
+            region: filterRegion == 'الكل' ? null : filterRegion,
+            city: null,
+          );
+    }
+  }
+
+  void _onCitySelected(String city) {
+    if (_selectedCity == city) return;
+
+    setState(() {
+      _selectedCity = city;
+    });
+
+    context.read<HomeContentCubit>().loadHomeContent(
+          categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+          city: city == 'الكل' ? null : city,
+        );
   }
 
   void _onViewAllProducts() {
@@ -219,13 +275,24 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(child: _buildSubCategories(isDark, isTablet)),
 
             // Region Filter
-            // SliverToBoxAdapter(
-            //   child: FadeInUp(
-            //     delay: const Duration(milliseconds: 100),
-            //     duration: const Duration(milliseconds: 400),
-            //     child: _buildRegionFilter(isDark),
-            //   ),
-            // ),
+            SliverToBoxAdapter(
+              child: FadeInUp(
+                delay: const Duration(milliseconds: 100),
+                duration: const Duration(milliseconds: 400),
+                child: _buildRegionFilter(isDark),
+              ),
+            ),
+
+            // City Filter (Cascading)
+            if (_selectedRegion != 'الكل')
+              SliverToBoxAdapter(
+                key: ValueKey('city_filter_sliver_$_selectedRegion'),
+                child: FadeInUp(
+                  key: ValueKey('city_filter_fade_$_selectedRegion'),
+                  duration: const Duration(milliseconds: 400),
+                  child: _buildCityFilter(isDark),
+                ),
+              ),
 
             // Latest Listings Section
             SliverToBoxAdapter(
@@ -703,6 +770,80 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildCityFilter(bool isDark) {
+    if (_saudiCities.length <= 1 && _selectedRegion == 'الكل') return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.only(top: 16.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_city_rounded,
+                  size: 18.sp,
+                  color: AppColors.primary,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'المدينة',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 38.h,
+            child: ListView.separated(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              scrollDirection: Axis.horizontal,
+              itemCount: _saudiCities.length,
+              separatorBuilder: (_, __) => SizedBox(width: 8.w),
+              itemBuilder: (context, index) {
+                final city = _saudiCities[index];
+                final isSelected = _selectedCity == city;
+
+                return GestureDetector(
+                  onTap: () => _onCitySelected(city),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary
+                          : (isDark
+                                ? AppColors.surfaceVariantDark
+                                : Colors.grey[200]),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      city,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white : AppColors.textPrimary),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, VoidCallback onSeeAll) {
     return Padding(
       padding: EdgeInsets.fromLTRB(20.w, 24.h, 20.w, 16.h),
@@ -1009,16 +1150,29 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        Container(
-                          padding: EdgeInsets.all(6.w),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Icon(
-                            Icons.add_rounded,
-                            color: Colors.white,
-                            size: 16.sp,
+                        GestureDetector(
+                          onTap: () {
+                            context.read<CartCubit>().addItem(product);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('تمت الإضافة إلى طلباتي'),
+                                backgroundColor: AppColors.success,
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: EdgeInsets.all(6.w),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            child: Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 16.sp,
+                            ),
                           ),
                         ),
                       ],

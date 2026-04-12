@@ -85,6 +85,6 @@ class AppConfig {
   static const String telrTokenEndpoint = '/hiraajsahm/v1/telr/token';
   static const String telrOrderEndpoint = '/hiraajsahm/v1/telr/order';
   static const int telrStoreId = 34762;
-  static const String telrMobileAuthKey = 'K8nTm^WSVK@pQ.';
-  static const bool telrTestMode = true; // Set to false for production
+  static const String telrMobileAuthKey = 'mKnQf-HrCvD@StZK';
+  static const bool telrTestMode = false; // Set to false for production
 }

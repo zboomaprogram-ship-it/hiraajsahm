@@ -8,13 +8,17 @@ import '../../../../core/routes/app_router.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/storage_service.dart';
-import '../../../../core/services/telr_payment_service.dart';
+import 'package:hiraajsahm/core/services/telr_payment_service.dart';
+import 'package:telr_mobile_payment_sdk/telr_mobile_payment_sdk.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../cubit/checkout_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
-import 'telr_webview_screen.dart';
+import '../../../vendor/presentation/cubit/vendor_upgrade_cubit.dart';
 
 import '../../../../core/widgets/location_picker_screen.dart';
 import '../../../../core/widgets/mini_map_preview.dart';
+import '../../../../core/config/app_config.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -35,6 +39,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _selectedLatLong;
 
   String _selectedPaymentMethod = 'cod';
+  bool _isPaymentProcessing = false;
 
   final List<_PaymentMethod> _paymentMethods = [
     _PaymentMethod(
@@ -68,14 +73,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final user = authState.user;
 
       // Use explicit first/last name if available, fallback to splitting displayName
-      if (user.firstName != null && user.firstName!.isNotEmpty) {
+      // Improved name parsing: if firstName is missing or lastName is missing, try splitting displayName
+      if (user.firstName != null && user.firstName!.isNotEmpty && 
+          user.lastName != null && user.lastName!.isNotEmpty) {
         _firstNameController.text = user.firstName!;
-        _lastNameController.text = user.lastName ?? '';
+        _lastNameController.text = user.lastName!;
       } else {
+        // Fallback: split display name
         final nameParts = user.displayName.split(' ');
         if (nameParts.isNotEmpty) {
-          _firstNameController.text = nameParts.first;
-          if (nameParts.length > 1) {
+          _firstNameController.text = user.firstName?.isNotEmpty == true 
+              ? user.firstName! 
+              : nameParts.first;
+              
+          if (user.lastName?.isNotEmpty == true) {
+            _lastNameController.text = user.lastName!;
+          } else if (nameParts.length > 1) {
             _lastNameController.text = nameParts.sublist(1).join(' ');
           }
         }
@@ -87,12 +100,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _cityController.text = user.city ?? '';
     }
 
-    // If virtual/subscription product, force online payment by default
+    // If virtual/subscription/deposit product, force online payment by default
     final cartState = context.read<CartCubit>().state;
     if (cartState is CartLoaded) {
-      final isVirtual = cartState.items.isNotEmpty &&
-          cartState.items.every((i) => i.product.virtual);
-      if (isVirtual) {
+      final hasDeposit = cartState.items.any((item) => item.isDeposit);
+      final isSubscription = cartState.items.any((item) {
+        final id = item.product.id;
+        final name = item.product.name;
+        return [29026, 29030, 29318].contains(id) || name.contains('باقة');
+      });
+      final hasVirtual = cartState.items.any((i) => i.product.virtual);
+
+      if (isSubscription || hasDeposit || hasVirtual) {
         _selectedPaymentMethod = 'online';
       }
     }
@@ -165,7 +184,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  /// Handle Telr payment flow via WebView SDK alternative
+  /// Handle Telr payment flow via Native SDK (FL-3)
   Future<void> _handleTelrPayment(
     BuildContext context, {
     required int orderId,
@@ -174,44 +193,66 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     required String customerName,
     required bool isSubscription,
   }) async {
-    try {
-      final telrService = sl<TelrPaymentService>();
+    if (_isPaymentProcessing) return;
 
-      // Call our WP backend to generate the HPP URL
-      final session = await telrService.createOrderSession(
-        orderId: orderId,
-        amount: amount,
-        customerEmail: customerEmail,
-        customerName: customerName,
-        billingAddress: _addressController.text,
-        billingCity: _cityController.text,
-        billingPhone: _phoneController.text,
+    setState(() {
+      _isPaymentProcessing = true;
+    });
+
+    try {
+      // ✅ STEP A: Get Token from WordPress Backend (FL-3)
+      final url = Uri.parse('${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}').replace(
+        queryParameters: {
+          'order_id': orderId.toString(),
+          'amount': amount,
+          'currency': 'SAR',
+          'customer_email': customerEmail,
+          'customer_name': customerName,
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
       );
 
-      final orderUrl = session['order_url'];
-      final orderRef = session['order_ref'];
+      print('🔵 Fetching Telr URLs from: $url');
+      final response = await http.get(url);
 
-      if (orderUrl == null || orderUrl.isEmpty) {
-        throw Exception('Failed to get valid payment URL from backend.');
+      if (response.statusCode != 200) {
+        throw Exception('Failed to get Telr token: ${response.body}');
       }
 
-      // Launch secure WebView to process the Hosted Payment Page
-      if (!context.mounted) return;
-      final success = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              TelrWebViewScreen(orderUrl: orderUrl, orderRef: orderRef),
-        ),
-      );
+      final data = json.decode(response.body);
+      
+      // ✅ STEP B: Extract Telr URLs (FL-3)
+      final String? tokenUrl = data['tokenUrl']; // _links.auth.href
+      final String? orderUrl = data['orderUrl']; // _links.self.href
 
-      if (success == true) {
+      print('🔵 tokenUrl: $tokenUrl');
+      print('🔵 orderUrl: $orderUrl');
+
+      if (tokenUrl == null || orderUrl == null) {
+        _checkoutCubit.failPayment('فشل في الحصول على روابط الدفع من Telr', orderId: orderId);
+        return;
+      }
+
+      // ✅ STEP C: Pass TELR'S OWN URLS to the SDK (FL-3)
+      final res = await TelrSdk.presentPayment(tokenUrl, orderUrl);
+
+      print('✅ SDK result: ${res.success} ${res.message}');
+
+      if (res.success) {
         _checkoutCubit.completePayment(orderId, isSubscription: isSubscription);
       } else {
-        _checkoutCubit.failPayment('تم إلغاء عملية الدفع أو فشلها.');
+        _checkoutCubit.failPayment(res.message, orderId: orderId);
       }
     } catch (e) {
-      _checkoutCubit.failPayment('خطأ في عملية الدفع: $e');
+      print('❌ TelrSDK Exception: $e');
+      _checkoutCubit.failPayment('خطأ في عملية الدفع: $e', orderId: orderId);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPaymentProcessing = false;
+        });
+      }
     }
   }
 
@@ -380,7 +421,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           duration: const Duration(milliseconds: 300),
                           child: BlocBuilder<CheckoutCubit, CheckoutState>(
                             builder: (context, state) {
-                              final isLoading = state is CheckoutProcessing;
+                              final isLoading =
+                                  state is CheckoutProcessing ||
+                                      _isPaymentProcessing;
 
                               return Container(
                                 width: double.infinity,
@@ -910,6 +953,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   await context.read<AuthCubit>().completeRegistration();
 
                   Navigator.pop(context);
+                  final storage = sl<StorageService>();
+                  final vendorData = storage.getVendorRegistrationData();
+                  if (vendorData != null && isSubscription) {
+                    context.read<VendorUpgradeCubit>().upgradeToVendor(
+                      userId: context.read<AuthCubit>().currentUser!.id,
+                      shopName: vendorData['shopName']!,
+                      phone: vendorData['phone']!,
+                      shopLink: vendorData['shopLink'],
+                    );
+                    await storage.clearVendorRegistrationData();
+                  }
+
                   // Refresh user data to get updated subscription info
                   await context.read<AuthCubit>().checkAuthStatus();
                   if (context.mounted) {

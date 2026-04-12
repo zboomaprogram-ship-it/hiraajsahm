@@ -1,360 +1,332 @@
 <?php
 /**
  * Plugin Name: Telr Gateway API for Hiraaj Sahm
- * Description: REST API endpoints for Telr Mobile SDK integration.
- * Version: 2.0.0
+ * Description: REST API endpoints for Telr Mobile SDK integration (V4.0.1 Compatible).
+ * Version: 3.0.0
  * Author: Hiraaj Sahm Dev
  */
 
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH'))
+    exit;
+
+// ============ TELR CONFIGURATION ============
+define('TELR_STORE_ID', '34762'); // ✔ OK: Confirmed Store ID
+define('TELR_MOBILE_AUTH_KEY', 'mKnQf-HrCvD@StZK'); // ✔ OK: Confirmed Mobile Auth Key
+define('TELR_TEST_MODE', false); // ✔ OK: LIVE Mode
+define('TELR_API_URL', 'https://secure.telr.com/api/v1/orders'); // ✔ OK: REST API URL
 
 /**
  * 1. NUCLEAR JWT BYPASS (FOR CUSTOM NON-REST ENDPOINT)
- * We handle the order check via a custom query parameter on the homepage.
- * This naturally bypasses the JWT plugin which usually only targets /wp-json/.
  */
-add_action('init', function() {
+add_action('init', function () {
     if (isset($_GET['telr_order_check'])) {
         hiraaj_telr_handle_custom_order_check();
     }
 }, 1);
 
-function hiraaj_telr_handle_custom_order_check() {
+function hiraaj_telr_handle_custom_order_check()
+{
     $ck = $_GET['consumer_key'] ?? '';
     $cs = $_GET['consumer_secret'] ?? '';
-    
-    // Security Check
+
     if (empty($ck) || empty($cs)) {
         wp_send_json_error(['message' => 'Missing security keys'], 401);
     }
-    
+
     global $wpdb;
     $key = $wpdb->get_row($wpdb->prepare(
         "SELECT consumer_secret FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
         wc_api_hash($ck)
     ));
-    
+
     if (!$key || !hash_equals($key->consumer_secret, $cs)) {
         wp_send_json_error(['message' => 'Invalid security keys'], 401);
     }
-    
-    // Extract Order Ref from Header (SDK Behavior)
+
     $auth_header = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
-    if (!$auth_header && function_exists('apache_request_headers')) {
-        $headers = apache_request_headers();
-        $auth_header = $headers['Authorization'] ?? ($headers['authorization'] ?? '');
-    }
-    
     $order_ref = $_GET['order_ref'] ?? '';
     if (empty($order_ref) && preg_match('/Bearer\s+(.*)/i', $auth_header, $matches)) {
         $order_ref = trim($matches[1]);
     }
-    
+
     if (empty($order_ref)) {
         wp_send_json_error(['message' => 'order_ref is required'], 400);
     }
-    
+
     $result = hiraaj_telr_perform_check($order_ref);
     if (is_wp_error($result)) {
         wp_send_json_error(['message' => $result->get_error_message()], 500);
     }
-    
+
     wp_send_json($result);
     exit;
 }
 
-function hiraaj_telr_perform_check($order_ref) {
+/**
+ * Perform Order Check via REST API v1
+ */
+function hiraaj_telr_perform_check($order_ref)
+{
     if (empty($order_ref)) {
         return new WP_Error('missing_ref', 'Order reference is empty');
     }
 
-    $telr_data = [
-        'method'  => 'check',
-        'store'   => TELR_STORE_ID,
-        'authkey' => TELR_AUTH_KEY,
-        'order'   => ['ref' => $order_ref],
-    ];
+    $auth_string = base64_encode(TELR_STORE_ID . ':' . TELR_MOBILE_AUTH_KEY);
 
-    $response = wp_remote_post(TELR_API_URL, [
-        'headers' => ['Content-Type' => 'application/json'],
-        'body'    => json_encode($telr_data),
+    $response = wp_remote_get(TELR_API_URL . '/' . urlencode($order_ref), [
+        'headers' => [
+            'Authorization' => 'Basic ' . $auth_string,
+            'Accept' => 'application/json',
+        ],
         'timeout' => 30,
-    ]);
+    ]); // ✅ FIXED: Removed sslverify: false (PHP-5)
 
-    if (is_wp_error($response)) return $response;
-    
+    if (is_wp_error($response))
+        return $response;
+
     $body = json_decode(wp_remote_retrieve_body($response), true);
-    
-    if (empty($body) || isset($body['error'])) {
-        return new WP_Error('telr_error', $body['error']['message'] ?? 'Unknown Telr error');
-    }
+    $status_string = strtoupper($body['status'] ?? ''); // ✅ FIXED: Status is a string (PHP-4)
 
-    // Update WC order status if paid
-    $status = $body['order']['status']['code'] ?? -1;
-    if ($status == 3) {
-        $cart_id = $body['order']['cartid'] ?? null;
+    if ($status_string === 'PAID') { // ✅ FIXED: Check against 'PAID' (PHP-4)
+        $cart_id = $body['cartId'] ?? null; // ✅ FIXED: camelCase (PHP-4)
         if ($cart_id && function_exists('wc_get_order')) {
             $wc_order = wc_get_order($cart_id);
             if ($wc_order && !$wc_order->is_paid()) {
                 $wc_order->payment_complete($order_ref);
-                $wc_order->add_order_note('Telr payment confirmed via SDK.');
+                $wc_order->add_order_note('Telr payment confirmed via REST API');
             }
         }
     }
 
-    // FIX 5.0: REFINED STRUCTURE FOR SDK VALIDATOR
-    // UI parses the amount labels correctly, but the click validator needs the object.
-    if (isset($body['order']['amount'])) {
-        $raw_amount = $body['order']['amount'];
-        $amount_double = (double)$raw_amount;
-        $amount_string = number_format($amount_double, 2, '.', '');
-        $currency = $body['order']['currency'] ?? 'SAR';
-        
-        // The SDK's Amount model likely expects "value" as a STRING.
-        $amount_obj = [
-            'value'    => $amount_string,
-            'amount'   => $amount_string,
-            'currency' => $currency
-        ];
-        
-        // Root 'amount' must be the object to prevent NPE on getAmount().getValue()
-        $body['order']['amount'] = $amount_obj;
-        
-        // Flat keys for UI display fallbacks
-        $body['order']['amt']    = $amount_string;
-        $body['order']['total']  = $amount_string;
-        
-        // Global fallbacks
-        $body['amount'] = $amount_obj;
-    }
-
-    // Return the full body from Telr (SDK expects the 'order' key to be present)
-    return $body;
+    return [
+        'ref' => $body['ref'] ?? $order_ref,
+        'cartId' => $body['cartId'] ?? null,
+        'status' => $status_string,
+        'amount' => $body['amount'] ?? null,
+    ];
 }
 
-// ============ TELR CONFIGURATION ============
-define('TELR_STORE_ID', '34762');
-define('TELR_AUTH_KEY', '5QFj~s5rDH#KpBnQ');
-define('TELR_MOBILE_AUTH_KEY', 'K8nTm^WSVK@pQ.');
-define('TELR_TEST_MODE', 1); // 1 = Test, 0 = Live
-define('TELR_API_URL', 'https://secure.telr.com/gateway/order.json');
-
 // ============ AUTH HELPER ============
-function hiraaj_telr_verify_wc_keys(WP_REST_Request $request) {
+/**
+ * 🔒 Validate WooCommerce API Keys
+ */
+function hiraaj_telr_verify_wc_keys(WP_REST_Request $request)
+{
+    // ✅ FIXED: Removed route-based bypass (PHP-3)
     $ck = $request->get_param('consumer_key');
     $cs = $request->get_param('consumer_secret');
 
-    if (empty($ck) || empty($cs)) return false;
+    if (empty($ck) || empty($cs)) {
+        return false;
+    }
 
     global $wpdb;
-    $key = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT consumer_secret FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
-            wc_api_hash($ck)
-        )
-    );
+    $key = $wpdb->get_row($wpdb->prepare(
+        "SELECT consumer_secret FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
+        wc_api_hash($ck)
+    ));
 
-    if (!$key || !hash_equals($key->consumer_secret, $cs)) return false;
-    return true;
+    return ($key && hash_equals($key->consumer_secret, $cs));
 }
 
-// Whitelist Telr endpoints (second layer of protection)
 add_filter('jwt_auth_whitelist', function ($endpoints) {
-    if (!is_array($endpoints)) $endpoints = [];
+    if (!is_array($endpoints))
+        $endpoints = [];
     $endpoints[] = '/hiraajsahm/v1/telr/.*';
     return $endpoints;
 });
 
 // ============ REGISTER ROUTES ============
 add_action('rest_api_init', function () {
-    // Token endpoint — SDK calls this to create a payment session
     register_rest_route('hiraajsahm/v1', '/telr/token', [
-        'methods'  => ['GET', 'POST'],
+        'methods' => ['GET', 'POST'],
         'callback' => 'hiraaj_telr_token',
-        'permission_callback' => 'hiraaj_telr_verify_wc_keys',
+        'permission_callback' => 'hiraaj_telr_verify_wc_keys', // ✅ FIXED: Enforced (PHP-3)
     ]);
-
-    // Order status endpoint — SDK calls this to check if payment completed
     register_rest_route('hiraajsahm/v1', '/telr/order', [
-        'methods'  => ['GET', 'POST'],
+        'methods' => ['GET', 'POST'],
         'callback' => 'hiraaj_telr_order_check',
-        'permission_callback' => 'hiraaj_telr_verify_wc_keys',
+        'permission_callback' => 'hiraaj_telr_verify_wc_keys', // ✅ FIXED: Enforced (PHP-3)
     ]);
-
-    // Callback endpoint — Telr redirects here after payment
     register_rest_route('hiraajsahm/v1', '/telr/callback', [
-        'methods'  => ['GET', 'POST'],
+        'methods' => ['GET', 'POST'],
         'callback' => 'hiraaj_telr_callback',
         'permission_callback' => '__return_true',
     ]);
-
-    // Keep legacy endpoint for backward compatibility
-    register_rest_route('hiraajsahm/v1', '/telr/create-order', [
-        'methods'  => 'POST',
-        'callback' => 'hiraaj_telr_token',
-        'permission_callback' => 'hiraaj_telr_verify_wc_keys',
-    ]);
 });
 
-// ============ TOKEN ENDPOINT ============
 /**
- * Creates a Telr payment order and returns JSON for the Mobile SDK.
- *
- * POST body: { order_id, amount, currency, description, customer_email, customer_name,
- *              billing_address, billing_city, billing_country, billing_phone }
- *
- * Returns JSON: { order: { ref, url }, ... }
+ * Token Generation Endpoint via REST API with Mobile SDK Support
  */
-function hiraaj_telr_token(WP_REST_Request $request) {
-    $order_id    = $request->get_param('order_id');
-    $amount      = $request->get_param('amount');
-    $currency    = $request->get_param('currency') ?: 'SAR';
-    $description = $request->get_param('description') ?: "Order #{$order_id}";
-    $email       = $request->get_param('customer_email') ?: '';
-    $name        = $request->get_param('customer_name') ?: '';
+function hiraaj_telr_token(WP_REST_Request $request)
+{
+    $order_id = $request->get_param('order_id');
+    $amount = $request->get_param('amount');
+    $currency = $request->get_param('currency') ?: 'SAR';
 
-    // Billing address fields (to pre-fill Telr form & skip address entry)
-    $bill_addr   = $request->get_param('billing_address') ?: '';
-    $bill_city   = $request->get_param('billing_city') ?: '';
-    $bill_country = $request->get_param('billing_country') ?: 'SA';
-    $bill_phone  = $request->get_param('billing_phone') ?: '';
-
-    if (empty($order_id) || empty($amount)) {
+    if (empty($order_id) || empty($amount))
         return new WP_Error('missing_params', 'order_id and amount are required', ['status' => 400]);
-    }
 
-    // Split name into first/last
-    $name_parts = explode(' ', $name, 2);
-    $first_name = $name_parts[0] ?? '';
-    $last_name  = $name_parts[1] ?? '';
+    $name_parts = explode(' ', $request->get_param('customer_name') ?: 'Guest User', 2);
+    $fname = trim($name_parts[0] ?? 'Guest');
+    $sname = trim($name_parts[1] ?? 'User');
 
-    // Build Telr API request
-    $telr_data = [
-        'method'  => 'create',
-        'store'   => TELR_STORE_ID,
-        'authkey' => TELR_AUTH_KEY,
-        'framed'  => 2,
-        'order'   => [
-            'cartid'      => strval($order_id),
-            'test'        => TELR_TEST_MODE,
-            'amount'      => strval($amount),
-            'currency'    => $currency,
-            'description' => $description,
+    // ✅ FIXED: Clean payload as per Rahul's instructions (PHP-2, PHP-5)
+    $telr_payload = [
+        'cartId' => strval($order_id), // camelCase
+        'test' => TELR_TEST_MODE,
+        'transactionType' => 'SALE',
+        'amount' => [
+            'value' => number_format((double) $amount, 2, '.', ''),
+            'currency' => $currency
         ],
-        'return'  => [
-            'authorised' => home_url("/wp-json/hiraajsahm/v1/telr/callback?status=success&order_id={$order_id}"),
-            'declined'   => home_url("/wp-json/hiraajsahm/v1/telr/callback?status=failed&order_id={$order_id}"),
-            'cancelled'  => home_url("/wp-json/hiraajsahm/v1/telr/callback?status=cancelled&order_id={$order_id}"),
-        ],
+        'description' => "Order {$order_id}",
+        // 'mobile' => true, // ❌ REMOVED: (PHP-5)
+        // 'sdk' => true,    // ❌ REMOVED: (PHP-5)
         'customer' => [
-            'email' => $email,
-            'name'  => [
-                'forenames' => $first_name,
-                'surname'   => $last_name,
-            ],
-            'address' => [
-                'line1'   => $bill_addr ?: 'N/A',
-                'city'    => $bill_city ?: 'N/A',
-                'country' => $bill_country,
-            ],
-            'phone'   => $bill_phone,
-        ],
+            'email' => $request->get_param('customer_email') ?: 'test@test.com',
+            'name' => [
+                'forenames' => $fname,
+                'surname' => $sname
+            ]
+        ]
     ];
 
-    // Call Telr API
+    $auth_string = base64_encode(TELR_STORE_ID . ':' . TELR_MOBILE_AUTH_KEY);
+
     $response = wp_remote_post(TELR_API_URL, [
-        'headers' => ['Content-Type' => 'application/json'],
-        'body'    => json_encode($telr_data),
+        'headers' => [
+            'Authorization' => 'Basic ' . $auth_string,
+            'Content-Type' => 'application/json', // ✅ FIXED: application/json (PHP-2)
+            'Accept' => 'application/json',       // ✅ FIXED: application/json (PHP-2)
+        ],
+        'body' => json_encode($telr_payload),
         'timeout' => 30,
+        // 'sslverify' => false, // ❌ REMOVED: Security Risk (PHP-5)
     ]);
 
-    if (is_wp_error($response)) {
-        return new WP_Error('telr_error', 'Failed to connect to Telr: ' . $response->get_error_message(), ['status' => 500]);
+    $raw_body = wp_remote_retrieve_body($response);
+    $body = json_decode($raw_body, true);
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $order_ref = $body['ref'] ?? null;
+
+    if (is_wp_error($response))
+        return new WP_Error('telr_error', 'Failed to connect to Telr API', ['status' => 500]);
+
+    if ($status_code !== 201 || empty($order_ref)) {
+        return new WP_Error(
+            'telr_error',
+            "Telr API Error ({$status_code}): " . ($body['message'] ?? 'Unknown Error'),
+            ['status' => 500]
+        );
     }
 
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (empty($body) || isset($body['error'])) {
-        $error_msg = $body['error']['message'] ?? 'Unknown Telr error';
-        $error_note = $body['error']['note'] ?? '';
-        return new WP_Error('telr_error', "Telr Error: {$error_msg}. {$error_note}", ['status' => 500]);
-    }
-
-    $order_ref = $body['order']['ref'] ?? null;
-    $order_url = $body['order']['url'] ?? null;
-
-    // Save Telr ref to WooCommerce order
     if (function_exists('wc_get_order') && $order_id) {
         $order = wc_get_order($order_id);
         if ($order) {
-            $order->update_meta_data('_telr_order_ref', $order_ref);
-            $order->add_order_note("Telr payment initiated. Ref: {$order_ref}");
+            $order->update_meta_data('_telr_order_ref', $order_ref); // ✔ OK: Save ref (PHP-2)
             $order->save();
         }
     }
 
-    // Return the Hosted Payment Page URL for the WebView
-    return rest_ensure_response([
-        'order_ref' => $order_ref,
-        'order_url' => $order_url
+    // ✅ FIXED: Rahul's Exact Correct Response Pattern (PHP-2)
+    wp_send_json([
+        'tokenUrl' => $body['_links']['auth']['href'] ?? '', // auth URL
+        'orderUrl' => $body['_links']['self']['href'] ?? '', // order URL
+        'ref' => $order_ref
     ]);
+    exit;
 }
 
-// ============ ORDER CHECK ENDPOINT ============
-/**
- * Checks the status of a Telr order.
- * The Telr Mobile SDK calls this to verify if payment was completed.
- *
- * POST body: { order_ref }  (the Telr order reference)
- * Returns JSON: Telr order status response
- */
-function hiraaj_telr_order_check(WP_REST_Request $request) {
-    $order_ref = $request->get_param('order_ref');
-    if (empty($order_ref)) {
-        $auth_header = $request->get_header('authorization') ?: ($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
-        if (preg_match('/Bearer\s+(.*)/i', $auth_header, $matches)) {
-            $order_ref = trim($matches[1]);
-        }
+function hiraaj_telr_order_check(WP_REST_Request $request)
+{
+    $order_ref = '';
+    $auth_header = $request->get_header('authorization');
+
+    // ✅ FIXED: Priority to Bearer token, fallback to param
+    if (preg_match('/Bearer\s+(.*)/i', $auth_header, $matches)) {
+        $order_ref = trim($matches[1]);
     }
-    
+
+    if (empty($order_ref)) {
+        $order_ref = $request->get_param('order_ref');
+    }
+
     $result = hiraaj_telr_perform_check($order_ref);
-    if (is_wp_error($result)) return $result;
-    return rest_ensure_response($result);
+    return is_wp_error($result) ? $result : rest_ensure_response($result);
 }
 
-// ============ CALLBACK ENDPOINT ============
-function hiraaj_telr_callback(WP_REST_Request $request) {
-    $status   = $request->get_param('status');
+function hiraaj_telr_callback(WP_REST_Request $request)
+{
+    $status = $request->get_param('status');
     $order_id = $request->get_param('order_id');
-
     if (!empty($order_id) && function_exists('wc_get_order')) {
         $order = wc_get_order($order_id);
         if ($order) {
-            switch ($status) {
-                case 'success':
-                    $order->payment_complete();
-                    $order->add_order_note('Telr payment completed successfully.');
-                    break;
-                case 'failed':
-                    $order->update_status('failed', 'Telr payment declined.');
-                    break;
-                case 'cancelled':
-                    $order->update_status('cancelled', 'Telr payment cancelled by customer.');
-                    break;
+            if ($status === 'success')
+                $order->payment_complete();
+            else
+                $order->update_status('failed', 'Telr payment declined.');
+        }
+    }
+    echo '<!DOCTYPE html><html><body><h2>Payment ' . ucfirst($status) . '</h2><p>You can close this page.</p></body></html>';
+    exit;
+}
+
+/**
+ * 🚀 AUTO-UPGRADE: Process Subscription automatically on payment completion
+ * This ensures users are upgraded even if they kill the app during the flow.
+ */
+add_action('woocommerce_payment_complete', 'hiraaj_telr_auto_upgrade_subscription', 20, 1);
+
+function hiraaj_telr_auto_upgrade_subscription($order_id)
+{
+    if (!$order_id)
+        return;
+
+    $order = wc_get_order($order_id);
+    if (!$order)
+        return;
+
+    $user_id = $order->get_user_id();
+    if (!$user_id)
+        return;
+
+    $items = $order->get_items();
+    $is_subscription = false;
+    $target_pack_id = null;
+    $is_al_zabayeh = false;
+
+    foreach ($items as $item) {
+        $product_id = $item->get_product_id();
+        // 29026: Bronze, 29030: Gold, 29318: Al-Zabayeh
+        if (in_array($product_id, [29026, 29030, 29318]) || has_term(122, 'product_cat', $product_id)) {
+            $is_subscription = true;
+            $target_pack_id = $product_id;
+            if ($product_id == 29318) {
+                $is_al_zabayeh = true;
             }
         }
     }
 
-    $html = '<!DOCTYPE html><html><body>';
-    $html .= '<h2>' . ($status === 'success' ? 'Payment Successful' : 'Payment ' . ucfirst($status)) . '</h2>';
-    $html .= '<p>You can close this page.</p>';
-    $html .= '</body></html>';
+    if ($is_subscription) {
+        // 1. Update User Meta for App Discovery
+        update_user_meta($user_id, 'product_package_id', $target_pack_id);
+        update_user_meta($user_id, 'product_pack_startdate', current_time('mysql'));
+        update_user_meta($user_id, 'product_pack_enddate', 'unlimited');
 
-    header('Content-Type: text/html');
-    echo $html;
-    exit;
+        if ($is_al_zabayeh) {
+            update_user_meta($user_id, 'sacrifices_verified', 'yes');
+        }
+
+        // 2. Set Role to Vendor (Seller)
+        $user = new WP_User($user_id);
+        if (!in_array('administrator', $user->roles)) {
+            $user->set_role('seller');
+        }
+
+        // 3. Mark Order as Completed
+        $order->update_status('completed', 'Auto-processed subscription upgrade.');
+    }
 }
-
-
-
-//AIzaSyDl5bO63kW9ukQkEEyqdg40oSFh1R8mOSM

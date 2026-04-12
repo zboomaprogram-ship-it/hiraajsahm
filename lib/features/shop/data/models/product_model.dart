@@ -36,6 +36,8 @@ class ProductModel extends Equatable {
   final String? vendorAddress;
   final String? vendorLocation; // Added
   final String? productLocation;
+  final String? productRegion; // Added
+  final String? productCity; // Added
   final bool isVendorVerified;
   final double? vendorRating; // Added
   final int vendorRatingCount; // Added
@@ -81,6 +83,8 @@ class ProductModel extends Equatable {
     this.vendorAddress,
     this.vendorLocation,
     this.productLocation,
+    this.productRegion,
+    this.productCity,
     this.isVendorVerified = false,
     this.vendorRating,
     this.vendorRatingCount = 0,
@@ -133,6 +137,8 @@ class ProductModel extends Equatable {
       vendorAddress: _parseVendorAddress(json['store']),
       vendorLocation: _parseVendorLocation(json['store']),
       productLocation: _parseProductLocation(json['meta_data']),
+      productRegion: _parseMetaData(json['meta_data'], '_product_region'),
+      productCity: _parseMetaData(json['meta_data'], '_product_city'),
       vendorRating: _parseDouble(json['store']?['rating']?['rating']),
       vendorRatingCount: _parseInt(json['store']?['rating']?['count']),
       featured: json['featured'] ?? false,
@@ -220,9 +226,13 @@ class ProductModel extends Equatable {
   }
 
   static String? _parseProductLocation(dynamic metaData) {
+    return _parseMetaData(metaData, '_product_location');
+  }
+
+  static String? _parseMetaData(dynamic metaData, String key) {
     if (metaData is List) {
       final item = metaData.firstWhere(
-        (m) => m is Map && m['key'] == '_product_location',
+        (m) => m is Map && m['key'] == key,
         orElse: () => null,
       );
       if (item != null) {
@@ -336,6 +346,8 @@ class ProductModel extends Equatable {
     String? vendorAddress,
     String? vendorLocation,
     String? productLocation,
+    String? productRegion,
+    String? productCity,
     bool? isVendorVerified,
     double? vendorRating,
     int? vendorRatingCount,
@@ -380,6 +392,8 @@ class ProductModel extends Equatable {
       vendorAddress: vendorAddress ?? this.vendorAddress,
       vendorLocation: vendorLocation ?? this.vendorLocation,
       productLocation: productLocation ?? this.productLocation,
+      productRegion: productRegion ?? this.productRegion,
+      productCity: productCity ?? this.productCity,
       isVendorVerified: isVendorVerified ?? this.isVendorVerified,
       vendorRating: vendorRating ?? this.vendorRating,
       vendorRatingCount: vendorRatingCount ?? this.vendorRatingCount,
@@ -461,8 +475,10 @@ class ProductModel extends Equatable {
     isVendorVerified,
     vendorTier,
     vendorRating,
-    vendorRating,
     vendorRatingCount,
+    productLocation,
+    productRegion,
+    productCity,
   ];
 }
 

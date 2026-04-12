@@ -8,6 +8,7 @@ import '../../../../core/theme/colors.dart';
 import '../cubit/auth_cubit.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/location_picker_screen.dart';
+import '../../../../core/data/regions_service.dart';
 
 class EditUserProfileScreen extends StatefulWidget {
   const EditUserProfileScreen({super.key});
@@ -25,6 +26,11 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
   late TextEditingController _cityController;
   late TextEditingController _regionController;
   late TextEditingController _locationController;
+  
+  List<String> _regions = [];
+  String? _selectedRegion;
+  String? _selectedCity;
+  List<String> _cities = [];
   // late TextEditingController _passwordController; // Separated flow usually
 
   XFile? _selectedImage;
@@ -62,6 +68,55 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
       _cityController.text = user.city ?? '';
       _regionController.text = user.region ?? '';
       _locationController.text = user.address ?? '';
+      
+      _selectedRegion = user.region?.isNotEmpty == true ? user.region : null;
+      _selectedCity = user.city?.isNotEmpty == true ? user.city : null;
+      
+      _loadRegions();
+    }
+  }
+
+  Future<void> _loadRegions() async {
+    final names = await RegionsService().getRegionNames();
+    if (mounted) {
+      setState(() {
+        _regions = names;
+      });
+      
+      if (_selectedRegion != null) {
+        final cities = await RegionsService().getCitiesForRegion(_selectedRegion!);
+        if (mounted) {
+          setState(() {
+            _cities = cities;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _onRegionChanged(String? newValue) async {
+    if (newValue == null) return;
+    
+    final newCities = await RegionsService().getCitiesForRegion(newValue);
+    if (mounted) {
+      setState(() {
+        _selectedRegion = newValue;
+        _regionController.text = newValue;
+        _selectedCity = null;
+        _cityController.text = '';
+        _cities = newCities;
+      });
+    }
+  }
+
+  Future<void> _onCityChanged(String? newValue) async {
+    if (newValue == null) return;
+    
+    if (mounted) {
+      setState(() {
+        _selectedCity = newValue;
+        _cityController.text = newValue;
+      });
     }
   }
 
@@ -112,17 +167,36 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
     );
 
     if (result != null && result is Map) {
+      final mapCity = result['city'] as String?;
+      final mapRegion = result['region'] as String?;
+
       setState(() {
-        if (result['city'] != null) {
-          _cityController.text = result['city'];
-        }
-        if (result['region'] != null) {
-          _regionController.text = result['region'];
-        }
         if (result['lat'] != null && result['lng'] != null) {
           _locationController.text = '${result['lat']},${result['lng']}';
         }
       });
+
+      if (mapRegion != null && _regions.contains(mapRegion)) {
+        await _onRegionChanged(mapRegion);
+      }
+      
+      if (mapCity != null) {
+        if (_cities.contains(mapCity)) {
+          await _onCityChanged(mapCity);
+        } else if (mapRegion != null) {
+           // If city not in list but we found region, search cities again
+           final cities = await RegionsService().getCitiesForRegion(mapRegion);
+           if (cities.contains(mapCity)) {
+              setState(() {
+                _cities = cities;
+                _selectedRegion = mapRegion;
+                _regionController.text = mapRegion;
+                _selectedCity = mapCity;
+                _cityController.text = mapCity;
+              });
+           }
+        }
+      }
     }
   }
 
@@ -308,32 +382,90 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: GestureDetector(
-                          onTap: _pickLocation,
-                          child: AbsorbPointer(
-                            child: _buildTextField(
-                              controller: _cityController,
-                              label: 'المدينة',
-                              icon: Icons.location_city,
-                              isDark: isDark,
-                              readOnly: true,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'المنطقة',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                              ),
                             ),
-                          ),
+                            SizedBox(height: 8.h),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.map, color: AppColors.textSecondary),
+                                filled: true,
+                                fillColor: isDark ? AppColors.cardDark : AppColors.card,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide(
+                                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                                  ),
+                                ),
+                              ),
+                              value: _selectedRegion,
+                              items: _regions.map((String region) {
+                                return DropdownMenuItem<String>(
+                                  value: region,
+                                  child: Text(region, overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                              onChanged: _onRegionChanged,
+                              validator: (v) => v == null ? 'مطلوب' : null,
+                            ),
+                          ],
                         ),
                       ),
                       SizedBox(width: 16.w),
                       Expanded(
-                        child: GestureDetector(
-                          onTap: _pickLocation,
-                          child: AbsorbPointer(
-                            child: _buildTextField(
-                              controller: _regionController,
-                              label: 'المنطقة',
-                              icon: Icons.map,
-                              isDark: isDark,
-                              readOnly: true,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'المدينة',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                              ),
                             ),
-                          ),
+                            SizedBox(height: 8.h),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.location_city, color: AppColors.textSecondary),
+                                filled: true,
+                                fillColor: isDark ? AppColors.cardDark : AppColors.card,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide(
+                                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                                  ),
+                                ),
+                              ),
+                              value: _selectedCity,
+                              items: _cities.map((String city) {
+                                return DropdownMenuItem<String>(
+                                  value: city,
+                                  child: Text(city, overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                              onChanged: _onCityChanged,
+                              validator: (v) => v == null ? 'مطلوب' : null,
+                            ),
+                          ],
                         ),
                       ),
                     ],

@@ -16,6 +16,7 @@ import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import 'package:dio/dio.dart';
+import '../../../settings/presentation/screens/webview_screen.dart';
 
 /// Vendor Dashboard Screen
 /// Displays vendor statistics, charts, and quick actions
@@ -195,6 +196,15 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
               delay: const Duration(milliseconds: 200),
               duration: const Duration(milliseconds: 200),
               child: _buildZabayehPrompt(context),
+            ),
+          ),
+
+          // Gold Tier Promotion
+          SliverToBoxAdapter(
+            child: FadeInUp(
+              delay: const Duration(milliseconds: 250),
+              duration: const Duration(milliseconds: 500),
+              child: _buildGoldTierPromo(context),
             ),
           ),
 
@@ -632,6 +642,121 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
             Icons.workspace_premium_rounded,
             size: 64.sp,
             color: Colors.white.withOpacity(0.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoldTierPromo(BuildContext context) {
+    final authState = context.read<AuthCubit>().state;
+    if (authState is AuthAuthenticated) {
+      if (authState.user.subscriptionPackId == 29030) { // Already Gold
+        return const SizedBox.shrink();
+      }
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WebViewScreen(
+              title: 'العضويات وميزاتها',
+              url: 'https://hiraajsahm.com/%d8%a7%d9%84%d8%b9%d8%b6%d9%88%d9%8a%d8%a7%d8%aa-%d9%88%d9%85%d9%8a%d8%b2%d8%a7%d8%aa%d9%87%d8%a7/',
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        padding: EdgeInsets.all(20.w),
+        decoration: BoxDecoration(
+          gradient: AppColors.goldGradient,
+          borderRadius: BorderRadius.circular(24.r),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFEEB73E).withValues(alpha: 0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.stars_rounded, color: AppColors.primary, size: 24.sp),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          'العضوية الذهبية (تميز وتألق)',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12.h),
+                  _buildPromoFeature('عروض وفيديوهات متميزة واضحة لسلعك'),
+                  _buildPromoFeature('وصف دقيق وبيانات موقع صحيحة'),
+                  _buildPromoFeature('تخفيضات حصرية على خدمات المعاينة والنقل'),
+                  _buildPromoFeature('تصوير احترافية لسلعك من حراج سهم'),
+                  SizedBox(height: 16.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                    child: Text(
+                      'اكتشف المزيد',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Icon(
+              Icons.military_tech_rounded,
+              size: 70.sp,
+              color: AppColors.primary.withValues(alpha: 0.15),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromoFeature(String text) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle_outline_rounded, color: AppColors.primary, size: 14.sp),
+          SizedBox(width: 6.w),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11.sp,
+                color: AppColors.primary.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),

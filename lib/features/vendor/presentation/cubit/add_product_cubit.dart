@@ -107,6 +107,8 @@ class AddProductCubit extends Cubit<AddProductState> {
     List<File>? images,
     String? salePrice,
     required String address, // Changed from location
+    String? region,
+    String? city,
   }) async {
     // 1. Check Limits (Real-time)
     final userId = await _storageService.getUserId();
@@ -210,6 +212,8 @@ class AddProductCubit extends Cubit<AddProductState> {
         'status': 'publish', // Enforce publish status
         'meta_data': [
           {'key': '_product_location', 'value': address},
+          if (region != null) {'key': '_product_region', 'value': region},
+          if (city != null) {'key': '_product_city', 'value': city},
         ],
       };
 
@@ -247,6 +251,8 @@ class AddProductCubit extends Cubit<AddProductState> {
               'status': 'publish',
               'meta_data': [
                 {'key': '_product_location', 'value': address},
+                if (region != null) {'key': '_product_region', 'value': region},
+                if (city != null) {'key': '_product_city', 'value': city},
               ],
             },
           );
@@ -283,6 +289,8 @@ class AddProductCubit extends Cubit<AddProductState> {
     List<File>? newImages,
     String? salePrice,
     required String address, // Changed from location
+    String? region,
+    String? city,
   }) async {
     emit(const AddProductUploading());
 
@@ -321,6 +329,8 @@ class AddProductCubit extends Cubit<AddProductState> {
         'status': 'publish',
         'meta_data': [
           {'key': '_product_location', 'value': address},
+          if (region != null) {'key': '_product_region', 'value': region},
+          if (city != null) {'key': '_product_city', 'value': city},
         ],
       };
 
@@ -360,6 +370,8 @@ class AddProductCubit extends Cubit<AddProductState> {
             data: {
               'meta_data': [
                 {'key': '_product_location', 'value': address},
+                if (region != null) {'key': '_product_region', 'value': region},
+                if (city != null) {'key': '_product_city', 'value': city},
               ],
             },
           );

@@ -20,6 +20,7 @@ import '../cubit/vendor_products_cubit.dart';
 /// Add Product Screen - For Vendors
 import '../../../shop/data/models/product_model.dart';
 import '../../../../core/widgets/location_picker_screen.dart'; // Added
+import '../../../../core/data/regions_service.dart';
 
 class AddProductScreen extends StatefulWidget {
   final ProductModel? productToEdit;
@@ -35,7 +36,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _regularPriceController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController(); // Added
+  final _regionController = TextEditingController();
+  final _cityController = TextEditingController();
   String _latLng = ''; // Track coordinates for map
+
+  List<String> _regions = [];
+  String? _selectedRegion;
+  String? _selectedCity;
+  List<String> _cities = [];
 
   final List<File> _selectedImages = [];
   final List<String> _existingImageUrls = []; // Track existing images
@@ -83,6 +91,117 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       // Initialize existing images
       _existingImageUrls.addAll(p.images);
+
+      if (p.productRegion != null) {
+        _selectedRegion = p.productRegion;
+        _regionController.text = p.productRegion!;
+      }
+      if (p.productCity != null) {
+        _selectedCity = p.productCity;
+        _cityController.text = p.productCity!;
+      }
+    }
+
+    _loadRegions();
+    
+    // Ensure regions are initialized immediately with defaults to prevent unresponsive dropdowns
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+       final names = await RegionsService().getRegionNames();
+       if (mounted && _regions.isEmpty) {
+         setState(() {
+           _regions = names;
+         });
+         print('📦 AddProduct Regions Initialized Post-Frame: ${names.length}');
+       }
+    });
+  }
+
+  Future<void> _loadRegions() async {
+    final names = await RegionsService().getRegionNames();
+    if (mounted) {
+      setState(() {
+        _regions = names;
+        if (_selectedRegion != null) {
+           _loadCitiesForRegion(_selectedRegion!);
+        }
+      });
+    }
+  }
+
+  Future<void> _loadCitiesForRegion(String regionStr) async {
+    final newCities = await RegionsService().getCitiesForRegion(regionStr);
+    if (mounted) {
+       setState(() {
+          _cities = newCities;
+       });
+    }
+  }
+
+  Future<void> _onRegionChanged(String? newValue) async {
+    if (newValue == null) {
+      if (mounted) {
+        setState(() {
+          _selectedRegion = null;
+          _regionController.text = '';
+          _selectedCity = null;
+          _cityController.text = '';
+          _cities = [];
+        });
+      }
+      return;
+    }
+
+    final newCities = await RegionsService().getCitiesForRegion(newValue);
+    if (mounted) {
+      setState(() {
+        _selectedRegion = newValue;
+        _regionController.text = newValue;
+        _selectedCity = null;
+        _cityController.text = '';
+        _cities = newCities;
+      });
+    }
+  }
+
+  Future<void> _onCityChanged(String? newValue) async {
+    if (newValue == null) {
+      if (mounted) {
+        setState(() {
+          _selectedCity = null;
+          _cityController.text = '';
+        });
+      }
+      return;
+    }
+
+    if (_selectedRegion == null) {
+      final region = await RegionsService().getRegionForCity(newValue);
+      if (region != null) {
+        final newCities = await RegionsService().getCitiesForRegion(region);
+        if (mounted) {
+          setState(() {
+            _selectedRegion = region;
+            _regionController.text = region;
+            _cities = newCities;
+            _selectedCity = newValue;
+            _cityController.text = newValue;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _selectedCity = newValue;
+            _cityController.text = newValue;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _selectedCity = newValue;
+          _cityController.text = newValue;
+        });
+      }
     }
   }
 
@@ -92,6 +211,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _regularPriceController.dispose();
     _descriptionController.dispose();
     _locationController.dispose(); // Added
+    _regionController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -325,10 +446,33 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
 
     if (result != null && result is Map) {
-      setState(() {
-        _latLng = '${result['lat']},${result['lng']}';
-        _locationController.text = result['address'];
-      });
+      final mapCity = result['city'] as String?;
+      final mapRegion = result['region'] as String?;
+
+      if (mounted) {
+         setState(() {
+           _latLng = '${result['lat']},${result['lng']}';
+           _locationController.text = result['address'] ?? ' ($_latLng)';
+         });
+      }
+
+      if (mapRegion != null && _regions.contains(mapRegion)) {
+        await _onRegionChanged(mapRegion);
+      } else if (mapRegion != null) {
+        setState(() {
+          _regionController.text = mapRegion;
+        });
+      }
+
+      if (mapCity != null) {
+        if (_cities.contains(mapCity)) {
+           await _onCityChanged(mapCity);
+        } else {
+           setState(() {
+             _cityController.text = mapCity;
+           });
+        }
+      }
     }
   }
 
@@ -370,6 +514,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         description: _descriptionController.text.trim(),
         newImages: _selectedImages, // Only passing new images
         address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
+        region: _selectedRegion,
+        city: _selectedCity,
       );
     } else {
       _addProductCubit.uploadProduct(
@@ -383,6 +529,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         description: _descriptionController.text.trim(),
         images: _selectedImages,
         address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
+        region: _selectedRegion,
+        city: _selectedCity,
       );
     }
   }
@@ -556,6 +704,131 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       isRequired: false,
                     ),
                   ),
+                  SizedBox(height: 16.h),
+
+                  // Region / City Selectors
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 310),
+                    duration: const Duration(milliseconds: 300),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'المنطقة',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                isDense: true,
+                                decoration: InputDecoration(
+                                  hintText: 'اختر المنطقة',
+                                  prefixIcon: Icon(Icons.map_outlined, color: AppColors.textSecondary, size: 20.sp),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: BorderSide(color: AppColors.border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: BorderSide(color: AppColors.border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: const BorderSide(color: AppColors.error),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                                  filled: true,
+                                  fillColor: isDark ? AppColors.cardDark : Colors.white,
+                                ),
+                                value: _selectedRegion,
+                                items: _regions.map((String region) {
+                                  return DropdownMenuItem<String>(
+                                    value: region,
+                                    child: Text(
+                                      region,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: _onRegionChanged,
+                                validator: (value) => value == null || value.isEmpty ? 'مطلوب' : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'المدينة',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                isDense: true,
+                                decoration: InputDecoration(
+                                  hintText: 'اختر المدينة',
+                                  prefixIcon: Icon(Icons.location_city_outlined, color: AppColors.textSecondary, size: 20.sp),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: BorderSide(color: AppColors.border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: BorderSide(color: AppColors.border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14.r),
+                                    borderSide: const BorderSide(color: AppColors.error),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                                  filled: true,
+                                  fillColor: isDark ? AppColors.cardDark : Colors.white,
+                                ),
+                                value: _selectedCity,
+                                items: _cities.map((String city) {
+                                  return DropdownMenuItem<String>(
+                                    value: city,
+                                    child: Text(
+                                      city,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: _onCityChanged,
+                                validator: (value) => value == null || value.isEmpty ? 'مطلوب' : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   SizedBox(height: 16.h),
 
                   // Product Location (New Field - Map Picker)
@@ -923,10 +1196,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (user == null) return const SizedBox.shrink();
 
     final isGold = user.tier == UserTier.gold;
+    final isSilver = user.tier == UserTier.silver;
     final hasZabayeh = user.hasAlZabayehTier;
 
-    // Show if not Gold OR doesn't have Zabayeh
-    if (isGold && hasZabayeh) return const SizedBox.shrink();
+    // Hide everything if they have both max tier (Silver/Gold) AND Zabayeh
+    if ((isGold || isSilver) && hasZabayeh) return const SizedBox.shrink();
+
+    // If they are already Silver/Gold but don't have Zabayeh, only show Zabayeh prompt
+    final onlyZabayeh = (isGold || isSilver) && !hasZabayeh;
 
     return Container(
       padding: EdgeInsets.all(16.w),
@@ -964,7 +1241,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  !isGold ? 'ترقية العضوية' : 'باقة الذبائح',
+                  onlyZabayeh ? 'باقة الذبائح' : (!isGold ? 'ترقية العضوية' : 'باقة الذبائح'),
                   style: TextStyle(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.bold,
@@ -972,9 +1249,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                 ),
                 Text(
-                  !isGold
-                      ? 'احصل على مميزات العضوية الذهبية وزيادة حد الإعلانات'
-                      : 'اشترك الآن للوصول لقسم الذبائح المميز',
+                  onlyZabayeh
+                      ? 'اشترك الآن للوصول لقسم الذبائح المميز'
+                      : (!isGold
+                          ? 'احصل على مميزات العضوية الذهبية وزيادة حد الإعلانات'
+                          : 'اشترك الآن للوصول لقسم الذبائح المميز'),
                   style: TextStyle(
                     fontSize: 11.sp,
                     color: AppColors.textSecondary,

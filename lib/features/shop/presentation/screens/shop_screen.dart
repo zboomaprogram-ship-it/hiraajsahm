@@ -13,6 +13,7 @@ import '../cubit/categories_cubit.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/category_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
+import '../../../../core/data/regions_service.dart';
 
 /// Shop Screen - All Products with Dynamic Categories Filter
 class ShopScreen extends StatefulWidget {
@@ -38,10 +39,15 @@ class _ShopScreenState extends State<ShopScreen> {
   final ScrollController _scrollController = ScrollController();
   int? _selectedCategoryId;
   int? _selectedSubCategoryId;
+  String _selectedRegion = 'الكل';
+  String _selectedCity = 'الكل';
+  List<String> _saudiRegions = ['الكل'];
+  List<String> _saudiCities = ['الكل'];
 
   @override
   void initState() {
     super.initState();
+    _loadRegions();
     _scrollController.addListener(_onScroll);
     // Default to Zabayeh (78) only when opened from bottom tab (no explicit args)
     _selectedCategoryId = widget.hasExplicitCategory
@@ -59,12 +65,14 @@ class _ShopScreenState extends State<ShopScreen> {
         context.read<ZabayehProductsCubit>().loadProducts(
           categoryId: _selectedCategoryId,
           search: widget.initialSearch,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
           refresh: false,
         );
       } else {
         context.read<ProductsCubit>().loadProducts(
           categoryId: _selectedCategoryId,
           search: widget.initialSearch,
+          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
           refresh: false,
         );
       }
@@ -78,6 +86,16 @@ class _ShopScreenState extends State<ShopScreen> {
     super.dispose();
   }
 
+  Future<void> _loadRegions() async {
+    final names = await RegionsService().getRegionNames();
+    if (mounted) {
+      setState(() {
+        _saudiRegions = ['الكل', 'الموقع الحالي', ...names];
+      });
+      print('🛒 ShopScreen Regions Loaded: ${names.length} names found');
+    }
+  }
+
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
@@ -86,10 +104,23 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   void _onSearch(String query) {
-    context.read<ProductsCubit>().loadProducts(
-      search: query.isEmpty ? null : query,
-      categoryId: _selectedCategoryId,
-    );
+    String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+
+    if (_selectedCategoryId == 78) {
+      context.read<ZabayehProductsCubit>().loadProducts(
+        search: query.isEmpty ? null : query,
+        categoryId: _selectedCategoryId,
+        region: currentRegion,
+        city: _selectedCity == 'الكل' ? null : _selectedCity,
+      );
+    } else {
+      context.read<ProductsCubit>().loadProducts(
+        search: query.isEmpty ? null : query,
+        categoryId: _selectedCategoryId,
+        region: currentRegion,
+        city: _selectedCity == 'الكل' ? null : _selectedCity,
+      );
+    }
   }
 
   @override
@@ -113,6 +144,17 @@ class _ShopScreenState extends State<ShopScreen> {
             
           // Always show subcategories (if a parent category is selected)
           _buildSubCategories(isDark, isTablet),
+
+          // Region Filter
+          FadeInDown(
+            delay: const Duration(milliseconds: 100),
+            duration: const Duration(milliseconds: 300),
+            child: _buildRegionFilter(isDark),
+          ),
+
+          // City Filter (Cascading)
+          if (_selectedRegion != 'الكل')
+            _buildCityFilter(isDark),
             
           Expanded(child: _buildProductsGrid(isDark, isTablet)),
         ],
@@ -294,6 +336,8 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _onCategoryTap(CategoryModel category) {
     setState(() {
+      String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+
       if (_selectedCategoryId == category.id) {
         // Toggle OFF (revert to "All")
         _selectedCategoryId = null;
@@ -301,27 +345,44 @@ class _ShopScreenState extends State<ShopScreen> {
         context.read<ProductsCubit>().loadProducts(
           categoryId: null,
           search: _searchController.text.isEmpty ? null : _searchController.text,
+          region: currentRegion,
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
         // Toggle ON
         _selectedCategoryId = category.id;
         _selectedSubCategoryId = null;
-        context.read<ProductsCubit>().loadProducts(
-          categoryId: category.id,
-          search: _searchController.text.isEmpty ? null : _searchController.text,
-        );
+        if (category.id == 78) {
+           context.read<ZabayehProductsCubit>().loadProducts(
+            categoryId: category.id,
+            search: _searchController.text.isEmpty ? null : _searchController.text,
+            region: currentRegion,
+            city: _selectedCity == 'الكل' ? null : _selectedCity,
+          );
+        } else {
+          context.read<ProductsCubit>().loadProducts(
+            categoryId: category.id,
+            search: _searchController.text.isEmpty ? null : _searchController.text,
+            region: currentRegion,
+            city: _selectedCity == 'الكل' ? null : _selectedCity,
+          );
+        }
       }
     });
   }
 
   void _onSubCategoryTap(CategoryModel subCategory) {
     setState(() {
+      String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+
       if (_selectedSubCategoryId == subCategory.id) {
         // Toggle OFF subcategory, revert to parent
         _selectedSubCategoryId = null;
         context.read<ProductsCubit>().loadProducts(
           categoryId: _selectedCategoryId,
           search: _searchController.text.isEmpty ? null : _searchController.text,
+          region: currentRegion,
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
         // Toggle ON
@@ -329,6 +390,8 @@ class _ShopScreenState extends State<ShopScreen> {
         context.read<ProductsCubit>().loadProducts(
           categoryId: subCategory.id,
           search: _searchController.text.isEmpty ? null : _searchController.text,
+          region: currentRegion,
+          city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       }
     });
@@ -478,6 +541,230 @@ class _ShopScreenState extends State<ShopScreen> {
                 return const SizedBox.shrink();
               },
             ),
+    );
+  }
+
+  void _onRegionSelected(String region) async {
+    if (_selectedRegion == region) return;
+
+    String? filterRegion = region;
+    if (region == 'الموقع الحالي') {
+        final user = context.read<AuthCubit>().currentUser;
+        if (user == null || user.region == null || user.region!.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي'),
+                    backgroundColor: AppColors.error,
+                ),
+            );
+            return;
+        }
+        filterRegion = user.region;
+    }
+
+    setState(() {
+      _selectedRegion = region;
+      _selectedCity = 'الكل';
+      _saudiCities = ['الكل'];
+    });
+
+    if (filterRegion != 'الكل' && filterRegion != 'الموقع الحالي') {
+      final cities = await RegionsService().getCitiesForRegion(filterRegion!);
+      if (mounted) {
+        setState(() {
+          _saudiCities = ['الكل', ...cities];
+        });
+      }
+    }
+
+    if (_selectedCategoryId == 78) {
+      context.read<ZabayehProductsCubit>().loadProducts(
+            categoryId: 78,
+            search: _searchController.text,
+            region: filterRegion == 'الكل' ? null : filterRegion,
+            city: null,
+            refresh: true,
+          );
+    } else {
+      context.read<ProductsCubit>().loadProducts(
+            categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+            search: _searchController.text,
+            region: filterRegion == 'الكل' ? null : filterRegion,
+            city: null,
+            refresh: true,
+          );
+    }
+  }
+
+  void _onCitySelected(String city) {
+    if (_selectedCity == city) return;
+
+    setState(() {
+      _selectedCity = city;
+    });
+
+    if (_selectedCategoryId == 78) {
+      context.read<ZabayehProductsCubit>().loadProducts(
+            categoryId: 78,
+            search: _searchController.text,
+            region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+            city: city == 'الكل' ? null : city,
+            refresh: true,
+          );
+    } else {
+      context.read<ProductsCubit>().loadProducts(
+            categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+            search: _searchController.text,
+            region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+            city: city == 'الكل' ? null : city,
+            refresh: true,
+          );
+    }
+  }
+
+  Widget _buildRegionFilter(bool isDark) {
+    return Padding(
+      padding: EdgeInsets.only(top: 8.h, bottom: 8.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_on_rounded,
+                  size: 18.sp,
+                  color: AppColors.primary,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'المنطقة',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 38.h,
+            child: ListView.separated(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              scrollDirection: Axis.horizontal,
+              itemCount: _saudiRegions.length,
+              separatorBuilder: (_, __) => SizedBox(width: 8.w),
+              itemBuilder: (context, index) {
+                final region = _saudiRegions[index];
+                final isSelected = _selectedRegion == region;
+
+                return GestureDetector(
+                  onTap: () => _onRegionSelected(region),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary
+                          : (isDark
+                              ? AppColors.surfaceVariantDark
+                              : Colors.grey[200]),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      region,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white : AppColors.textPrimary),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCityFilter(bool isDark) {
+    if (_saudiCities.length <= 1) return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_city_rounded,
+                  size: 18.sp,
+                  color: AppColors.primary,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'المدينة',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 38.h,
+            child: ListView.separated(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              scrollDirection: Axis.horizontal,
+              itemCount: _saudiCities.length,
+              separatorBuilder: (_, __) => SizedBox(width: 8.w),
+              itemBuilder: (context, index) {
+                final city = _saudiCities[index];
+                final isSelected = _selectedCity == city;
+
+                return GestureDetector(
+                  onTap: () => _onCitySelected(city),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary
+                          : (isDark
+                                ? AppColors.surfaceVariantDark
+                                : Colors.grey[200]),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      city,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white : AppColors.textPrimary),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 

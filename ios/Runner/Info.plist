@@ -139,5 +139,9 @@
 	<true/>
 	<key>GMSApiKey</key>
 	<string>AIzaSyDl5bO63kW9ukQkEEyqdg40oSFh1R8mOSM</string>
+	<key>TelrStoreId</key>
+	<string>34762</string>
+	<key>TelrKey</key>
+	<string>mKnQf-HrCvD@StZK</string>
 </dict>
 </plist>

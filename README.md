@@ -628,3 +628,226 @@ return false;
 }
 
 ///////////
+Hiraaj Sahm — Feature Expansion Plan (v2)
+Comprehensive plan covering 8 user-requested features.
+
+User Review Required
+IMPORTANT
+
+How to get مناطق ومدن from WordPress: The ACF REST API plugin is not active on your site, and the ACF field group data is empty on products. To fetch this data dynamically from WordPress, you need to add a small PHP code snippet to your WordPress site.
+
+Here's what you need to do in WordPress:
+
+Go to WPCode (or Appearance → Theme File Editor → functions.php)
+Add the PHP snippet below (I'll provide it as part of this plan)
+This creates a new endpoint: GET /custom/v1/regions
+The app will call this endpoint to get regions/cities dynamically
+Fallback: If the endpoint is unreachable, the app falls back to a hardcoded list.
+
+WARNING
+
+Gold Tier Logic: Gold (29030) will be treated as the max tier in code. The subscription screen will only show packs where purchasable == true AND status == 'publish'. The profile "Upgrade Now" card and add product dashboard will check the API for the highest available tier instead of hardcoded IDs.
+
+NOTE
+
+Apple Pay: Deferred to a later phase. Telr native SDK will be integrated without Apple Pay for now.
+
+Proposed Changes
+Component 1: WordPress PHP Snippet (User Action Required)
+A PHP snippet to add to WordPress that creates /custom/v1/regions endpoint returning the ACF field group data.
+
+[NEW] PHP Snippet for WordPress (WPCode or functions.php)
+php
+// Custom REST API endpoint to expose ACF مناطق ومدن field data
+add_action('rest_api_init', function () {
+register_rest_route('custom/v1', '/regions', array(
+'methods' => 'GET',
+'callback' => function () {
+// Check if ACF is active and field group exists
+if (function_exists('acf_get_fields')) {
+$fields = acf_get_fields('group_69d225ffc3c07');
+                if ($fields) {
+$regions = array();
+                    foreach ($fields as $field) {
+                        $regions[] = array(
+                            'key' => $field['key'],
+                            'name' => $field['name'],
+                            'label' => $field['label'],
+                            'type' => $field['type'],
+                            'choices' => isset($field['choices']) ? $field['choices'] : null,
+                            'sub_fields' => isset($field['sub_fields']) ? array_map(function($sf) {
+                                return array(
+                                    'key' => $sf['key'],
+                                    'name' => $sf['name'],
+                                    'label' => $sf['label'],
+                                    'type' => $sf['type'],
+                                    'choices' => isset($sf['choices']) ? $sf['choices'] : null,
+                                );
+                            }, $field['sub_fields']) : null,
+                        );
+                    }
+                    return new WP_REST_Response($regions, 200);
+}
+}
+// Fallback: return hardcoded Saudi regions
+return new WP_REST_Response(array(
+array('label' => 'الرياض', 'name' => 'riyadh', 'cities' => array('الرياض', 'الخرج', 'الدوادمي', 'المجمعة', 'القويعية', 'وادي الدواسر', 'الأفلاج', 'الزلفي', 'شقراء', 'حوطة بني تميم', 'عفيف', 'السليل', 'ضرما', 'المزاحمية', 'رماح', 'ثادق', 'حريملاء', 'الحريق', 'الغاط', 'الدرعية')),
+array('label' => 'مكة المكرمة', 'name' => 'makkah', 'cities' => array('مكة المكرمة', 'جدة', 'الطائف', 'القنفذة', 'الليث', 'رابغ', 'خليص', 'الكامل', 'الجموم', 'تربة', 'ميسان', 'أضم', 'العرضيات', 'بحرة')),
+array('label' => 'المدينة المنورة', 'name' => 'madinah', 'cities' => array('المدينة المنورة', 'ينبع', 'العلا', 'مهد الذهب', 'الحناكية', 'بدر', 'خيبر', 'وادي الفرع')),
+array('label' => 'القصيم', 'name' => 'qassim', 'cities' => array('بريدة', 'عنيزة', 'الرس', 'المذنب', 'البكيرية', 'البدائع', 'الأسياح', 'النبهانية', 'عيون الجواء', 'رياض الخبراء')),
+array('label' => 'الشرقية', 'name' => 'eastern', 'cities' => array('الدمام', 'الأحساء', 'حفر الباطن', 'الجبيل', 'القطيف', 'الخبر', 'الظهران', 'رأس تنورة', 'بقيق', 'النعيرية', 'قرية العليا', 'العديد')),
+array('label' => 'عسير', 'name' => 'asir', 'cities' => array('أبها', 'خميس مشيط', 'بيشة', 'النماص', 'محايل عسير', 'سراة عبيدة', 'تثليث', 'رجال ألمع', 'أحد رفيدة', 'ظهران الجنوب', 'بلقرن', 'تنومة', 'البرك', 'المجاردة')),
+array('label' => 'تبوك', 'name' => 'tabuk', 'cities' => array('تبوك', 'الوجه', 'ضبا', 'تيماء', 'أملج', 'حقل', 'البدع', 'شرما')),
+array('label' => 'حائل', 'name' => 'hail', 'cities' => array('حائل', 'بقعاء', 'الغزالة', 'الشنان', 'السليمي', 'الحائط', 'الشملي', 'موقق')),
+array('label' => 'الحدود الشمالية', 'name' => 'northern', 'cities' => array('عرعر', 'رفحاء', 'طريف', 'العويقيلة')),
+array('label' => 'جازان', 'name' => 'jazan', 'cities' => array('جازان', 'صبيا', 'أبو عريش', 'صامطة', 'أحد المسارحة', 'الدرب', 'العيدابي', 'بيش', 'فرسان', 'الريث', 'ضمد', 'الحرث', 'هروب', 'الطوال', 'فيفا')),
+array('label' => 'نجران', 'name' => 'najran', 'cities' => array('نجران', 'شرورة', 'حبونا', 'بدر الجنوب', 'يدمة', 'ثار', 'خباش')),
+array('label' => 'الباحة', 'name' => 'baha', 'cities' => array('الباحة', 'بلجرشي', 'المندق', 'المخواة', 'قلوة', 'العقيق', 'غامد الزناد')),
+array('label' => 'الجوف', 'name' => 'jawf', 'cities' => array('سكاكا', 'دومة الجندل', 'القريات', 'طبرجل')),
+), 200);
+},
+'permission_callback' => '\_\_return_true',
+));
+});
+This snippet:
+
+First tries to read the ACF field group group_69d225ffc3c07 dynamically
+If ACF isn't available or the group is empty, returns a comprehensive hardcoded Saudi regions list
+The endpoint is public (no auth required) since region data is not sensitive
+Component 2: Shared Region/City Service (Flutter)
+[NEW] lib/core/data/regions_service.dart
+Singleton service that fetches regions from /custom/v1/regions
+Caches the response in memory (fetched once per app session)
+Hardcoded fallback if API fails
+Methods: fetchRegions(), getRegionNames(), getCitiesForRegion(region)
+Returns List<RegionModel> with label, name, cities fields
+Component 3: Location-Based Filtering (Home, Shop, Zabayeh)
+[MODIFY]
+home_screen.dart
+Replace hardcoded \_saudiRegions list with data from RegionsService
+Add a city dropdown that appears when a region is selected
+Pass both region and city to HomeContentCubit.loadHomeContent()
+[MODIFY]
+home_content_cubit.dart
+Add city parameter to loadHomeContent()
+Update client-side filter to match dokan_geo_address and vendorAddress against region/city
+[MODIFY]
+shop_screen.dart
+Add region/city filter row (horizontal chips + dropdown) similar to Home
+Add subcategory filter row (like Home screen)
+Pass region/city to ProductsCubit / ZabayehProductsCubit
+[MODIFY]
+products_cubit.dart
+Add region and city parameters to loadProducts()
+Apply client-side location filtering (same logic as home_content_cubit)
+[MODIFY]
+zabayeh_products_cubit.dart
+Inherits region/city filtering from parent ProductsCubit
+[MODIFY]
+product_model.dart
+Add String? productRegion and String? productCity fields
+Parse from meta_data keys \_product_region and \_product_city
+Also extract from dokan_geo_address as fallback
+Component 4: Registration Form — Region/City Dropdowns
+[MODIFY]
+register_screen.dart
+Replace \_cityController and \_regionController text fields with DropdownButtonFormField widgets
+Region dropdown populated from RegionsService
+City dropdown cascades based on selected region
+Save selected region/city to user metadata on registration
+Component 5: Request Form — Region/City Dropdowns
+[MODIFY]
+request_form_widget.dart
+Replace \_cityController and \_regionController text fields with DropdownButtonFormField
+Same region → city cascade as registration form
+Update \_submit() data mapping to use dropdown values
+Component 6: Payment-Before-Upgrade (Fix Tier Upgrade Bug)
+Problem: Current flow calls upgradeToVendor() before payment. If user cancels, they're already upgraded.
+
+[MODIFY]
+subscription_screen.dart
+In \_showSubscriptionConfirmDialog: Remove upgradeToVendor() call when vendorRegistrationData != null
+Only add product to cart and navigate to checkout
+Store vendorRegistrationData in a way checkout can access it (via StorageService temp data)
+[MODIFY]
+checkout_screen.dart
+In \_showSuccessDialog: When isSubscription == true AND vendor registration data exists, call VendorUpgradeCubit.upgradeToVendor() after confirmed payment
+This ensures vendor upgrade only happens on successful payment
+Component 7: Default Bronze Tier on Back Press
+[MODIFY]
+subscription_screen.dart
+Wrap with PopScope to intercept back press
+When vendorRegistrationData != null and user presses back:
+Call upgradeToVendor() with Bronze tier (free, no payment needed)
+Navigate to main screen
+Show "تم تسجيلك كتاجر بالباقة البرونزية" snackbar
+Component 8: API-Driven Tier Visibility
+Problem: Gold tier (29030) is still showing even though it's not purchasable. The "Upgrade Now" card shows for Silver users even though they can't upgrade further.
+
+[MODIFY]
+subscription_screen.dart
+Filter \_subscriptionPacks to only show packs where purchasable == true AND status == 'publish'
+This automatically hides Gold tier if removed from WP
+[MODIFY]
+profile_screen.dart
+Change upgrade card visibility from hardcoded IDs (29318, 29030) to dynamic check
+Fetch available subscription packs from API on profile load
+If user's current pack is the highest purchasable tier, hide the upgrade card
+For Silver users: if Gold is not purchasable, Silver IS the max → hide upgrade card
+[MODIFY]
+add_product_screen.dart
+Same logic for any "Upgrade" prompts in add product flow
+Component 9: Vendor Dashboard — Region/City in Add Product
+[MODIFY]
+add_product_screen.dart
+Add region and city dropdown fields alongside the existing map picker
+Save selected region/city as product meta_data (\_product_region, \_product_city)
+Keep the existing map/location picker for coordinates
+[MODIFY]
+add_product_cubit.dart
+Add region and city parameters to uploadProduct() and updateProduct()
+Include as meta_data entries in the WC API call
+Component 10: Product Details — Display Region/City
+[MODIFY]
+product_details_screen.dart
+Display productRegion and productCity from ProductModel
+Show as styled chips/badges near the location section
+Fallback to reverse-geocoded location name if fields are empty
+Component 11: Telr Native SDK Migration
+[MODIFY]
+main.dart
+Add TelrSdk.init() in main() before runApp()
+Configure: preferredLanguageCode: 'ar', debugLoggingEnabled: false
+No Apple Pay for now (deferred)
+[MODIFY]
+telr_payment_service.dart
+Add payWithNativeSdk() method that calls TelrSdk.presentPayment(tokenURL, orderURL)
+tokenURL = existing createOrderSession() backend endpoint
+orderURL = existing buildOrderUrl() method
+[MODIFY]
+checkout_screen.dart
+Replace WebView-based \_handleTelrPayment with TelrSdk.presentPayment()
+Check PaymentResponse.success to determine completion vs cancellation
+Only call completePayment() on success
+[DEPRECATE]
+telr_webview_screen.dart
+Keep as fallback but primary flow uses native SDK
+Execution Order
+First: WordPress PHP snippet (user adds to site) + RegionsService
+Then: Payment/tier fixes (Components 6, 7, 8) — critical bugs
+Then: Location filtering (Components 3, 4, 5) — uses RegionsService
+Then: Vendor dashboard & product details (Components 9, 10)
+Last: Telr SDK migration (Component 11) — independent
+Verification Plan
+Automated Tests
+flutter build apk --debug — no compilation errors
+flutter analyze — lint check
+Manual Verification
+Region/City API: Call /custom/v1/regions — verify data returns
+Filters: Select region/city on Home/Shop/الذبائح — verify filtering
+Registration: Create account → verify region/city dropdowns
+Payment flow: Subscribe to Silver → cancel → verify NOT upgraded; complete → verify upgraded
+Back press: Press back during vendor registration → verify Bronze assigned
+Tier visibility: Silver user → verify "Upgrade Now" hidden (Gold not available)
+Add product: Add region/city → verify saved and displayed
+Telr SDK: Complete payment → verify native SDK (not WebView)

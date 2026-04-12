@@ -63,6 +63,7 @@ class HomeContentCubit extends Cubit<HomeContentState> {
 
   int? _currentCategoryId;
   String? _currentRegion;
+  String? _currentCity;
 
   // Cache WC categories to avoid massive sequential recursion
   List<dynamic>? _cachedWcCategories;
@@ -70,18 +71,22 @@ class HomeContentCubit extends Cubit<HomeContentState> {
   /// Get active region
   String? get activeRegion => _currentRegion;
 
+  /// Get active city
+  String? get activeCity => _currentCity;
+
   /// Get active category
   int? get activeCategory => _currentCategoryId;
 
   /// Load home content - latest products and featured items (with optional filters)
-  Future<void> loadHomeContent({int? categoryId, String? region}) async {
+  Future<void> loadHomeContent({int? categoryId, String? region, String? city}) async {
     // If not matching current filters, ignore "already loading" state
     final isNewFilters =
-        categoryId != _currentCategoryId || region != _currentRegion;
+        categoryId != _currentCategoryId || region != _currentRegion || city != _currentCity;
     if (state is HomeContentLoading && !isNewFilters) return;
 
     _currentCategoryId = categoryId;
     _currentRegion = region;
+    _currentCity = city;
 
     emit(const HomeContentLoading());
 
@@ -109,6 +114,7 @@ class HomeContentCubit extends Cubit<HomeContentState> {
         'per_page': region != null || categoryId != null ? 50 : 10,
         'orderby': 'date',
         'order': 'desc',
+        'status': 'any',
         'consumer_key': AppConfig.wcConsumerKey,
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
@@ -116,6 +122,7 @@ class HomeContentCubit extends Cubit<HomeContentState> {
       final featuredParams = <String, dynamic>{
         'per_page': region != null || categoryId != null ? 20 : 5,
         'featured': true,
+        'status': 'any',
         'consumer_key': AppConfig.wcConsumerKey,
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
@@ -148,7 +155,7 @@ class HomeContentCubit extends Cubit<HomeContentState> {
         final List<dynamic> data = latestResponse.data;
         var latestProducts = data
             .map((json) => ProductModel.fromJson(json))
-            .where((product) => product.status == 'publish')
+            .where((product) => product.status == 'publish' || product.status == 'pending')
             .where((product) => product.id != alZabayehProductId)
             .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
             .toList();
@@ -159,24 +166,51 @@ class HomeContentCubit extends Cubit<HomeContentState> {
           final List<dynamic> featuredData = featuredResponse.data;
           featuredProducts = featuredData
               .map((json) => ProductModel.fromJson(json))
-              .where((product) => product.status == 'publish')
+              .where((product) => product.status == 'publish' || product.status == 'pending')
               .where((product) => product.id != alZabayehProductId)
               .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
               .toList();
         }
 
-        // Apply Region Filter client-side
-        if (region != null && region.isNotEmpty && region != 'الكل') {
+        // Apply Region & City Filter client-side
+        final hasRegion = region != null && region.isNotEmpty && region != 'الكل';
+        final hasCity = city != null && city.isNotEmpty && city != 'الكل';
+
+        if (hasRegion || hasCity) {
           latestProducts = latestProducts.where((p) {
-            final loc = p.productLocation?.toLowerCase() ?? '';
-            final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-            return loc.contains(region) || vendorLoc.contains(region);
+            bool matches = true;
+            if (hasRegion) {
+              final loc = p.productLocation?.toLowerCase() ?? '';
+              final reg = p.productRegion?.toLowerCase() ?? '';
+              final cityVal = p.productCity?.toLowerCase() ?? '';
+              final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
+              matches = matches && (loc.contains(region.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
+            }
+            if (hasCity) {
+              final loc = p.productLocation?.toLowerCase() ?? '';
+              final reg = p.productRegion?.toLowerCase() ?? '';
+              final cityVal = p.productCity?.toLowerCase() ?? '';
+              matches = matches && (loc.contains(city.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
+            }
+            return matches;
           }).toList();
 
           featuredProducts = featuredProducts.where((p) {
-            final loc = p.productLocation?.toLowerCase() ?? '';
-            final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-            return loc.contains(region) || vendorLoc.contains(region);
+            bool matches = true;
+            if (hasRegion) {
+              final loc = p.productLocation?.toLowerCase() ?? '';
+              final reg = p.productRegion?.toLowerCase() ?? '';
+              final cityVal = p.productCity?.toLowerCase() ?? '';
+              final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
+              matches = matches && (loc.contains(region.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
+            }
+            if (hasCity) {
+              final loc = p.productLocation?.toLowerCase() ?? '';
+              final reg = p.productRegion?.toLowerCase() ?? '';
+              final cityVal = p.productCity?.toLowerCase() ?? '';
+              matches = matches && (loc.contains(city.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
+            }
+            return matches;
           }).toList();
         }
 

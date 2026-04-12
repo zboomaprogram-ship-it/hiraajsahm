@@ -254,20 +254,40 @@ class CartScreen extends StatelessWidget {
               ),
             ),
 
-            // Static Quantity Display (x1)
+            // Interactive Quantity Display
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.surfaceDark : AppColors.surface,
-                borderRadius: BorderRadius.circular(8.r),
+                borderRadius: BorderRadius.circular(12.r),
               ),
-              child: Text(
-                'x1',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => context.read<CartCubit>().decrementQuantity(item.product.id),
+                    icon: Icon(Icons.remove_circle_outline, size: 22.sp, color: AppColors.primary),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w),
+                    child: Text(
+                      '${item.quantity}',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => context.read<CartCubit>().incrementQuantity(item.product.id),
+                    icon: Icon(Icons.add_circle_outline, size: 22.sp, color: AppColors.primary),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ),
           ],

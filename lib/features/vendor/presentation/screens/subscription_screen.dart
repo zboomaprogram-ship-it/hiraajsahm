@@ -82,6 +82,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           _subscriptionPacks = data
               .map((json) => ProductModel.fromJson(json))
               .where((pack) => pack.id != _zabayehPackId) // Hide Al-Zabayeh
+              .where((pack) => pack.id != 29030) // Hide Gold (Promotion Only)
+              .where(
+                (pack) => pack.purchasable && pack.status == 'publish',
+              ) // Only show purchasable packs
               .toList();
           _isLoading = false;
         });
@@ -172,7 +176,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         phone: widget.vendorRegistrationData!.phone,
         shopLink: widget.vendorRegistrationData!.shopLink,
       );
-      
+
       _showAlreadySubscribedDialog(isDefault: true);
       return;
     }
@@ -239,9 +243,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Navigator.pop(ctx);
 
               if (widget.vendorRegistrationData != null) {
-                // Register as Vendor first
-                context.read<VendorUpgradeCubit>().upgradeToVendor(
-                  userId: context.read<AuthCubit>().currentUser!.id,
+                // Store vendor registration data for after payment succeeds
+                final storageService = di.sl<StorageService>();
+                storageService.saveVendorRegistrationData(
                   shopName: widget.vendorRegistrationData!.shopName,
                   phone: widget.vendorRegistrationData!.phone,
                   shopLink: widget.vendorRegistrationData!.shopLink,
@@ -377,6 +381,28 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
+  /// Assign default Bronze tier and return to main screen
+  void _assignDefaultBronzeAndReturn() {
+    if (widget.vendorRegistrationData == null) return;
+
+    // Upgrade to vendor with Bronze tier (free, no payment needed)
+    context.read<VendorUpgradeCubit>().upgradeToVendor(
+      userId: context.read<AuthCubit>().currentUser!.id,
+      shopName: widget.vendorRegistrationData!.shopName,
+      phone: widget.vendorRegistrationData!.phone,
+      shopLink: widget.vendorRegistrationData!.shopLink,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم تسجيلك كتاجر بالباقة البرونزية'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+
+    AppRouter.navigateAndRemoveUntil(context, Routes.main);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -401,39 +427,54 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           );
         }
       },
-      child: Scaffold(
-        backgroundColor: isDark
-            ? AppColors.backgroundDark
-            : AppColors.background,
-        appBar: AppBar(
-          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(
-              Icons.arrow_back_ios_rounded,
-              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+      child: PopScope(
+        canPop: widget.vendorRegistrationData == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && widget.vendorRegistrationData != null) {
+            // User pressed back during vendor registration → assign default Bronze
+            _assignDefaultBronzeAndReturn();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: isDark
+              ? AppColors.backgroundDark
+              : AppColors.background,
+          appBar: AppBar(
+            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              onPressed: () {
+                if (widget.vendorRegistrationData != null) {
+                  _assignDefaultBronzeAndReturn();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              icon: Icon(
+                Icons.arrow_back_ios_rounded,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
             ),
-          ),
-          title: Text(
-            'باقات الاشتراك',
-            style: TextStyle(
-              fontSize: 20.sp,
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            title: Text(
+              'باقات الاشتراك',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
             ),
+            centerTitle: true,
           ),
-          centerTitle: true,
+          body: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              : _errorMessage != null
+              ? _buildErrorState()
+              : _subscriptionPacks.isEmpty
+              ? _buildEmptyState()
+              : _buildSubscriptionList(isDark),
         ),
-        body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              )
-            : _errorMessage != null
-            ? _buildErrorState()
-            : _subscriptionPacks.isEmpty
-            ? _buildEmptyState()
-            : _buildSubscriptionList(isDark),
       ),
     );
   }

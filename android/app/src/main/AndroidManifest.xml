@@ -57,6 +57,14 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDl5bO63kW9ukQkEEyqdg40oSFh1R8mOSM" />
 
+        <!-- Telr SDK Credentials (Required for v4.0.1+ Native Validation) -->
+        <meta-data
+            android:name="telr_store_id"
+            android:value="34762" />
+        <meta-data
+            android:name="telr_key"
+            android:value="mKnQf-HrCvD@StZK" />
+
     </application>
   <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

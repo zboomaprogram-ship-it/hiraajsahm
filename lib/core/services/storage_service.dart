@@ -192,6 +192,7 @@ class StorageService {
     return _preferences.getBool('registration_pending') ?? false;
   }
 
+
   /// Clear all preferences
   Future<void> clearPreferences() async {
     // Keep locale and theme preferences
@@ -206,9 +207,48 @@ class StorageService {
     }
   }
 
+  // ============ VENDOR REGISTRATION DATA ============
+
+  /// Save temporary vendor registration data before payment
+  Future<void> saveVendorRegistrationData({
+    required String shopName,
+    required String phone,
+    String? shopLink,
+  }) async {
+    await _preferences.setString('vendor_temp_shop_name', shopName);
+    await _preferences.setString('vendor_temp_phone', phone);
+    if (shopLink != null) {
+      await _preferences.setString('vendor_temp_shop_link', shopLink);
+    } else {
+      await _preferences.remove('vendor_temp_shop_link');
+    }
+  }
+
+  /// Get temporary vendor registration data
+  Map<String, String>? getVendorRegistrationData() {
+    final shopName = _preferences.getString('vendor_temp_shop_name');
+    final phone = _preferences.getString('vendor_temp_phone');
+    if (shopName == null || phone == null) return null;
+
+    final shopLink = _preferences.getString('vendor_temp_shop_link');
+    return {
+      'shopName': shopName,
+      'phone': phone,
+      if (shopLink != null) 'shopLink': shopLink,
+    };
+  }
+
+  /// Clear temporary vendor registration data
+  Future<void> clearVendorRegistrationData() async {
+    await _preferences.remove('vendor_temp_shop_name');
+    await _preferences.remove('vendor_temp_phone');
+    await _preferences.remove('vendor_temp_shop_link');
+  }
+
   /// Complete logout - clear everything
   Future<void> logout() async {
     await clearSecureStorage();
     await clearPreferences();
   }
 }
+

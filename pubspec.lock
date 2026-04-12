@@ -734,7 +734,7 @@ packages:
     source: hosted
     version: "0.15.6"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -1302,10 +1302,10 @@ packages:
     dependency: "direct main"
     description:
       name: telr_mobile_payment_sdk
-      sha256: "004565ad0fe99ce59b653e61ad296ed783882fd0ef65048b442166d2689d7d56"
+      sha256: "080cb400cbd721492b5996b19bd78df9f9f6ec2a863b88988602e2151c18a2b6"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.3"
+    version: "4.0.1"
   term_glyph:
     dependency: transitive
     description:

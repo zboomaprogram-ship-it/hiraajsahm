@@ -50,6 +50,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   void _resolveLocation() async {
+    final region = widget.product.productRegion;
+    final city = widget.product.productCity;
+
+    if (region != null && region.isNotEmpty && city != null && city.isNotEmpty) {
+      if (mounted) setState(() => _resolvedLocation = '$city، $region');
+      return;
+    } else if (region != null && region.isNotEmpty) {
+      if (mounted) setState(() => _resolvedLocation = region);
+      return;
+    } else if (city != null && city.isNotEmpty) {
+      if (mounted) setState(() => _resolvedLocation = city);
+      return;
+    }
+
     final locText =
         widget.product.productLocation ?? widget.product.vendorAddress;
     if (locText == null || locText.isEmpty) {
@@ -380,35 +394,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
     // 1. Check if product is locked (sold)
     // 1. Check if product is locked (Under Review)
-    if (widget.product.isLocked) {
-      return Container(
-        height: 80.h,
-        padding: EdgeInsets.symmetric(horizontal: 20.w),
-        decoration: BoxDecoration(
-          color: AppColors.error.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: AppColors.error,
-              size: 28.sp,
-            ),
-            SizedBox(width: 12.w),
-            Text(
-              'يتم معاينة هذا اعلان الآن',
-              style: TextStyle(
-                color: AppColors.error,
-                fontSize: 18.sp,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // Note: We no longer block the action bar for locked products,
+    // as the user wants them to be addable to the cart.
 
     // 2. Check if current user is the vendor (Owner)
     final authState = context.read<AuthCubit>().state;

@@ -10,6 +10,7 @@ import '../../data/models/subscription_pack_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../shop/data/models/product_model.dart';
 import '../../../../core/widgets/location_picker_screen.dart';
+import '../../../../core/data/regions_service.dart';
 
 /// Register Screen with Vendor Registration Support
 class RegisterScreen extends StatefulWidget {
@@ -45,6 +46,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isVendor = false;
   bool _acceptTerms = false;
   SubscriptionPackModel? _selectedPack;
+
+  List<String> _regions = [];
+  String? _selectedRegion;
+  String? _selectedCity;
+  List<String> _cities = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRegions();
+  }
+
+  Future<void> _loadRegions() async {
+    final names = await RegionsService().getRegionNames();
+    if (mounted) {
+      setState(() {
+        _regions = names;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -448,19 +469,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildLocationFields(bool isDark) {
     return Column(
       children: [
+        /*
         Row(
           children: [
             Expanded(
-              child: GestureDetector(
-                onTap: _pickLocation,
-                child: AbsorbPointer(
-                  child: _buildTextField(
-                    controller: _cityController,
-                    label: 'المدينة',
-                    hint: 'أدخل المدينة',
-                    icon: Icons.location_city_rounded,
-                    isDark: isDark,
-                    readOnly: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'المنطقة',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: 'اختر المنطقة',
+                      prefixIcon: Icon(Icons.map_outlined, color: AppColors.textSecondary, size: 22.sp),
+                    ),
+                    value: _selectedRegion,
+                    items: _regions.map((String region) {
+                      return DropdownMenuItem<String>(
+                        value: region,
+                        child: Text(region, overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      _onRegionChanged(newValue);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 16.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'المدينة',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: 'اختر المدينة',
+                      prefixIcon: Icon(Icons.location_city_rounded, color: AppColors.textSecondary, size: 22.sp),
+                    ),
+                    value: _selectedCity,
+                    items: _cities.map((String city) {
+                      return DropdownMenuItem<String>(
+                        value: city,
+                        child: Text(city, overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      _onCityChanged(newValue);
+                    },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'مطلوب';
@@ -468,28 +542,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return null;
                     },
                   ),
-                ),
-              ),
-            ),
-            SizedBox(width: 16.w),
-            Expanded(
-              child: GestureDetector(
-                onTap: _pickLocation,
-                child: AbsorbPointer(
-                  child: _buildTextField(
-                    controller: _regionController,
-                    label: 'المنطقة',
-                    hint: 'أدخل المنطقة',
-                    icon: Icons.map_outlined,
-                    isDark: isDark,
-                    readOnly: true,
-                  ),
-                ),
+                ],
               ),
             ),
           ],
         ),
         SizedBox(height: 20.h),
+        */
         _buildTextField(
           controller: _locationController,
           label: 'الموقع على الخريطة',
@@ -509,6 +568,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Future<void> _onRegionChanged(String? newValue) async {
+    if (newValue == null) {
+      if (mounted) {
+        setState(() {
+          _selectedRegion = null;
+          _regionController.text = '';
+          _selectedCity = null;
+          _cityController.text = '';
+          _cities = [];
+        });
+      }
+      return;
+    }
+
+    final newCities = await RegionsService().getCitiesForRegion(newValue);
+    if (mounted) {
+      setState(() {
+        _selectedRegion = newValue;
+        _regionController.text = newValue;
+        _selectedCity = null;
+        _cityController.text = '';
+        _cities = newCities;
+      });
+    }
+  }
+
+  Future<void> _onCityChanged(String? newValue) async {
+    if (newValue == null) {
+      if (mounted) {
+        setState(() {
+          _selectedCity = null;
+          _cityController.text = '';
+        });
+      }
+      return;
+    }
+
+    if (_selectedRegion == null) {
+      final region = await RegionsService().getRegionForCity(newValue);
+      if (region != null) {
+        final newCities = await RegionsService().getCitiesForRegion(region);
+        if (mounted) {
+          setState(() {
+            _selectedRegion = region;
+            _regionController.text = region;
+            _cities = newCities;
+            _selectedCity = newValue;
+            _cityController.text = newValue;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _selectedCity = newValue;
+            _cityController.text = newValue;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _selectedCity = newValue;
+          _cityController.text = newValue;
+        });
+      }
+    }
+  }
+
   Future<void> _pickLocation() async {
     final result = await Navigator.push(
       context,
@@ -516,18 +643,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (result != null && result is Map) {
-      setState(() {
-        _lat = result['lat'].toString();
-        _lng = result['lng'].toString();
-        _locationController.text = ' (${_lat}, ${_lng})';
+      final mapCity = result['city'] as String?;
+      final mapRegion = result['region'] as String?;
 
-        if (result['city'] != null) {
-          _cityController.text = result['city'];
+      if (mounted) {
+         setState(() {
+           _lat = result['lat'].toString();
+           _lng = result['lng'].toString();
+           _locationController.text = ' (${_lat}, ${_lng})';
+         });
+      }
+      
+      if (mapRegion != null && _regions.contains(mapRegion)) {
+        await _onRegionChanged(mapRegion);
+      } else if (mapRegion != null) {
+        setState(() {
+          _regionController.text = mapRegion;
+        });
+      }
+
+      if (mapCity != null) {
+        if (_cities.contains(mapCity)) {
+           await _onCityChanged(mapCity);
+        } else {
+           setState(() {
+             _cityController.text = mapCity;
+           });
         }
-        if (result['region'] != null) {
-          _regionController.text = result['region'];
-        }
-      });
+      }
     }
   }
 

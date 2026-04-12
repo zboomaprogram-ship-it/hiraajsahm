@@ -5,19 +5,16 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
-
 // ✅ Correct Import for Global Navigator Key
 import 'core/services/notification_service.dart';
 import 'package:telr_mobile_payment_sdk/telr_mobile_payment_sdk.dart';
-import 'core/config/app_config.dart';
-
 import 'core/routes/app_router.dart';
 import 'core/routes/routes.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/cubit/theme_cubit.dart';
+// Core Imports
 import 'core/di/injection_container.dart' as di;
 import 'core/localization/localization_manager.dart';
-
 // Feature Imports
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/vendor/presentation/cubit/vendor_dashboard_cubit.dart';
@@ -57,9 +54,10 @@ void main() async {
 
   // Initialize Telr SDK
   try {
+    // ✅ FIXED: Standardized initialization block (FL-2)
     await TelrSdk.init(
       preferredLanguageCode: 'ar',
-      debugLoggingEnabled: AppConfig.enableLogging,
+      debugLoggingEnabled: true, // Enabled for debugging
       samsungPayServiceId: null,
       samsungPayMerchantId: null,
     );
@@ -114,7 +112,9 @@ class MyApp extends StatelessWidget {
 
         // Shop & Content Cubits
         BlocProvider<ProductsCubit>(create: (_) => di.sl<ProductsCubit>()),
-        BlocProvider<ZabayehProductsCubit>(create: (_) => di.sl<ZabayehProductsCubit>()),
+        BlocProvider<ZabayehProductsCubit>(
+          create: (_) => di.sl<ZabayehProductsCubit>(),
+        ),
         BlocProvider<CategoriesCubit>(create: (_) => CategoriesCubit()),
         BlocProvider<HomeContentCubit>(create: (_) => HomeContentCubit()),
         BlocProvider<CartCubit>(create: (_) => di.sl<CartCubit>()),

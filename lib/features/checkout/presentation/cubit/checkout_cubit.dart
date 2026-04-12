@@ -109,6 +109,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     String paymentType = 'full',
     String? notes,
   }) async {
+    print('🛒 placeOrder called with method: $paymentMethod, type: $paymentType');
     emit(const CheckoutProcessing());
 
     try {
@@ -194,7 +195,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       final orderData = {
         'payment_method': paymentMethod,
         'payment_method_title': _getPaymentMethodTitle(paymentMethod),
-        'set_paid': paymentMethod == 'online' ? true : false,
+        'set_paid': false, // CRITICAL: Only set to true via completePayment() hook
         'customer_id': userId ?? 0, // CRITICAL: Link order to user
         'billing': {
           'first_name': finalFirstName,
@@ -218,6 +219,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'meta_data': [
           {'key': '_payment_type', 'value': paymentType},
           {'key': 'vendor_name', 'value': vendorName},
+          {'key': '_created_via', 'value': 'mobile_app'}, // Explicit meta key
         ],
       };
 
@@ -258,13 +260,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
         // If online payment, emit awaiting payment state for Telr
         if (paymentMethod == 'online') {
-          final total = cartState is CartLoaded
-              ? cartState.total.toStringAsFixed(2)
+          // ENSURE the amount is a clean string with 2 decimal places for the SDK
+          final String finalAmountString = cartState is CartLoaded 
+              ? cartState.total.toStringAsFixed(2) 
               : '0.00';
+              
           emit(
             CheckoutAwaitingPayment(
               orderId: orderId,
-              amount: total,
+              amount: finalAmountString,
               customerEmail: finalEmail,
               customerName: '$finalFirstName $finalLastName'.trim(),
               isSubscription: isSubscription,
@@ -304,10 +308,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
   /// Mark payment as complete after Telr success
   Future<void> completePayment(int orderId, {bool isSubscription = false}) async {
+    print('✅ CheckoutCubit: completePayment starting for order #$orderId (isSubscription: $isSubscription)');
     try {
       final url = 'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId';
       
-      await _cleanDio.put(
+      final response = await _cleanDio.put(
         url,
         data: {'status': 'completed'},
         queryParameters: {
@@ -315,8 +320,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           'consumer_secret': AppConfig.wcConsumerSecret,
         },
       );
+      print('✅ CheckoutCubit: Order status updated to completed. Response: ${response.statusCode}');
     } catch (e) {
-      print('CheckoutCubit: Failed to update order status to completed: $e');
+      print('❌ CheckoutCubit: Failed to update order status to completed: $e');
     }
 
     _cartCubit.clearCart();
@@ -324,7 +330,22 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   /// Mark payment as failed
-  void failPayment(String message) {
+  Future<void> failPayment(String message, {int? orderId}) async {
+    if (orderId != null) {
+      try {
+        final url = 'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId';
+        await _cleanDio.put(
+          url,
+          data: {'status': 'cancelled'},
+          queryParameters: {
+            'consumer_key': AppConfig.wcConsumerKey,
+            'consumer_secret': AppConfig.wcConsumerSecret,
+          },
+        );
+      } catch (e) {
+        print('CheckoutCubit: Failed to update order status to cancelled: $e');
+      }
+    }
     emit(CheckoutFailure(message: message));
   }
 
