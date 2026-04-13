@@ -1,0 +1,38 @@
+Analyzing hiraajsahm...                                         
+
+warning • The include file 'package:flutter_lints/flutter.yaml' in '/Users/seg/Desktop/Shemais/hiraajsahm/analysis_options.yaml' can't be found when analyzing '/Users/seg/Desktop/Shemais/hiraajsahm' • analysis_options.yaml:13:10 • include_file_not_found
+warning • The value of the field '_dio' isn't used • lib/core/services/telr_payment_service.dart:9:13 • unused_field
+warning • The exception variable 'e' isn't used, so the 'catch' clause can be removed • lib/features/auth/data/datasources/auth_remote_datasource.dart:440:30 • unused_catch_clause
+  error • 'city' isn't a field in the enclosing class • lib/features/auth/data/models/user_model.dart:44:5 • initializing_formal_for_non_existent_field
+  error • Undefined name 'city' • lib/features/auth/data/models/user_model.dart:214:15 • undefined_identifier
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/auth/data/models/user_model.dart:256:26 • undefined_getter
+  error • Undefined name 'city' • lib/features/auth/data/models/user_model.dart:345:5 • undefined_identifier
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/auth/presentation/screens/edit_user_profile_screen.dart:68:35 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/auth/presentation/screens/edit_user_profile_screen.dart:73:28 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/auth/presentation/screens/edit_user_profile_screen.dart:73:60 • undefined_getter
+warning • The declaration '_buildDivider' isn't referenced • lib/features/auth/presentation/screens/login_screen.dart:389:10 • unused_element
+warning • The declaration '_buildSocialLogin' isn't referenced • lib/features/auth/presentation/screens/login_screen.dart:415:10 • unused_element
+warning • The value of the field '_isLoading' isn't used • lib/features/auth/presentation/screens/register_screen.dart:43:8 • unused_field
+warning • The value of the field '_selectedCity' isn't used • lib/features/auth/presentation/screens/register_screen.dart:52:11 • unused_field
+warning • Unused import: 'package:hiraajsahm/core/services/telr_payment_service.dart' • lib/features/checkout/presentation/screens/checkout_screen.dart:11:8 • unused_import
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/checkout/presentation/screens/checkout_screen.dart:100:35 • undefined_getter
+warning • Unused import: 'package:cached_network_image/cached_network_image.dart' • lib/features/home/views/home_screen.dart:6:8 • unused_import
+warning • Unused import: '../../cart/presentation/cubit/cart_cubit.dart' • lib/features/home/views/home_screen.dart:17:8 • unused_import
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/home/views/home_screen.dart:199:81 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/home/views/home_screen.dart:200:78 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/home/views/home_screen.dart:218:73 • undefined_getter
+warning • Unused import: '../../../../core/routes/app_router.dart' • lib/features/notifications/presentation/screens/notifications_screen.dart:6:8 • unused_import
+warning • A value for optional parameter 'trailing' isn't ever given • lib/features/profile/presentation/screens/profile_screen.dart:1244:10 • unused_element_parameter
+warning • The declaration '_buildLanguageOption' isn't referenced • lib/features/settings/presentation/screens/settings_screen.dart:254:10 • unused_element
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/shop/presentation/screens/product_details_screen.dart:1648:33 • undefined_getter
+warning • Unused import: 'package:cached_network_image/cached_network_image.dart' • lib/features/shop/presentation/screens/shop_screen.dart:4:8 • unused_import
+warning • Unused import: '../../../cart/presentation/cubit/cart_cubit.dart' • lib/features/shop/presentation/screens/shop_screen.dart:15:8 • unused_import
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/shop/presentation/screens/shop_screen.dart:567:90 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/shop/presentation/screens/shop_screen.dart:568:87 • undefined_getter
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/shop/presentation/screens/shop_screen.dart:586:71 • undefined_getter
+warning • The declaration '_buildPlaceholderImage' isn't referenced • lib/features/shop/presentation/screens/shop_screen.dart:948:10 • unused_element
+warning • Unused import: '../../core/theme/colors.dart' • lib/features/splash/splash_screen.dart:6:8 • unused_import
+  error • The getter 'city' isn't defined for the type 'UserModel' • lib/features/vendor/presentation/screens/edit_vendor_profile_screen.dart:203:59 • undefined_getter
+warning • The declaration '_buildQuickActions' isn't referenced • lib/features/vendor/presentation/screens/vendor_dashboard_screen.dart:868:10 • unused_element
+
+34 issues found. (ran in 99.7s)
