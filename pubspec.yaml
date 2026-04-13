@@ -92,6 +92,7 @@ dependencies:
   telr_mobile_payment_sdk: ^4.0.1
   webview_flutter: 4.4.0
   http: ^1.2.1
+  in_app_purchase: ^3.2.0
 
 dev_dependencies:
   flutter_test:

@@ -32,6 +32,8 @@ class AppConfig {
   static const String wpUsersEndpoint = '/wp/v2/users';
   static const String customVendorUpgradeEndpoint =
       '/custom/v1/register-vendor'; // Custom Endpoint
+  static const String appleVerifyReceiptEndpoint =
+      '/custom/v1/verify-iap-receipt'; // Custom Endpoint
   static const String serviceProvidersEndpoint =
       '/hiraajsahm/v1/service-providers'; // Custom Endpoint
 

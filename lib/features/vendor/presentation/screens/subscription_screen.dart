@@ -16,6 +16,9 @@ import '../../data/models/vendor_registration_data.dart';
 import '../../presentation/cubit/vendor_upgrade_cubit.dart';
 import '../../presentation/cubit/vendor_upgrade_state.dart';
 import '../../../../core/utils/html_utils.dart';
+import '../../../../core/services/iap_service.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'dart:io';
 
 /// Subscription Screen - Display vendor subscription tiers
 class SubscriptionScreen extends StatefulWidget {
@@ -47,6 +50,42 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void initState() {
     super.initState();
     _initializeScreen();
+    _initIAP();
+  }
+
+  void _initIAP() {
+    if (!Platform.isIOS) return;
+
+    final iapService = IAPService();
+    iapService.initialize();
+    
+    // Handle successful purchase/restoration
+    iapService.onPurchaseComplete = (purchaseDetails) {
+      final authCubit = context.read<AuthCubit>();
+      final userId = authCubit.currentUser?.id;
+
+      if (userId != null) {
+        context.read<VendorUpgradeCubit>().verifyIapPurchase(
+              userId: userId,
+              productId: purchaseDetails.productID,
+              receiptData: purchaseDetails.verificationData.localVerificationData,
+            );
+      }
+    };
+
+    iapService.onError = (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في عملية الشراء: $error'), backgroundColor: AppColors.error),
+      );
+    };
+  }
+
+  @override
+  void dispose() {
+    if (Platform.isIOS) {
+      IAPService().dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _initializeScreen() async {
@@ -150,6 +189,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     return authCubit.currentUser?.subscriptionPackId;
   }
 
+  /// Get IAP Product ID for a WooCommerce Product ID
+  String? _getIapId(int wcId) {
+    switch (wcId) {
+      case 29026: return IAPService.tierBronze;
+      case 29028: return IAPService.tierSilver;
+      case 29030: return IAPService.tierGold;
+      case 29318: return IAPService.tierZabayeh;
+      default: return null;
+    }
+  }
+
+  /// Get ProductDetails for a WooCommerce Product
+  ProductDetails? _getIapProduct(int wcId) {
+    final iapId = _getIapId(wcId);
+    if (iapId == null) return null;
+    
+    try {
+      return IAPService().products.firstWhere((p) => p.id == iapId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _subscribeToPack(ProductModel pack) {
     // Check if trying to subscribe to locked Al-Zabayeh pack
     if (_isZabayehLocked(pack.id)) {
@@ -243,6 +305,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             onPressed: () {
               Navigator.pop(ctx);
 
+              // NATIVE IAP FLOW (iOS)
+              if (Platform.isIOS) {
+                final iapProduct = _getIapProduct(pack.id);
+                if (iapProduct != null) {
+                  IAPService().buyProduct(iapProduct);
+                  return;
+                }
+              }
+
+              // LEGACY CHECKOUT FLOW (Android / Fallback)
               if (widget.vendorRegistrationData != null) {
                 // Store vendor registration data for after payment succeeds
                 final storageService = di.sl<StorageService>();
@@ -548,16 +620,39 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildSubscriptionList(bool isDark) {
-    return ListView.builder(
-      padding: EdgeInsets.all(16.w),
-      itemCount: _subscriptionPacks.length,
-      itemBuilder: (context, index) {
-        return FadeInUp(
-          duration: const Duration(milliseconds: 300),
-          delay: Duration(milliseconds: index * 100),
-          child: _buildSubscriptionCard(_subscriptionPacks[index], isDark),
-        );
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.all(16.w),
+            itemCount: _subscriptionPacks.length,
+            itemBuilder: (context, index) {
+              return FadeInUp(
+                duration: const Duration(milliseconds: 300),
+                delay: Duration(milliseconds: index * 100),
+                child: _buildSubscriptionCard(_subscriptionPacks[index], isDark),
+              );
+            },
+          ),
+        ),
+        if (Platform.isIOS) ...[
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.h),
+            child: TextButton(
+              onPressed: () => IAPService().restorePurchases(),
+              child: Text(
+                'استعادة المشتريات (Restore Purchases)',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.sp,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: 16.h),
+        ],
+      ],
     );
   }
 
@@ -617,13 +712,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  '${pack.price} ر.س',
-                  style: TextStyle(
-                    fontSize: 22.sp,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.secondary,
-                  ),
+                Builder(
+                  builder: (context) {
+                    final iapProduct = _getIapProduct(pack.id);
+                    return Text(
+                      Platform.isIOS && iapProduct != null
+                          ? iapProduct.price
+                          : '${pack.price} ر.س',
+                      style: TextStyle(
+                        fontSize: 22.sp,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.secondary,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

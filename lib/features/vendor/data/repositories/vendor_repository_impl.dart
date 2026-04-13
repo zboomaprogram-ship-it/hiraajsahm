@@ -22,4 +22,17 @@ class VendorRepositoryImpl implements VendorRepository {
       shopLink: shopLink,
     );
   }
+
+  @override
+  Future<Either<Failure, bool>> verifyIapReceipt({
+    required int userId,
+    required String productId,
+    required String receiptData,
+  }) async {
+    return await remoteDataSource.verifyIapReceipt(
+      userId: userId,
+      productId: productId,
+      receiptData: receiptData,
+    );
+  }
 }

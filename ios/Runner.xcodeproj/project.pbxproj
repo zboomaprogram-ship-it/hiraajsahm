@@ -187,6 +187,9 @@
 							com.apple.ApplePay = {
 								enabled = 1;
 							};
+							com.apple.InAppPurchase = {
+								enabled = 1;
+							};
 						};
 					};
 				};

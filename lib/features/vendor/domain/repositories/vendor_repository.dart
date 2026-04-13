@@ -8,4 +8,10 @@ abstract class VendorRepository {
     required String phone,
     String? shopLink,
   });
+
+  Future<Either<Failure, bool>> verifyIapReceipt({
+    required int userId,
+    required String productId,
+    required String receiptData,
+  });
 }

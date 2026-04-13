@@ -10,6 +10,12 @@ abstract class VendorRemoteDataSource {
     required String phone,
     String? shopLink,
   });
+
+  Future<Either<Failure, bool>> verifyIapReceipt({
+    required int userId,
+    required String productId,
+    required String receiptData,
+  });
 }
 
 class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
@@ -41,6 +47,39 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         return Left(
           ServerFailure(
             message: response.data['message'] ?? 'Failed to upgrade to vendor',
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      return Left(_handleDioError(e));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, bool>> verifyIapReceipt({
+    required int userId,
+    required String productId,
+    required String receiptData,
+  }) async {
+    try {
+      final response = await _dio.post(
+        AppConfig.appleVerifyReceiptEndpoint,
+        data: {
+          'user_id': userId,
+          'product_id': productId,
+          'receipt_data': receiptData,
+          'platform': 'ios',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return const Right(true);
+      } else {
+        return Left(
+          ServerFailure(
+            message: response.data['message'] ?? 'Failed to verify IAP receipt',
           ),
         );
       }
