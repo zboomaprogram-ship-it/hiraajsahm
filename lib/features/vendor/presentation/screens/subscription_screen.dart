@@ -53,7 +53,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     _initIAP();
   }
 
-  void _initIAP() {
+  void _initIAP() async {
     if (!Platform.isIOS) return;
 
     final iapService = di.sl<IAPService>();
@@ -81,7 +81,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     };
 
     // Note: IAPService is already initialized in main.dart
+    // Try re-fetching if products were not loaded quickly enough at startup
+    if (iapService.products.isEmpty) {
+      await iapService.fetchProducts();
+    }
+
     if (mounted) {
+      if (iapService.products.isEmpty) {
+        // This means Apple servers returned 0 products for our IDs.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('آبل لم توفر الاشتراكات بعد (يرجى التأكد من ربطها بنسخة التطبيق في App Store Connect أو قبول اتفاقية الدفع).'),
+            backgroundColor: AppColors.warning,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      
       // Force UI rebuild to show IAP prices
       setState(() {});
     }
