@@ -16,8 +16,10 @@ import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import 'package:dio/dio.dart';
-import '../../../settings/presentation/screens/webview_screen.dart';
-import '../../../../core/utils/html_utils.dart';
+import 'dart:io';
+import '../../../../core/di/injection_container.dart' as di;
+import '../../../../core/services/iap_service.dart';
+import '../../presentation/cubit/vendor_upgrade_cubit.dart';
 
 /// Vendor Dashboard Screen
 /// Displays vendor statistics, charts, and quick actions
@@ -37,6 +39,35 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     super.initState();
     context.read<VendorDashboardCubit>().loadDashboard();
     _loadZabayehPackInfo();
+    _initIAP();
+  }
+
+  void _initIAP() {
+    if (!Platform.isIOS) return;
+
+    final iapService = di.sl<IAPService>();
+    
+    // Handle successful purchase/restoration
+    iapService.onPurchaseComplete = (purchaseDetails) {
+      if (!mounted) return;
+      final authCubit = context.read<AuthCubit>();
+      final userId = authCubit.currentUser?.id;
+
+      if (userId != null) {
+        context.read<VendorUpgradeCubit>().verifyIapPurchase(
+              userId: userId,
+              productId: purchaseDetails.productID,
+              receiptData: purchaseDetails.verificationData.serverVerificationData,
+            );
+      }
+    };
+
+    iapService.onError = (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في عملية الشراء: $error'), backgroundColor: AppColors.error),
+      );
+    };
   }
 
   Future<void> _loadZabayehPackInfo() async {
@@ -822,6 +853,43 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       return;
     }
 
+    // NATIVE IAP FLOW (iOS)
+    if (Platform.isIOS) {
+      final iapService = di.sl<IAPService>();
+      
+      // Ensure IAP is ready
+      if (!iapService.isInitialized || iapService.products.isEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(
+            child: CircularProgressIndicator(color: AppColors.error),
+          ),
+        );
+        await iapService.initialize();
+        if (mounted) Navigator.pop(context);
+      }
+
+      final updatedProduct = iapService.products.firstWhere(
+        (p) => p.id == IAPService.tierZabayeh,
+        orElse: () => null as dynamic,
+      );
+
+      if (updatedProduct != null) {
+        iapService.buyProduct(updatedProduct);
+        return;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('باقة الذبائح غير متاحة حالياً في متجر التطبيقات، يرجى المحاولة لاحقاً'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        return;
+      }
+    }
+
+    // LEGACY FLOW (Android / Fallback)
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -837,31 +905,30 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       );
 
       // ignore: use_build_context_synchronously
-      Navigator.pop(context); // Close loading
+      if (mounted) Navigator.pop(context); // Close loading
 
       if (response.statusCode == 200) {
         final pack = ProductModel.fromJson(response.data);
-        // ignore: use_build_context_synchronously
-        context.read<CartCubit>().clearCart();
-        // ignore: use_build_context_synchronously
-        context.read<CartCubit>().addItem(pack);
-        // ignore: use_build_context_synchronously
-        AppRouter.navigateTo(context, Routes.checkout);
+        if (mounted) {
+          context.read<CartCubit>().clearCart();
+          context.read<CartCubit>().addItem(pack);
+          AppRouter.navigateTo(context, Routes.checkout);
+        }
       } else {
         throw Exception('فشل في تحميل الباقة');
       }
     } catch (e) {
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context); // Close loading
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'حدث خطأ أثناء تحميل الباقة، الرجاء المحاولة لاحقاً.',
+      if (mounted) {
+        if (Navigator.canPop(context)) Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'حدث خطأ أثناء تحميل الباقة، الرجاء المحاولة لاحقاً.',
+            ),
+            backgroundColor: AppColors.error,
           ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+        );
+      }
     }
   }
 

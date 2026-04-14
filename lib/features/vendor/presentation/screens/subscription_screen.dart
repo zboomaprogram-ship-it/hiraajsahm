@@ -56,11 +56,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void _initIAP() {
     if (!Platform.isIOS) return;
 
-    final iapService = IAPService();
-    iapService.initialize();
-    
+    final iapService = di.sl<IAPService>();
+
     // Handle successful purchase/restoration
     iapService.onPurchaseComplete = (purchaseDetails) {
+      if (!mounted) return;
       final authCubit = context.read<AuthCubit>();
       final userId = authCubit.currentUser?.id;
 
@@ -68,23 +68,28 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         context.read<VendorUpgradeCubit>().verifyIapPurchase(
               userId: userId,
               productId: purchaseDetails.productID,
-              receiptData: purchaseDetails.verificationData.localVerificationData,
+              receiptData: purchaseDetails.verificationData.serverVerificationData,
             );
       }
     };
 
     iapService.onError = (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('خطأ في عملية الشراء: $error'), backgroundColor: AppColors.error),
       );
     };
+
+    // Note: IAPService is already initialized in main.dart
+    if (mounted) {
+      // Force UI rebuild to show IAP prices
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
-    if (Platform.isIOS) {
-      IAPService().dispose();
-    }
+    // We don't dispose the singleton IAPService here as it's needed globally
     super.dispose();
   }
 
@@ -310,6 +315,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 final iapProduct = _getIapProduct(pack.id);
                 if (iapProduct != null) {
                   IAPService().buyProduct(iapProduct);
+                  return;
+                } else {
+                  // IAP product not found - subscriptions may not be approved yet
+                  debugPrint('⚠️ IAP product not found for pack ${pack.id}. '
+                      'Available IAP products: ${IAPService().products.map((p) => p.id).toList()}');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('خدمة الاشتراك غير متاحة حالياً، يرجى المحاولة لاحقاً'),
+                      backgroundColor: AppColors.warning,
+                    ),
+                  );
                   return;
                 }
               }

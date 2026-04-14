@@ -9,6 +9,7 @@ import '../network/network_info.dart';
 import '../api/api_interceptors.dart';
 import '../config/app_config.dart';
 import '../services/storage_service.dart';
+import '../services/iap_service.dart';
 import '../theme/cubit/theme_cubit.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/auth/presentation/cubit/auth_cubit.dart';
@@ -73,6 +74,9 @@ Future<void> init() async {
       preferences: sl<SharedPreferences>(),
     ),
   );
+
+  // Apple In-App Purchase Service
+  sl.registerLazySingleton(() => IAPService());
 
   // ============ DIO CLIENT ============
 

@@ -69,10 +69,12 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes =
       1024 * 1024 * 300; // 300MB
 
-  // Initialize OneSignal in background (Don't await to prevent startup block)
-  NotificationService().initializeOneSignal().catchError((e) {
-    debugPrint('OneSignal Initialization failed: $e');
-  });
+  // Initialize Apple In-App Purchases (iOS only)
+  if (Platform.isIOS) {
+    di.sl<IAPService>().initialize().catchError((e) {
+      debugPrint('Apple IAP Initialization failed: $e');
+    });
+  }
 
   runApp(
     EasyLocalization(
