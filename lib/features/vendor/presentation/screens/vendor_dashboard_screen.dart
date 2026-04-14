@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+import 'package:hiraajsahm/core/utils/html_utils.dart';
+import 'package:hiraajsahm/features/settings/presentation/screens/webview_screen.dart';
 import '../../../../core/theme/colors.dart';
 import '../cubit/vendor_dashboard_cubit.dart';
 import '../../data/models/vendor_stats_model.dart';
@@ -46,7 +48,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     if (!Platform.isIOS) return;
 
     final iapService = di.sl<IAPService>();
-    
+
     // Handle successful purchase/restoration
     iapService.onPurchaseComplete = (purchaseDetails) {
       if (!mounted) return;
@@ -55,17 +57,20 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
       if (userId != null) {
         context.read<VendorUpgradeCubit>().verifyIapPurchase(
-              userId: userId,
-              productId: purchaseDetails.productID,
-              receiptData: purchaseDetails.verificationData.serverVerificationData,
-            );
+          userId: userId,
+          productId: purchaseDetails.productID,
+          receiptData: purchaseDetails.verificationData.serverVerificationData,
+        );
       }
     };
 
     iapService.onError = (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ في عملية الشراء: $error'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text('خطأ في عملية الشراء: $error'),
+          backgroundColor: AppColors.error,
+        ),
       );
     };
   }
@@ -79,7 +84,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       if (response.statusCode == 200) {
         if (mounted) {
           setState(() {
-            _zabayehFeatures = HtmlUtils.extractListItems(response.data['description'] ?? '');
+            _zabayehFeatures = HtmlUtils.extractListItems(
+              response.data['description'] ?? '',
+            );
           });
         }
       }
@@ -667,28 +674,34 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                ..._zabayehFeatures.map((feature) => Padding(
-                  padding: EdgeInsets.only(bottom: 4.h),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 14.sp),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          feature,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                ..._zabayehFeatures.map(
+                  (feature) => Padding(
+                    padding: EdgeInsets.only(bottom: 4.h),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: Colors.white,
+                          size: 14.sp,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
                 if (_zabayehFeatures.isEmpty)
-                   Text(
+                  Text(
                     'احصل على ظهور مميز وأولوية في تطبيق حراج سهم.',
                     style: TextStyle(
                       fontSize: 12.sp,
@@ -724,7 +737,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
   Widget _buildGoldTierPromo(BuildContext context) {
     final authState = context.read<AuthCubit>().state;
     if (authState is AuthAuthenticated) {
-      if (authState.user.subscriptionPackId == 29030) { // Already Gold
+      if (authState.user.subscriptionPackId == 29030) {
+        // Already Gold
         return const SizedBox.shrink();
       }
     }
@@ -736,7 +750,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           MaterialPageRoute(
             builder: (context) => const WebViewScreen(
               title: 'العضويات وميزاتها',
-              url: 'https://hiraajsahm.com/%d8%a7%d9%84%d8%b9%d8%b6%d9%88%d9%8a%d8%a7%d8%aa-%d9%88%d9%85%d9%8a%d8%b2%d8%a7%d8%aa%d9%87%d8%a7/',
+              url:
+                  'https://hiraajsahm.com/%d8%a7%d9%84%d8%b9%d8%b6%d9%88%d9%8a%d8%a7%d8%aa-%d9%88%d9%85%d9%8a%d8%b2%d8%a7%d8%aa%d9%87%d8%a7/',
             ),
           ),
         );
@@ -763,7 +778,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.stars_rounded, color: AppColors.primary, size: 24.sp),
+                      Icon(
+                        Icons.stars_rounded,
+                        color: AppColors.primary,
+                        size: 24.sp,
+                      ),
                       SizedBox(width: 8.w),
                       Expanded(
                         child: Text(
@@ -784,7 +803,10 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   _buildPromoFeature('تصوير احترافية لسلعك من حراج سهم'),
                   SizedBox(height: 16.h),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 8.h,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(10.r),
@@ -819,7 +841,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_circle_outline_rounded, color: AppColors.primary, size: 14.sp),
+          Icon(
+            Icons.check_circle_outline_rounded,
+            color: AppColors.primary,
+            size: 14.sp,
+          ),
           SizedBox(width: 6.w),
           Expanded(
             child: Text(
@@ -856,7 +882,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     // NATIVE IAP FLOW (iOS)
     if (Platform.isIOS) {
       final iapService = di.sl<IAPService>();
-      
+
       // Ensure IAP is ready
       if (!iapService.isInitialized || iapService.products.isEmpty) {
         showDialog(
@@ -881,7 +907,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('باقة الذبائح غير متاحة حالياً في متجر التطبيقات، يرجى المحاولة لاحقاً'),
+            content: Text(
+              'باقة الذبائح غير متاحة حالياً في متجر التطبيقات، يرجى المحاولة لاحقاً',
+            ),
             backgroundColor: AppColors.warning,
           ),
         );
