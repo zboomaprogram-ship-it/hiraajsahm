@@ -140,5 +140,7 @@
 		<string>mKnQf-HrCvD@StZK</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>FirebaseAppDelegateProxyEnabled</key>
+		<false/>
 	</dict>
 </plist>

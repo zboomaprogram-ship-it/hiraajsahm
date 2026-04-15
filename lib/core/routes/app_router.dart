@@ -96,8 +96,6 @@ class AppRouter {
         return _buildRoute(const EditUserProfileScreen(), settings);
 
       // --- Vendor Routes ---
-      case Routes.vendorDashboard:
-        return _buildRoute(const VendorDashboardScreen(), settings);
 
       case Routes.vendorOrderDetails:
         final order = settings.arguments as vendor_order.OrderModel?;

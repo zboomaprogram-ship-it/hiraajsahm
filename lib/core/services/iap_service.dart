@@ -25,12 +25,14 @@ class IAPService {
   // Keep constants for mapping but these don't exist in App Store Connect
   static const String tierBronze = 'tier_bronze_monthly';
   static const String tierGold = 'tier_gold_monthly';
-
-  // Only query products that exist in App Store Connect
+  
+  // List of all valid App Store Product IDs
   static const List<String> _productIds = [
     tierSilver,
     tierZabayeh,
+    tierGold,
   ];
+
 
   List<ProductDetails> _products = [];
   List<ProductDetails> get products => _products;

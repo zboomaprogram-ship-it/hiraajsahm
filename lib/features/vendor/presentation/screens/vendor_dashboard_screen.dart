@@ -883,18 +883,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     if (Platform.isIOS) {
       final iapService = di.sl<IAPService>();
 
-      // Ensure IAP is ready
-      if (!iapService.isInitialized || iapService.products.isEmpty) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => const Center(
-            child: CircularProgressIndicator(color: AppColors.error),
-          ),
-        );
-        await iapService.initialize();
-        if (mounted) Navigator.pop(context);
-      }
 
       final updatedProduct = iapService.products.firstWhere(
         (p) => p.id == IAPService.tierZabayeh,

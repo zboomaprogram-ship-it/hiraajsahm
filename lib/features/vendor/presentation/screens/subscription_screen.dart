@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
@@ -116,6 +117,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     // Load subscription packs
     await _loadSubscriptionPacks();
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch $urlString')),
+        );
+      }
+    }
   }
 
   Future<void> _loadSubscriptionPacks() async {
@@ -330,18 +342,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               if (Platform.isIOS) {
                 final iapProduct = _getIapProduct(pack.id);
                 if (iapProduct != null) {
-                  IAPService().buyProduct(iapProduct);
-                  return;
-                } else {
-                  // IAP product not found - subscriptions may not be approved yet
-                  debugPrint('⚠️ IAP product not found for pack ${pack.id}. '
-                      'Available IAP products: ${IAPService().products.map((p) => p.id).toList()}');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('خدمة الاشتراك غير متاحة حالياً، يرجى المحاولة لاحقاً'),
-                      backgroundColor: AppColors.warning,
-                    ),
-                  );
+                  // If registering as vendor, ensure data is saved BEFORE starting Apple Pay
+                  if (widget.vendorRegistrationData != null) {
+                    final storageService = di.sl<StorageService>();
+                    storageService.saveVendorRegistrationData(
+                      shopName: widget.vendorRegistrationData!.shopName,
+                      phone: widget.vendorRegistrationData!.phone,
+                      shopLink: widget.vendorRegistrationData!.shopLink,
+                    );
+                  }
+                  
+                  di.sl<IAPService>().buyProduct(iapProduct);
                   return;
                 }
               }
@@ -486,7 +497,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  /// Assign default Bronze tier and return to main screen
   void _assignDefaultBronzeAndReturn() {
     if (widget.vendorRegistrationData == null) return;
 
@@ -669,17 +679,58 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
         if (Platform.isIOS) ...[
           Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.h),
-            child: TextButton(
-              onPressed: () => IAPService().restorePurchases(),
-              child: Text(
-                'استعادة المشتريات (Restore Purchases)',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12.sp,
-                  decoration: TextDecoration.underline,
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+            child: Column(
+              children: [
+                TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('🔄 جارٍ استعادة المشتريات...'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    di.sl<IAPService>().restorePurchases();
+                  },
+                  child: Text(
+                    'استعادة المشتريات (Restore Purchases)',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.sp,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
-              ),
+                SizedBox(height: 12.h),
+                Text(
+                  'Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. '
+                  'Your account will be charged for renewal within 24 hours prior to the end of the current period. '
+                  'You can manage and cancel your subscriptions by going to your account settings on the App Store after purchase.',
+                  style: TextStyle(fontSize: 10.sp, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 12.h),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => _launchURL('https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%ae%d8%b5%d9%88%d8%b5%d9%8a%d8%a9/'),
+                      child: Text(
+                        'Privacy Policy',
+                        style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text('|', style: TextStyle(color: Colors.grey[400])),
+                    TextButton(
+                      onPressed: () => _launchURL('https://hiraajsahm.com/%d8%a7%d9%84%d8%ae%d8%af%d9%85%d8%a7%d8%aa-%d9%88%d8%b4%d8%b1%d9%88%d8%b7%d9%87%d8%a7-2/'),
+                      child: Text(
+                        'Terms of Use',
+                        style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           SizedBox(height: 16.h),

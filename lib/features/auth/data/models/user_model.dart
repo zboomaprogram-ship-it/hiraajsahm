@@ -137,13 +137,13 @@ class UserModel extends Equatable {
       final meta = json['meta_data'] as List;
       
       final cityItem = meta.firstWhere(
-        (i) => i['key'] == 'city',
+        (i) => i['key'] == 'region',
         orElse: () => null,
       );
       if (cityItem != null) city = cityItem['value'].toString();
 
       final regionItem = meta.firstWhere(
-        (i) => i['key'] == 'region',
+        (i) => i['key'] == 'city',
         orElse: () => null,
       );
       if (regionItem != null) region = regionItem['value'].toString();
@@ -157,8 +157,8 @@ class UserModel extends Equatable {
       }
     }
     // Fallback to billing if meta not found
-    city ??= json['billing']?['city'];
-    region ??= json['billing']?['state'];
+    city ??= json['billing']?['state'];
+    region ??= json['billing']?['city'];
 
     return UserModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),

@@ -182,8 +182,8 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
           'phone': phone,
           'address': {
             'street_1': street,
-            if (city != null) 'city': city,
-            if (state != null) 'state': state,
+            if (state != null) 'city': state,
+            if (city != null) 'state': city,
           },
           if (biography != null) 'vendor_biography': biography,
           if (location != null) 'location': location,
@@ -217,8 +217,8 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
             '${AppConfig.wcCustomersEndpoint}/$vendorId',
             data: {
               'meta_data': [
-                if (city != null) {'key': 'city', 'value': city},
-                if (state != null) {'key': 'region', 'value': state},
+                if (state != null) {'key': 'city', 'value': state},
+                if (city != null) {'key': 'region', 'value': city},
                 if (location != null) {'key': 'location', 'value': location},
               ]
             },
