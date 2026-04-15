@@ -51,7 +51,6 @@ class ProductCard extends StatelessWidget {
           children: [
             // Image Section
             Expanded(
-              flex: 3,
               child: Stack(
                 children: [
                   ClipRRect(
@@ -152,117 +151,114 @@ class ProductCard extends StatelessWidget {
             ),
 
             // Details Section
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.textLight : AppColors.textPrimary,
+            Padding(
+              padding: EdgeInsets.all(12.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                    ),
+                  ),
+                  
+                  SizedBox(height: 4.h),
+
+                  // Location Info
+                  if (product.productRegion != null)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 6.h),
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_outlined, size: 12.sp, color: AppColors.textSecondary),
+                          SizedBox(width: 4.w),
+                          Expanded(
+                            child: Text(
+                              '${product.productRegion} ${product.productCity != null ? "• ${product.productCity}" : ""}',
+                              style: TextStyle(fontSize: 11.sp, color: AppColors.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    
-                    const Spacer(),
 
-                    // Location Info
-                    if (product.productRegion != null)
-                      Padding(
-                        padding: EdgeInsets.only(bottom: 6.h),
-                        child: Row(
+                  // Price and Action Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Price
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.location_on_outlined, size: 12.sp, color: AppColors.textSecondary),
-                            SizedBox(width: 4.w),
-                            Expanded(
-                              child: Text(
-                                '${product.productRegion} ${product.productCity != null ? "• ${product.productCity}" : ""}',
-                                style: TextStyle(fontSize: 11.sp, color: AppColors.textSecondary),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            if (product.hasDiscount)
+                              Text(
+                                '${product.regularPrice} ر.س',
+                                style: TextStyle(
+                                  fontSize: 11.sp,
+                                  color: AppColors.textSecondary,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                            Text(
+                              '${product.price} ر.س',
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondary,
                               ),
                             ),
                           ],
                         ),
                       ),
 
-                    // Price and Action Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        // Price
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (product.hasDiscount)
-                                Text(
-                                  '${product.regularPrice} ر.س',
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    color: AppColors.textSecondary,
-                                    decoration: TextDecoration.lineThrough,
+                      // Add to Cart Button
+                      GestureDetector(
+                        onTap: isOutOfStock
+                            ? null
+                            : () {
+                                context.read<CartCubit>().addItem(product);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('تمت الإضافة إلى طلباتي'),
+                                    backgroundColor: AppColors.success,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
                                   ),
-                                ),
-                              Text(
-                                '${product.price} ر.س',
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.secondary,
-                                ),
+                                );
+                              },
+                        child: Container(
+                          padding: EdgeInsets.all(8.w),
+                          decoration: BoxDecoration(
+                            color: isOutOfStock ? Colors.grey[400] : AppColors.primary,
+                            borderRadius: BorderRadius.circular(12.r),
+                            boxShadow: isOutOfStock ? null : [
+                              BoxShadow(
+                                color: AppColors.primary.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                        ),
-
-                        // Add to Cart Button
-                        GestureDetector(
-                          onTap: isOutOfStock
-                              ? null
-                              : () {
-                                  context.read<CartCubit>().addItem(product);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text('تمت الإضافة إلى طلباتي'),
-                                      backgroundColor: AppColors.success,
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                          child: Container(
-                            padding: EdgeInsets.all(8.w),
-                            decoration: BoxDecoration(
-                              color: isOutOfStock ? Colors.grey[400] : AppColors.primary,
-                              borderRadius: BorderRadius.circular(12.r),
-                              boxShadow: isOutOfStock ? null : [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              isOutOfStock ? Icons.remove_shopping_cart_outlined : Icons.add_shopping_cart_rounded,
-                              color: Colors.white,
-                              size: 18.sp,
-                            ),
+                          child: Icon(
+                            isOutOfStock ? Icons.remove_shopping_cart_outlined : Icons.add_shopping_cart_rounded,
+                            color: Colors.white,
+                            size: 18.sp,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

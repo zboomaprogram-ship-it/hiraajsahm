@@ -884,10 +884,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       final iapService = di.sl<IAPService>();
 
 
-      final updatedProduct = iapService.products.firstWhere(
+      final List<dynamic> matchingProducts = iapService.products.where(
         (p) => p.id == IAPService.tierZabayeh,
-        orElse: () => null as dynamic,
-      );
+      ).toList();
+      
+      final updatedProduct = matchingProducts.isNotEmpty ? matchingProducts.first : null;
 
       if (updatedProduct != null) {
         iapService.buyProduct(updatedProduct);

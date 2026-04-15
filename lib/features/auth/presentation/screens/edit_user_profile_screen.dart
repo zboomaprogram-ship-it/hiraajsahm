@@ -79,15 +79,25 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
   Future<void> _loadRegions() async {
     final names = await RegionsService().getRegionNames();
     if (mounted) {
+      final deduplicatedRegions = names.toSet().toList();
       setState(() {
-        _regions = names;
+        _regions = deduplicatedRegions;
+        // Check if current selected region is in the list
+        if (_selectedRegion != null && !deduplicatedRegions.contains(_selectedRegion)) {
+          _selectedRegion = null;
+        }
       });
       
       if (_selectedRegion != null) {
         final cities = await RegionsService().getCitiesForRegion(_selectedRegion!);
         if (mounted) {
+          final deduplicatedCities = cities.toSet().toList();
           setState(() {
-            _cities = cities;
+            _cities = deduplicatedCities;
+            // Check if current selected city is in the list
+            if (_selectedCity != null && !deduplicatedCities.contains(_selectedCity)) {
+              _selectedCity = null;
+            }
           });
         }
       }
@@ -99,12 +109,13 @@ class _EditUserProfileScreenState extends State<EditUserProfileScreen> {
     
     final newCities = await RegionsService().getCitiesForRegion(newValue);
     if (mounted) {
+      final deduplicatedCities = newCities.toSet().toList();
       setState(() {
         _selectedRegion = newValue;
         _regionController.text = newValue;
         _selectedCity = null;
         _cityController.text = '';
-        _cities = newCities;
+        _cities = deduplicatedCities;
       });
     }
   }

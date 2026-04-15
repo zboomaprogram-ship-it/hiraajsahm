@@ -292,9 +292,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       duration: const Duration(milliseconds: 500),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
             // Illustration Container
             FadeInDown(
               duration: const Duration(milliseconds: 600),
@@ -428,6 +429,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

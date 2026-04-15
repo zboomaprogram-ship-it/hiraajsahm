@@ -703,9 +703,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 SizedBox(height: 12.h),
                 Text(
-                  'Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. '
-                  'Your account will be charged for renewal within 24 hours prior to the end of the current period. '
-                  'You can manage and cancel your subscriptions by going to your account settings on the App Store after purchase.',
+                  'يتم تجديد الاشتراكات تلقائيًا ما لم يتم إيقاف التجديد التلقائي قبل 24 ساعة على الأقل من نهاية الفترة الحالية. '
+                  'سيتم محاسبة حسابك على التجديد خلال 24 ساعة قبل نهاية الفترة الحالية. '
+                  'يمكنك إدارة وإلغاء اشتراكاتك من خلال الذهاب إلى إعدادات حسابك في App Store بعد الشراء.',
                   style: TextStyle(fontSize: 10.sp, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
@@ -716,7 +716,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     TextButton(
                       onPressed: () => _launchURL('https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%ae%d8%b5%d9%88%d8%b5%d9%8a%d8%a9/'),
                       child: Text(
-                        'Privacy Policy',
+                        'سياسة الخصوصية',
                         style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -724,7 +724,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     TextButton(
                       onPressed: () => _launchURL('https://hiraajsahm.com/%d8%a7%d9%84%d8%ae%d8%af%d9%85%d8%a7%d8%aa-%d9%88%d8%b4%d8%b1%d9%88%d8%b7%d9%87%d8%a7-2/'),
                       child: Text(
-                        'Terms of Use',
+                        'شروط الاستخدام',
                         style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
                       ),
                     ),
