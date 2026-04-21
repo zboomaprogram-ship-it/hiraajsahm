@@ -66,6 +66,12 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
     try {
       final response = await _dio.post(
         AppConfig.appleVerifyReceiptEndpoint,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
         data: {
           'user_id': userId,
           'product_id': productId,

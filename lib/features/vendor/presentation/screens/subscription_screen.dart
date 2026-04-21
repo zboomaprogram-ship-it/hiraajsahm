@@ -40,6 +40,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   // Al-Zabayeh pack ID - restricted to Silver/Gold members only
   static const int _zabayehPackId = 29318;
 
+  // Track the last successful IAP transaction to complete it after backend verification
+  PurchaseDetails? _pendingIapPurchase;
+
   final Dio _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 30),
@@ -61,24 +64,40 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     // Handle successful purchase/restoration
     iapService.onPurchaseComplete = (purchaseDetails) {
-      if (!mounted) return;
+      debugPrint(
+        '📢 SubscriptionScreen: Received purchase completion for ${purchaseDetails.productID}',
+      );
+
+      if (!mounted) {
+        debugPrint(
+          '⚠️ SubscriptionScreen: Widget not mounted, skipping verification',
+        );
+        return;
+      }
+
+      setState(() => _pendingIapPurchase = purchaseDetails);
+
       final authCubit = context.read<AuthCubit>();
       final userId = authCubit.currentUser?.id;
 
       if (userId != null) {
+        debugPrint(
+          '🚀 SubscriptionScreen: Requesting backend verification for user $userId',
+        );
         context.read<VendorUpgradeCubit>().verifyIapPurchase(
-              userId: userId,
-              productId: purchaseDetails.productID,
-              receiptData: purchaseDetails.verificationData.serverVerificationData,
-            );
+          userId: userId,
+          productId: purchaseDetails.productID,
+          receiptData: purchaseDetails.verificationData.serverVerificationData,
+        );
+      } else {
+        debugPrint('❌ SubscriptionScreen: Cannot verify purchase - User ID is NULL');
+        _showErrorSnackBar('فشل التحقق: يجب تسجيل الدخول أولاً');
       }
     };
 
     iapService.onError = (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ في عملية الشراء: $error'), backgroundColor: AppColors.error),
-      );
+      _showErrorSnackBar('حدث خطأ في عملية الشراء: $error');
     };
 
     // Note: IAPService is already initialized in main.dart
@@ -92,15 +111,28 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         // This means Apple servers returned 0 products for our IDs.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('آبل لم توفر الاشتراكات بعد (يرجى التأكد من ربطها بنسخة التطبيق في App Store Connect أو قبول اتفاقية الدفع).'),
+            content: Text(
+              'آبل لم توفر الاشتراكات بعد (يرجى التأكد من ربطها بنسخة التطبيق في App Store Connect أو قبول اتفاقية الدفع).',
+            ),
             backgroundColor: AppColors.warning,
             duration: Duration(seconds: 5),
           ),
         );
       }
-      
+
       // Force UI rebuild to show IAP prices
       setState(() {});
+
+      // Check if there are already pending purchases that need verification
+      // (e.g. if the app was killed after purchase but before verification)
+      if (iapService.pendingPurchases.isNotEmpty) {
+        debugPrint(
+          '🕒 SubscriptionScreen: Found ${iapService.pendingPurchases.length} already pending purchases. Resuming...',
+        );
+        for (final purchase in iapService.pendingPurchases) {
+          iapService.onPurchaseComplete?.call(purchase);
+        }
+      }
     }
   }
 
@@ -123,9 +155,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not launch $urlString')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not launch $urlString')));
       }
     }
   }
@@ -225,11 +257,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   /// Get IAP Product ID for a WooCommerce Product ID
   String? _getIapId(int wcId) {
     switch (wcId) {
-      case 29026: return IAPService.tierBronze;
-      case 29028: return IAPService.tierSilver;
-      case 29030: return IAPService.tierGold;
-      case 29318: return IAPService.tierZabayeh;
-      default: return null;
+      case 29026:
+        return IAPService.tierBronze;
+      case 29028:
+        return IAPService.tierSilver;
+      case 29030:
+        return IAPService.tierGold;
+      case 29318:
+        return IAPService.tierZabayeh;
+      default:
+        return null;
     }
   }
 
@@ -237,7 +274,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   ProductDetails? _getIapProduct(int wcId) {
     final iapId = _getIapId(wcId);
     if (iapId == null) return null;
-    
+
     try {
       return IAPService().products.firstWhere((p) => p.id == iapId);
     } catch (_) {
@@ -314,7 +351,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             Text('الباقة: ${pack.name}'),
             SizedBox(height: 8.h),
             Text(
-              'السعر: ${pack.price} ر.س',
+              Platform.isIOS && _getIapProduct(pack.id) != null
+                  ? 'السعر: ${_getIapProduct(pack.id)!.price} / شهر'
+                  : 'السعر: ${pack.price} ر.س / شهر',
               style: TextStyle(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.bold,
@@ -351,7 +390,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       shopLink: widget.vendorRegistrationData!.shopLink,
                     );
                   }
-                  
+
                   di.sl<IAPService>().buyProduct(iapProduct);
                   return;
                 }
@@ -518,6 +557,47 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     AppRouter.navigateAndRemoveUntil(context, Routes.main);
   }
 
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  fontFamily: 'Cairo', // Use app font if available
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        margin: EdgeInsets.all(16.w),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'حسناً',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -525,6 +605,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     return BlocListener<VendorUpgradeCubit, VendorUpgradeState>(
       listener: (context, state) {
         if (state is VendorUpgradeSuccess) {
+          debugPrint('✅ SubscriptionScreen: Backend verification SUCCESS');
+
+          // If this was an IAP purchase, finalize it with Apple
+          if (_pendingIapPurchase != null) {
+            debugPrint(
+              '🏁 SubscriptionScreen: Finalizing Apple transaction...',
+            );
+            di.sl<IAPService>().completePurchase(_pendingIapPurchase!);
+            _pendingIapPurchase = null;
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.message),
@@ -534,12 +625,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           // Refresh Auth to get new role
           context.read<AuthCubit>().checkAuthStatus();
         } else if (state is VendorUpgradeFailure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          debugPrint('❌ SubscriptionScreen: Backend verification FAILED: ${state.message}');
+          
+          // Clear pending purchase so we don't complete it by mistake later
+          _pendingIapPurchase = null;
+
+          _showErrorSnackBar(state.message);
         }
       },
       child: PopScope(
@@ -672,7 +763,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               return FadeInUp(
                 duration: const Duration(milliseconds: 300),
                 delay: Duration(milliseconds: index * 100),
-                child: _buildSubscriptionCard(_subscriptionPacks[index], isDark),
+                child: _buildSubscriptionCard(
+                  _subscriptionPacks[index],
+                  isDark,
+                ),
               );
             },
           ),
@@ -714,18 +808,30 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     TextButton(
-                      onPressed: () => _launchURL('https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%ae%d8%b5%d9%88%d8%b5%d9%8a%d8%a9/'),
+                      onPressed: () => _launchURL(
+                        'https://hiraajsahm.com/%d8%b3%d9%8a%d8%a7%d8%b3%d8%a9-%d8%a7%d9%84%d8%ae%d8%b5%d9%88%d8%b5%d9%8a%d8%a9/',
+                      ),
                       child: Text(
                         'سياسة الخصوصية',
-                        style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     Text('|', style: TextStyle(color: Colors.grey[400])),
                     TextButton(
-                      onPressed: () => _launchURL('https://hiraajsahm.com/%d8%a7%d9%84%d8%ae%d8%af%d9%85%d8%a7%d8%aa-%d9%88%d8%b4%d8%b1%d9%88%d8%b7%d9%87%d8%a7-2/'),
+                      onPressed: () => _launchURL(
+                        'https://hiraajsahm.com/%d8%a7%d9%84%d8%ae%d8%af%d9%85%d8%a7%d8%aa-%d9%88%d8%b4%d8%b1%d9%88%d8%b7%d9%87%d8%a7-2/',
+                      ),
                       child: Text(
                         'شروط الاستخدام',
-                        style: TextStyle(fontSize: 11.sp, color: AppColors.primary, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -800,8 +906,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     final iapProduct = _getIapProduct(pack.id);
                     return Text(
                       Platform.isIOS && iapProduct != null
-                          ? iapProduct.price
-                          : '${pack.price} ر.س',
+                          ? '${iapProduct.price} / شهر'
+                          : '${pack.price} ر.س / شهر',
                       style: TextStyle(
                         fontSize: 22.sp,
                         fontWeight: FontWeight.bold,
@@ -844,33 +950,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             SizedBox(height: 16.h),
 
             // Features List
-            ...HtmlUtils.extractListItems(pack.description)
-                .map(
-                  (feature) => Padding(
-                    padding: EdgeInsets.only(bottom: 8.h),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: AppColors.success,
-                          size: 18.sp,
-                        ),
-                        SizedBox(width: 8.w),
-                        Expanded(
-                          child: Text(
-                            feature,
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              color: isDark
-                                  ? AppColors.textLight
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
+            ...HtmlUtils.extractListItems(pack.description).map(
+              (feature) => Padding(
+                padding: EdgeInsets.only(bottom: 8.h),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: AppColors.success,
+                      size: 18.sp,
                     ),
-                  ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Text(
+                        feature,
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          color: isDark
+                              ? AppColors.textLight
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
             SizedBox(height: 16.h),
 
             // Subscribe Button
