@@ -5,8 +5,8 @@ class AppConfig {
   // ============ APP INFO ============
   static const String appName = 'Hiraaj Sahm';
   static const String appNameAr = 'هراج سهم';
-  static const String appVersion = '1.0.0';
-  static const String buildNumber = '2';
+  static const String appVersion = '1.0.1';
+  static const String buildNumber = '10';
 
   // ============ ENVIRONMENT ============
   static const bool isProduction = false;
@@ -34,6 +34,8 @@ class AppConfig {
       '/custom/v1/register-vendor'; // Custom Endpoint
   static const String appleVerifyReceiptEndpoint =
       '/custom/v1/verify-iap-receipt'; // Custom Endpoint
+  static const String appleRestoreReceiptEndpoint =
+      '/custom/v1/restore-iap'; // Custom Endpoint
   static const String serviceProvidersEndpoint =
       '/hiraajsahm/v1/service-providers'; // Custom Endpoint
 
@@ -89,4 +91,8 @@ class AppConfig {
   static const int telrStoreId = 34762;
   static const String telrMobileAuthKey = 'mKnQf-HrCvD@StZK';
   static const bool telrTestMode = false; // Set to false for production
+
+  // ============ ONESIGNAL CONFIGURATION ============
+  static const String oneSignalAppId = '9f9ed559-2c77-43e5-9c47-473043f2e6d4';
+  static const String saveFcmTokenEndpoint = '/custom/v1/save-fcm-token';
 }

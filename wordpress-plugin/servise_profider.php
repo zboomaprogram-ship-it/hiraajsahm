@@ -112,6 +112,7 @@ function render_hiraaj_pro_metabox($post)
             display: block;
             font-weight: bold;
             margin-bottom: 5px;
+
             color: #2271b1;
         }
 
@@ -193,13 +194,6 @@ add_action('rest_api_init', function () {
         'callback' => 'hiraaj_rest_get_providers',
         'permission_callback' => '__return_true',
     ));
-    
-    // Fallback for custom/v1
-    register_rest_route('custom/v1', '/service-providers', array(
-        'methods' => 'GET',
-        'callback' => 'hiraaj_rest_get_providers',
-        'permission_callback' => '__return_true',
-    ));
 });
 
 function hiraaj_rest_get_providers($request)
@@ -221,18 +215,20 @@ function hiraaj_rest_get_providers($request)
             $id = get_the_ID();
 
             $p_city = get_post_meta($id, '_p_city', true);
-            
+
             // Logic: Improved matching for "User Map" addresses
             $is_match = true;
             if (!empty($city)) {
                 $is_match = false;
                 $search = trim(mb_strtolower($city));
                 $p_city_clean = trim(mb_strtolower($p_city));
-                
+
                 // Match if search string contains provider city (e.g. "Riyadh, KSA" vs "Riyadh")
                 // OR if provider city contains search string (e.g. "Riyadh" vs "Riya")
-                if (mb_strpos($search, $p_city_clean) !== false || 
-                    mb_strpos($p_city_clean, $search) !== false) {
+                if (
+                    mb_strpos($search, $p_city_clean) !== false ||
+                    mb_strpos($p_city_clean, $search) !== false
+                ) {
                     $is_match = true;
                 }
             }
@@ -523,7 +519,8 @@ function hiraaj_render_service_providers()
                         <span class="badge"><?php echo ($role == 'transporter') ? 'ناقل 🚛' : 'معاين 🔍'; ?></span>
                         <h4 style="margin: 10px 0 5px; font-size: 16px;"><?php echo esc_html($p->post_title); ?></h4>
                         <p style="font-size: 12px; color: #7f8c8d; margin: 0; height: 18px; overflow: hidden;">
-                            <?php echo esc_html($desc); ?></p>
+                            <?php echo esc_html($desc); ?>
+                        </p>
                         <div class="price-tag">💰 <?php echo esc_html($price); ?> ريال/كم</div>
                         <div class="btn-grid">
                             <a href="tel:<?php echo esc_attr($phone); ?>" class="btn-s-card b-call">اتصال</a>
@@ -584,19 +581,19 @@ add_action('manage_service_provider_posts_custom_column', function ($column, $po
  * 🚀 FIXED: Subscription Packages for App (PRODUCTION FIX - AGGRESSIVE)
  * Intercepts requests for category 122 and forces the correct packages to return.
  */
-add_filter('woocommerce_rest_product_object_query', function($args, $request) {
+add_filter('woocommerce_rest_product_object_query', function ($args, $request) {
     if ($request->get_param('category') == '122') {
         // Force these specific IDs which are known to be the packages
-        $args['post__in'] = array(29026, 29028); 
-        
+        $args['post__in'] = array(29026, 29028, 29030, 29318);
+
         // Remove the category restriction so it doesn't fail if category 122 doesn't exist
         if (isset($args['tax_query'])) {
             unset($args['tax_query']);
         }
-        
+
         // Ensure we only get published products
         $args['post_status'] = 'publish';
-        
+
         // Disable pagination to get all packages at once
         $args['posts_per_page'] = -1;
     }
@@ -607,15 +604,15 @@ add_filter('woocommerce_rest_product_object_query', function($args, $request) {
  * Ensures that the subscription products are always marked as purchasable and published
  * in the REST response, even if they are missing prices or other properties.
  */
-add_filter('woocommerce_rest_prepare_product_object', function($response, $post, $request) {
+add_filter('woocommerce_rest_prepare_product_object', function ($response, $post, $request) {
     $product_id = $response->get_data()['id'] ?? 0;
-    if (in_array($product_id, [29026, 29028, 29030])) {
+    if (in_array($product_id, [29026, 29028, 29030, 29318])) {
         $data = $response->get_data();
         $data['purchasable'] = true;
         $data['status'] = 'publish';
         // If price is missing, set a dummy one so WooCommerce doesn't hide it
         if (empty($data['price'])) {
-            $data['price'] = '0'; 
+            $data['price'] = '0';
         }
         $response->set_data($data);
     }

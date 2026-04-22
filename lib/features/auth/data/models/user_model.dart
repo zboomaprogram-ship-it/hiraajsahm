@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 /// User Tier Enum (Bronze is default/free)
-enum UserTier { bronze, silver, gold }
+enum UserTier { bronze, silver, gold, zabayeh }
 
 /// Subscription Status Enum
 enum SubscriptionStatus { active, expired, none }
@@ -314,8 +314,8 @@ class UserModel extends Equatable {
       case 29026: // عضوية برونزية (Bronze)
         result = UserTier.bronze;
         break;
-      case 29318: // رسوم تفعيل قسم الذبائح (Al-Zabayeh) - treat as Gold
-        result = UserTier.gold;
+      case 29318: // رسوم تفعيل قسم الذبائح (Al-Zabayeh)
+        result = UserTier.zabayeh;
         break;
       default:
         result = UserTier.bronze; // Fallback

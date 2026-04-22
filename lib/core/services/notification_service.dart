@@ -3,6 +3,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:dio/dio.dart';
 // import '../di/injection_container.dart';
 import '../routes/routes.dart';
+import '../config/app_config.dart';
 
 /// ✅ GLOBAL NAVIGATOR KEY
 /// Allows navigation from outside the widget tree (Service -> Screen)
@@ -14,11 +15,11 @@ class NotificationService {
   NotificationService._internal();
 
   // OneSignal App ID
-  static const String _oneSignalAppId = '9f9ed559-2c77-43e5-9c47-473043f2e6d4';
+  static const String _oneSignalAppId = AppConfig.oneSignalAppId;
 
   // API endpoint for saving push subscription ID (optional backup)
-  static const String _saveTokenEndpoint =
-      'https://hiraajsahm.com/wp-json/custom/v1/save-fcm-token';
+  static final String _saveTokenEndpoint =
+      AppConfig.baseUrl + AppConfig.saveFcmTokenEndpoint;
 
   bool _isInitialized = false;
 

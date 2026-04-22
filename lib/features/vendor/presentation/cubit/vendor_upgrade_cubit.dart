@@ -49,4 +49,22 @@ class VendorUpgradeCubit extends Cubit<VendorUpgradeState> {
           emit(const VendorUpgradeSuccess(message: 'تم تفعيل الاشتراك بنجاح!')),
     );
   }
+
+  Future<void> restoreIapPurchase({
+    required int userId,
+    required String receiptData,
+  }) async {
+    emit(VendorUpgradeLoading());
+
+    final result = await vendorRepository.restoreIapReceipt(
+      userId: userId,
+      receiptData: receiptData,
+    );
+
+    result.fold(
+      (failure) => emit(VendorUpgradeFailure(message: failure.message)),
+      (success) =>
+          emit(const VendorUpgradeSuccess(message: 'تم استعادة الاشتراك بنجاح!')),
+    );
+  }
 }

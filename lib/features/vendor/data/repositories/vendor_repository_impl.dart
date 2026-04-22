@@ -35,4 +35,15 @@ class VendorRepositoryImpl implements VendorRepository {
       receiptData: receiptData,
     );
   }
+
+  @override
+  Future<Either<Failure, bool>> restoreIapReceipt({
+    required int userId,
+    required String receiptData,
+  }) async {
+    return await remoteDataSource.restoreIapReceipt(
+      userId: userId,
+      receiptData: receiptData,
+    );
+  }
 }

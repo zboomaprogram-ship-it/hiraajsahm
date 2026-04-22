@@ -1184,6 +1184,7 @@ class ProfileScreen extends StatelessWidget {
   LinearGradient _getTierGradient(UserTier tier) {
     switch (tier) {
       case UserTier.gold:
+      case UserTier.zabayeh:
         return const LinearGradient(
           colors: [Color(0xFFFFD700), Color(0xFFFDB931)],
           begin: Alignment.topLeft,
@@ -1208,6 +1209,7 @@ class ProfileScreen extends StatelessWidget {
     // Fallback color for borders/shadows (using first color of gradient)
     switch (tier) {
       case UserTier.gold:
+      case UserTier.zabayeh:
         return const Color(0xFFFFD700);
       case UserTier.silver:
         return const Color(0xFFE0E0E0);
@@ -1219,6 +1221,7 @@ class ProfileScreen extends StatelessWidget {
   String _getTierName(UserTier tier) {
     switch (tier) {
       case UserTier.gold:
+      case UserTier.zabayeh:
         return 'ذهبي';
       case UserTier.silver:
         return 'فضي';

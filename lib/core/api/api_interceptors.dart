@@ -68,11 +68,13 @@ class AuthInterceptor extends Interceptor {
 
     // Check if this is a protected endpoint that needs authentication
     final needsAuth =
+        path.contains('/custom/v1/') ||
         path.contains('/dokan/') ||
         path.contains('/wc/v3/') ||
         path.contains('/wp/v2/users') ||
         path.contains('/wp/v2/media') ||
         path.contains('/fluentform/v1/') ||
+        path.contains('/hiraajsahm/v1/') ||
         path.contains('/jwt-auth/v1/token/validate');
 
     if (needsAuth) {

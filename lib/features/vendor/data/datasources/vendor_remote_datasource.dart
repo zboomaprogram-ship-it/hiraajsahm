@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/config/app_config.dart';
@@ -14,6 +15,11 @@ abstract class VendorRemoteDataSource {
   Future<Either<Failure, bool>> verifyIapReceipt({
     required int userId,
     required String productId,
+    required String receiptData,
+  });
+
+  Future<Either<Failure, bool>> restoreIapReceipt({
+    required int userId,
     required String receiptData,
   });
 }
@@ -72,12 +78,12 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
             'Accept': 'application/json',
           },
         ),
-        data: {
+        data: jsonEncode({
           'user_id': userId,
           'product_id': productId,
           'receipt_data': receiptData,
           'platform': 'ios',
-        },
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -86,6 +92,43 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         return Left(
           ServerFailure(
             message: response.data['message'] ?? 'Failed to verify IAP receipt',
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      return Left(_handleDioError(e));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, bool>> restoreIapReceipt({
+    required int userId,
+    required String receiptData,
+  }) async {
+    try {
+      final response = await _dio.post(
+        AppConfig.appleRestoreReceiptEndpoint,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+        data: jsonEncode({
+          'user_id': userId,
+          'receipt_data': receiptData,
+          'platform': 'ios',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return const Right(true);
+      } else {
+        return Left(
+          ServerFailure(
+            message: response.data['message'] ?? 'Failed to restore IAP receipt',
           ),
         );
       }

@@ -17,7 +17,7 @@ class ProfileQRCard extends StatelessWidget {
       margin: EdgeInsets.symmetric(horizontal: 20.w),
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
-        gradient: user.tier == UserTier.gold
+        gradient: (user.tier == UserTier.gold || user.tier == UserTier.zabayeh)
             ? AppColors.goldGradient
             : user.tier == UserTier.silver
             ? AppColors.silverGradient
@@ -26,7 +26,7 @@ class ProfileQRCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color:
-                (user.tier == UserTier.gold
+                ((user.tier == UserTier.gold || user.tier == UserTier.zabayeh)
                         ? Colors.orange
                         : user.tier == UserTier.silver
                         ? Colors.blueGrey
@@ -123,6 +123,7 @@ class ProfileQRCard extends StatelessWidget {
   String _getTierName(UserTier tier) {
     switch (tier) {
       case UserTier.gold:
+      case UserTier.zabayeh:
         return 'العضوية الذهبية';
       case UserTier.silver:
         return 'العضوية الفضية';

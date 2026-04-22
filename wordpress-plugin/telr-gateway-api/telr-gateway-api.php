@@ -10,9 +10,9 @@ if (!defined('ABSPATH'))
     exit;
 
 // ============ TELR CONFIGURATION ============
-define('TELR_STORE_ID', '34762'); // ✔ OK: Confirmed Store ID
-define('TELR_MOBILE_AUTH_KEY', 'mKnQf-HrCvD@StZK'); // ✔ OK: Confirmed Mobile Auth Key
-define('TELR_TEST_MODE', false); // ✔ OK: LIVE Mode
+define('TELR_STORE_ID', get_option('telr_store_id', '34762'));
+define('TELR_MOBILE_AUTH_KEY', get_option('telr_auth_key', 'mKnQf-HrCvD@StZK'));
+define('TELR_TEST_MODE', (bool) get_option('telr_test_mode', false));
 define('TELR_API_URL', 'https://secure.telr.com/api/v1/orders'); // ✔ OK: REST API URL
 
 /**
@@ -270,7 +270,8 @@ function hiraaj_telr_callback(WP_REST_Request $request)
                 $order->update_status('failed', 'Telr payment declined.');
         }
     }
-    echo '<!DOCTYPE html><html><body><h2>Payment ' . ucfirst($status) . '</h2><p>You can close this page.</p></body></html>';
+    $safe_status = esc_html(sanitize_text_field($status));
+    echo '<!DOCTYPE html><html><body><h2>Payment ' . ucfirst($safe_status) . '</h2><p>You can close this page.</p></body></html>';
     exit;
 }
 
@@ -300,8 +301,8 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
 
     foreach ($items as $item) {
         $product_id = $item->get_product_id();
-        // 29026: Bronze, 29030: Gold, 29318: Al-Zabayeh
-        if (in_array($product_id, [29026, 29030, 29318]) || has_term(122, 'product_cat', $product_id)) {
+        // 29026: Bronze, 29028: Silver, 29030: Gold, 29318: Al-Zabayeh
+        if (in_array($product_id, [29026, 29028, 29030, 29318]) || has_term(122, 'product_cat', $product_id)) {
             $is_subscription = true;
             $target_pack_id = $product_id;
             if ($product_id == 29318) {
@@ -322,8 +323,11 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
 
         // 2. Set Role to Vendor (Seller)
         $user = new WP_User($user_id);
-        if (!in_array('administrator', $user->roles)) {
-            $user->set_role('seller');
+        if (in_array('customer', (array) $user->roles)) {
+            $user->remove_role('customer');
+        }
+        if (!in_array('seller', (array) $user->roles) && !in_array('administrator', $user->roles)) {
+            $user->add_role('seller');
         }
 
         // 3. Mark Order as Completed

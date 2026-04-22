@@ -20,6 +20,7 @@ class SubscriptionCard extends StatelessWidget {
 
     switch (user.tier) {
       case UserTier.gold:
+      case UserTier.zabayeh:
         cardColor = const Color(0xFFFFD700);
         planName = "عضوية ذهبية";
         planIcon = Icons.star_rounded;
@@ -107,7 +108,7 @@ class SubscriptionCard extends StatelessWidget {
           ),
 
           // Upgrade Button (Only for Bronze/Silver)
-          if (user.tier != UserTier.gold)
+          if (user.tier != UserTier.gold && user.tier != UserTier.zabayeh)
             TextButton(
               onPressed: () {
                 AppRouter.navigateTo(context, Routes.vendorSubscription);

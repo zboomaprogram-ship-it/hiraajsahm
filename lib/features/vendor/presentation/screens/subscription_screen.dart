@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../core/config/app_config.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
@@ -82,13 +83,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       if (userId != null) {
         debugPrint(
-          '🚀 SubscriptionScreen: Requesting backend verification for user $userId',
+          '🚀 SubscriptionScreen: Requesting backend verification for user $userId (Status: ${purchaseDetails.status})',
         );
-        context.read<VendorUpgradeCubit>().verifyIapPurchase(
-          userId: userId,
-          productId: purchaseDetails.productID,
-          receiptData: purchaseDetails.verificationData.serverVerificationData,
-        );
+        if (purchaseDetails.status == PurchaseStatus.restored) {
+          context.read<VendorUpgradeCubit>().restoreIapPurchase(
+            userId: userId,
+            receiptData: purchaseDetails.verificationData.serverVerificationData,
+          );
+        } else {
+          context.read<VendorUpgradeCubit>().verifyIapPurchase(
+            userId: userId,
+            productId: purchaseDetails.productID,
+            receiptData: purchaseDetails.verificationData.serverVerificationData,
+          );
+        }
       } else {
         debugPrint('❌ SubscriptionScreen: Cannot verify purchase - User ID is NULL');
         _showErrorSnackBar('فشل التحقق: يجب تسجيل الدخول أولاً');
@@ -171,13 +179,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     try {
       // Fetch products from "Packages" category (ID: 122)
       final response = await _dio.get(
-        'https://hiraajsahm.com/wp-json/wc/v3/products?consumer_key=ck_78ec6d3f6325ae403400781192045474f592b24a&consumer_secret=cs_0accb11f98ea7516ab4630e521748e73ce3d3b54&category=122',
+        '${AppConfig.baseUrl}${AppConfig.wcProductsEndpoint}',
         queryParameters: {
-          // 'consumer_key': AppConfig.wcConsumerKey,
-          // 'consumer_secret': AppConfig.wcConsumerSecret,
-          // 'category': '122', // Packages category ID++++
-          // 'status': 'publish',
-          // 'per_page': 20,
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+          'category': '122', // Packages category ID
+          'status': 'publish',
+          'per_page': 20,
         },
       );
 

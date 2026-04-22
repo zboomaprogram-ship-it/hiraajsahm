@@ -300,8 +300,8 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
 
     foreach ($items as $item) {
         $product_id = $item->get_product_id();
-        // 29026: Bronze, 29030: Gold, 29318: Al-Zabayeh
-        if (in_array($product_id, [29026, 29030, 29318]) || has_term(122, 'product_cat', $product_id)) {
+        // 29026: Bronze, 29028: Silver, 29030: Gold, 29318: Al-Zabayeh
+        if (in_array($product_id, [29026, 29028, 29030, 29318]) || has_term(122, 'product_cat', $product_id)) {
             $is_subscription = true;
             $target_pack_id = $product_id;
             if ($product_id == 29318) {
@@ -322,8 +322,11 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
 
         // 2. Set Role to Vendor (Seller)
         $user = new WP_User($user_id);
-        if (!in_array('administrator', $user->roles)) {
-            $user->set_role('seller');
+        if (in_array('customer', (array) $user->roles)) {
+            $user->remove_role('customer');
+        }
+        if (!in_array('seller', (array) $user->roles) && !in_array('administrator', $user->roles)) {
+            $user->add_role('seller');
         }
 
         // 3. Mark Order as Completed

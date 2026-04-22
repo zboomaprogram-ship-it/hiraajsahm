@@ -14,4 +14,9 @@ abstract class VendorRepository {
     required String productId,
     required String receiptData,
   });
+
+  Future<Either<Failure, bool>> restoreIapReceipt({
+    required int userId,
+    required String receiptData,
+  });
 }
