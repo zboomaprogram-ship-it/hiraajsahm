@@ -29,7 +29,7 @@ function handle_custom_fluent_submission($request) {
         'input_text'    => isset($_POST['input_text']) ? $_POST['input_text'] : '',     // Name
         'input_text_1'  => isset($_POST['input_text_1']) ? $_POST['input_text_1'] : '', // City
         'input_text_2'  => isset($_POST['input_text_2']) ? $_POST['input_text_2'] : '', // Region
-        'numeric_field' => isset($_POST['input_text_3']) ? $_POST['numeric_field'] : '', // Plate
+        'numeric_field' => isset($_POST['input_text_3']) ? $_POST['input_text_3'] : '', // Plate
         'phone'         => isset($_POST['phone']) ? $_POST['phone'] : '',               // Mobile
         'input_radio'   => isset($_POST['input_radio']) ? $_POST['input_radio'] : '',   // Radio
     ];

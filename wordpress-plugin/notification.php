@@ -53,20 +53,21 @@ function send_onesignal_notification($headings, $contents, $filters = [], $data 
         $fields['big_picture'] = $image;
         $fields['ios_attachments'] = ['id1' => $image];
     }
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://onesignal.com/api/v1/notifications");
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json; charset=utf-8',
-        'Authorization: Basic ' . ONESIGNAL_API_KEY
+    $response = wp_remote_post("https://onesignal.com/api/v1/notifications", [
+        'headers' => [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Authorization' => 'Basic ' . ONESIGNAL_API_KEY
+        ],
+        'body' => json_encode($fields),
+        'timeout' => 30,
+        'sslverify' => true,
     ]);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-    curl_setopt($ch, CURLOPT_HEADER, FALSE);
-    curl_setopt($ch, CURLOPT_POST, TRUE);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, TRUE);
-    $response = curl_exec($ch);
-    curl_close($ch);
-    return $response;
+
+    if (is_wp_error($response)) {
+        return $response->get_error_message();
+    }
+
+    return wp_remote_retrieve_body($response);
 }
 /* ---------------------------------------------------------------------------
  * 4. NOTIFICATION TRIGGERS

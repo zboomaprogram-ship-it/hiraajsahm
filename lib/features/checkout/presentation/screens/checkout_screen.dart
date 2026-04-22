@@ -201,6 +201,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       // ✅ STEP A: Get Token from WordPress Backend (FL-3)
+      final String basicAuth = 'Basic ${base64.encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}';
+      
       final url = Uri.parse('${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}').replace(
         queryParameters: {
           'order_id': orderId.toString(),
@@ -208,13 +210,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           'currency': 'SAR',
           'customer_email': customerEmail,
           'customer_name': customerName,
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
         },
       );
 
       print('🔵 Fetching Telr URLs from: $url');
-      final response = await http.get(url);
+      final response = await http.get(
+        url,
+        headers: {'Authorization': basicAuth},
+      );
 
       if (response.statusCode != 200) {
         throw Exception('Failed to get Telr token: ${response.body}');

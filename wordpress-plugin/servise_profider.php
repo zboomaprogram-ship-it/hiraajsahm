@@ -187,6 +187,7 @@ add_action('save_post', function ($post_id) {
 });
 
 // 4️⃣ REST API Endpoint (تطبيق الجوال)
+/* DISBLED IN PHASE 3 - MOVED TO get_service_provider_api.php
 add_action('rest_api_init', function () {
     // Standardizing to hiraajsahm/v1 to match app config
     register_rest_route('hiraajsahm/v1', '/service-providers', array(
@@ -195,6 +196,7 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true',
     ));
 });
+*/
 
 function hiraaj_rest_get_providers($request)
 {

@@ -14,9 +14,16 @@ function handle_vendor_request($request)
     // 1. Check if this is an UPGRADE (User ID provided) or REGISTRATION
     $user_id = isset($params['user_id']) ? intval($params['user_id']) : 0;
 
-    $store_name = sanitize_text_field($params['store_name']);
-    $phone = sanitize_text_field($params['phone']);
-    $pack_id = isset($params['pack_id']) ? intval($params['pack_id']) : 0; // Default or pass 0
+    $store_name = sanitize_text_field($params['store_name'] ?? '');
+    $phone = sanitize_text_field($params['phone'] ?? '');
+    $pack_id = isset($params['pack_id']) ? intval($params['pack_id']) : 0;
+
+    if (empty($store_name)) {
+        return new WP_Error('missing_store_name', 'اسم المتجر مطلوب', ['status' => 400]);
+    }
+    if (empty($phone)) {
+        return new WP_Error('missing_phone', 'رقم الجوال مطلوب', ['status' => 400]);
+    }
 
     // --- MODE 1: UPGRADE EXISTING USER ---
     if ($user_id > 0) {
@@ -48,9 +55,9 @@ function handle_vendor_request($request)
             return new WP_Error('missing_email', 'Email is required for new registration', ['status' => 400]);
         }
 
-        $password = $params['password'];
+        $password = trim($params['password'] ?? '');
         if (strlen($password) < 8) {
-            return new WP_Error('weak_password', 'Password must be at least 8 characters', ['status' => 400]);
+            return new WP_Error('weak_password', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل', ['status' => 400]);
         }
         $username = sanitize_user(explode('@', $email)[0], true);
         $first_name = sanitize_text_field($params['first_name']);
@@ -76,7 +83,7 @@ function handle_vendor_request($request)
     // Generate Store Slug
     $store_slug = sanitize_title($store_name);
     if (username_exists($store_slug) || get_user_by('slug', $store_slug)) {
-        $store_slug .= '-' . rand(100, 999);
+        $store_slug .= '-' . time() . rand(10, 99);
     }
 
     // Save Meta Data
@@ -99,6 +106,20 @@ function handle_vendor_request($request)
 
     // Initialize Vendor in Dokan
     do_action('dokan_new_seller_created', $user_id, $dokan_settings);
+
+    // --- MODE 3: ACTIVATE PACK ID (NEW FIX) ---
+    if ($pack_id > 0) {
+        $allowed_packs = [29026, 29028, 29030, 29318];
+        if (in_array($pack_id, $allowed_packs)) {
+            update_user_meta($user_id, 'product_package_id', $pack_id);
+            update_user_meta($user_id, 'product_pack_startdate', current_time('mysql'));
+            update_user_meta($user_id, 'product_pack_enddate', 'unlimited');
+
+            if ($pack_id === 29318) {
+                update_user_meta($user_id, 'sacrifices_verified', 'yes');
+            }
+        }
+    }
 
     // Get Store URL
     $store_url = function_exists('dokan_get_store_url') ? dokan_get_store_url($user_id) : home_url('/store/' . $store_slug . '/');

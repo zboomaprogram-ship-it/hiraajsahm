@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
@@ -109,7 +111,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     String paymentType = 'full',
     String? notes,
   }) async {
-    print('🛒 placeOrder called with method: $paymentMethod, type: $paymentType');
+    print(
+      '🛒 placeOrder called with method: $paymentMethod, type: $paymentType',
+    );
     emit(const CheckoutProcessing());
 
     try {
@@ -160,7 +164,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           return;
         }
       }
-      
+
       // Ensure last name is not empty for WooCommerce and Telr (which require it)
       if (finalLastName.trim().isEmpty) {
         finalLastName = finalFirstName.isNotEmpty ? finalFirstName : ' ';
@@ -195,7 +199,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       final orderData = {
         'payment_method': paymentMethod,
         'payment_method_title': _getPaymentMethodTitle(paymentMethod),
-        'set_paid': false, // CRITICAL: Only set to true via completePayment() hook
+        'set_paid':
+            false, // CRITICAL: Only set to true via completePayment() hook
         'customer_id': userId ?? 0, // CRITICAL: Link order to user
         'billing': {
           'first_name': finalFirstName,
@@ -251,20 +256,21 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         final cartState = _cartCubit.state;
         bool isSubscription = false;
         if (cartState is CartLoaded) {
-          isSubscription = cartState.items.any((item) => 
-            item.product.categories.any((cat) => cat.id == 122) || 
-            item.product.name.contains('باقة') || 
-            item.product.name.contains('اشتراك')
+          isSubscription = cartState.items.any(
+            (item) =>
+                item.product.categories.any((cat) => cat.id == 122) ||
+                item.product.name.contains('باقة') ||
+                item.product.name.contains('اشتراك'),
           );
         }
 
         // If online payment, emit awaiting payment state for Telr
         if (paymentMethod == 'online') {
           // ENSURE the amount is a clean string with 2 decimal places for the SDK
-          final String finalAmountString = cartState is CartLoaded 
-              ? cartState.total.toStringAsFixed(2) 
+          final String finalAmountString = cartState is CartLoaded
+              ? cartState.total.toStringAsFixed(2)
               : '0.00';
-              
+
           emit(
             CheckoutAwaitingPayment(
               orderId: orderId,
@@ -277,7 +283,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         } else {
           // Clear cart for non-online payments
           _cartCubit.clearCart();
-          emit(CheckoutSuccess(orderId: orderId, orderKey: orderKey, isSubscription: isSubscription));
+          emit(
+            CheckoutSuccess(
+              orderId: orderId,
+              orderKey: orderKey,
+              isSubscription: isSubscription,
+            ),
+          );
         }
       } else {
         emit(const CheckoutFailure(message: 'فشل في إنشاء الطلب'));
@@ -307,26 +319,39 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   /// Mark payment as complete after Telr success
-  Future<void> completePayment(int orderId, {bool isSubscription = false}) async {
-    print('✅ CheckoutCubit: completePayment starting for order #$orderId (isSubscription: $isSubscription)');
+  Future<void> completePayment(
+    int orderId, {
+    bool isSubscription = false,
+  }) async {
+    print(
+      '✅ CheckoutCubit: completePayment starting for order #$orderId (isSubscription: $isSubscription)',
+    );
     try {
       final url = 'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId';
-      
+
+      final String basicAuth =
+          'Basic ${base64Encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}';
+
       final response = await _cleanDio.put(
         url,
         data: {'status': 'completed'},
-        queryParameters: {
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        },
+        options: Options(headers: {'Authorization': basicAuth}),
       );
-      print('✅ CheckoutCubit: Order status updated to completed. Response: ${response.statusCode}');
+      print(
+        '✅ CheckoutCubit: Order status updated to completed. Response: ${response.statusCode}',
+      );
     } catch (e) {
       print('❌ CheckoutCubit: Failed to update order status to completed: $e');
     }
 
     _cartCubit.clearCart();
-    emit(CheckoutSuccess(orderId: orderId, orderKey: '', isSubscription: isSubscription));
+    emit(
+      CheckoutSuccess(
+        orderId: orderId,
+        orderKey: '',
+        isSubscription: isSubscription,
+      ),
+    );
   }
 
   /// Mark payment as failed
@@ -334,13 +359,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     if (orderId != null) {
       try {
         final url = 'https://hiraajsahm.com/wp-json/wc/v3/orders/$orderId';
+        final String basicAuth =
+            'Basic ${base64Encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}';
+
         await _cleanDio.put(
           url,
           data: {'status': 'cancelled'},
-          queryParameters: {
-            'consumer_key': AppConfig.wcConsumerKey,
-            'consumer_secret': AppConfig.wcConsumerSecret,
-          },
+          options: Options(headers: {'Authorization': basicAuth}),
         );
       } catch (e) {
         print('CheckoutCubit: Failed to update order status to cancelled: $e');

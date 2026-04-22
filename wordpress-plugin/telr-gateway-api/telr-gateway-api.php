@@ -26,11 +26,18 @@ add_action('init', function () {
 
 function hiraaj_telr_handle_custom_order_check()
 {
-    $ck = $_GET['consumer_key'] ?? '';
-    $cs = $_GET['consumer_secret'] ?? '';
+    $auth_header = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+    
+    if (!$auth_header || !str_starts_with($auth_header, 'Basic ')) {
+         wp_send_json_error(['message' => 'Authorization header missing or invalid'], 401);
+         exit;
+    }
+
+    [$ck, $cs] = explode(':', base64_decode(substr($auth_header, 6)), 2);
 
     if (empty($ck) || empty($cs)) {
-        wp_send_json_error(['message' => 'Missing security keys'], 401);
+        wp_send_json_error(['message' => 'Invalid credentials format'], 401);
+        exit;
     }
 
     global $wpdb;
@@ -41,21 +48,21 @@ function hiraaj_telr_handle_custom_order_check()
 
     if (!$key || !hash_equals($key->consumer_secret, $cs)) {
         wp_send_json_error(['message' => 'Invalid security keys'], 401);
+        exit;
     }
 
-    $auth_header = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
     $order_ref = $_GET['order_ref'] ?? '';
-    if (empty($order_ref) && preg_match('/Bearer\s+(.*)/i', $auth_header, $matches)) {
-        $order_ref = trim($matches[1]);
-    }
-
+    
+    // Safety: If order_ref is empty, do NOT try to extract it from a Bearer token (might be a JWT)
     if (empty($order_ref)) {
-        wp_send_json_error(['message' => 'order_ref is required'], 400);
+        wp_send_json_error(['message' => 'order_ref is required as a query parameter'], 400);
+        exit;
     }
 
     $result = hiraaj_telr_perform_check($order_ref);
     if (is_wp_error($result)) {
         wp_send_json_error(['message' => $result->get_error_message()], 500);
+        exit;
     }
 
     wp_send_json($result);
@@ -112,9 +119,16 @@ function hiraaj_telr_perform_check($order_ref)
  */
 function hiraaj_telr_verify_wc_keys(WP_REST_Request $request)
 {
-    // ✅ FIXED: Removed route-based bypass (PHP-3)
-    $ck = $request->get_param('consumer_key');
-    $cs = $request->get_param('consumer_secret');
+    $auth_header = $request->get_header('authorization');
+    if (!$auth_header || !str_starts_with($auth_header, 'Basic ')) {
+        return false;
+    }
+
+    // Decode Basic Auth (consumer_key:consumer_secret)
+    $credentials = base64_decode(substr($auth_header, 6));
+    if (strpos($credentials, ':') === false) return false;
+    
+    [$ck, $cs] = explode(':', $credentials, 2);
 
     if (empty($ck) || empty($cs)) {
         return false;
@@ -197,26 +211,30 @@ function hiraaj_telr_token(WP_REST_Request $request)
     $response = wp_remote_post(TELR_API_URL, [
         'headers' => [
             'Authorization' => 'Basic ' . $auth_string,
-            'Content-Type' => 'application/json', // ✅ FIXED: application/json (PHP-2)
-            'Accept' => 'application/json',       // ✅ FIXED: application/json (PHP-2)
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
         ],
         'body' => json_encode($telr_payload),
         'timeout' => 30,
-        // 'sslverify' => false, // ❌ REMOVED: Security Risk (PHP-5)
     ]);
+
+    if (is_wp_error($response)) {
+        return new WP_Error('telr_connection_error', 'Failed to connect to Telr API: ' . $response->get_error_message(), ['status' => 500]);
+    }
 
     $raw_body = wp_remote_retrieve_body($response);
     $body = json_decode($raw_body, true);
 
+    if (!is_array($body)) {
+        return new WP_Error('telr_invalid_response', 'Invalid JSON response from Telr', ['status' => 502]);
+    }
+
     $status_code = wp_remote_retrieve_response_code($response);
     $order_ref = $body['ref'] ?? null;
 
-    if (is_wp_error($response))
-        return new WP_Error('telr_error', 'Failed to connect to Telr API', ['status' => 500]);
-
     if ($status_code !== 201 || empty($order_ref)) {
         return new WP_Error(
-            'telr_error',
+            'telr_api_error',
             "Telr API Error ({$status_code}): " . ($body['message'] ?? 'Unknown Error'),
             ['status' => 500]
         );
@@ -225,32 +243,24 @@ function hiraaj_telr_token(WP_REST_Request $request)
     if (function_exists('wc_get_order') && $order_id) {
         $order = wc_get_order($order_id);
         if ($order) {
-            $order->update_meta_data('_telr_order_ref', $order_ref); // ✔ OK: Save ref (PHP-2)
+            $order->update_meta_data('_telr_order_ref', $order_ref);
             $order->save();
         }
     }
 
-    // ✅ FIXED: Rahul's Exact Correct Response Pattern (PHP-2)
-    wp_send_json([
-        'tokenUrl' => $body['_links']['auth']['href'] ?? '', // auth URL
-        'orderUrl' => $body['_links']['self']['href'] ?? '', // order URL
+    return new WP_REST_Response([
+        'tokenUrl' => $body['_links']['auth']['href'] ?? '',
+        'orderUrl' => $body['_links']['self']['href'] ?? '',
         'ref' => $order_ref
-    ]);
-    exit;
+    ], 200);
 }
 
 function hiraaj_telr_order_check(WP_REST_Request $request)
 {
-    $order_ref = '';
-    $auth_header = $request->get_header('authorization');
-
-    // ✅ FIXED: Priority to Bearer token, fallback to param
-    if (preg_match('/Bearer\s+(.*)/i', $auth_header, $matches)) {
-        $order_ref = trim($matches[1]);
-    }
+    $order_ref = $request->get_param('order_ref');
 
     if (empty($order_ref)) {
-        $order_ref = $request->get_param('order_ref');
+        return new WP_Error('missing_ref', 'Order reference is required', ['status' => 400]);
     }
 
     $result = hiraaj_telr_perform_check($order_ref);
@@ -261,15 +271,32 @@ function hiraaj_telr_callback(WP_REST_Request $request)
 {
     $status = $request->get_param('status');
     $order_id = $request->get_param('order_id');
+    $order_ref = $request->get_param('order_ref');
+
+    if (empty($order_ref)) {
+        echo '<!DOCTYPE html><html><body><h2>Invalid Callback</h2><p>Missing order reference.</p></body></html>';
+        exit;
+    }
+
+    // 🔒 SECURITY: Verify the payment status directly with Telr before trusting the callback
+    $verification = hiraaj_telr_perform_check($order_ref);
+    if (is_wp_error($verification) || ($verification['status'] ?? '') !== 'PAID') {
+        echo '<!DOCTYPE html><html><body><h2>Verification Failed</h2><p>The payment could not be verified.</p></body></html>';
+        exit;
+    }
+
     if (!empty($order_id) && function_exists('wc_get_order')) {
         $order = wc_get_order($order_id);
-        if ($order) {
-            if ($status === 'success')
-                $order->payment_complete();
-            else
-                $order->update_status('failed', 'Telr payment declined.');
+        if ($order && !$order->is_paid()) {
+            if ($status === 'success') {
+                $order->payment_complete($order_ref);
+                $order->add_order_note('Telr callback verified and payment completed.');
+            } else {
+                $order->update_status('failed', 'Telr payment declined in callback.');
+            }
         }
     }
+
     $safe_status = esc_html(sanitize_text_field($status));
     echo '<!DOCTYPE html><html><body><h2>Payment ' . ucfirst($safe_status) . '</h2><p>You can close this page.</p></body></html>';
     exit;
@@ -285,6 +312,11 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
 {
     if (!$order_id)
         return;
+
+    // Guard against double processing
+    if (get_post_meta($order_id, '_hiraaj_subscription_processed', true)) {
+        return;
+    }
 
     $order = wc_get_order($order_id);
     if (!$order)
@@ -330,7 +362,9 @@ function hiraaj_telr_auto_upgrade_subscription($order_id)
             $user->add_role('seller');
         }
 
+
         // 3. Mark Order as Completed
         $order->update_status('completed', 'Auto-processed subscription upgrade.');
+        update_post_meta($order_id, '_hiraaj_subscription_processed', '1');
     }
 }

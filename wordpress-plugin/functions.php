@@ -4,6 +4,14 @@ add_action('woocommerce_order_status_completed', 'auto_upgrade_customer_to_vendo
 
 function auto_upgrade_customer_to_vendor_on_subscription($order_id)
 {
+    if (!$order_id)
+        return;
+
+    // Guard against double processing
+    if (get_post_meta($order_id, '_hiraaj_subscription_processed', true)) {
+        return;
+    }
+
     $order = wc_get_order($order_id);
     $user_id = $order->get_user_id();
 
@@ -51,6 +59,8 @@ function auto_upgrade_customer_to_vendor_on_subscription($order_id)
         if ($target_pack_id == 29318) {
             update_user_meta($user_id, 'sacrifices_verified', 'yes');
         }
+
+        update_post_meta($order_id, '_hiraaj_subscription_processed', '1');
     }
 }
 

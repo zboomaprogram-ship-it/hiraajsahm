@@ -24,13 +24,13 @@ function handle_custom_add_product($request)
 
     $params = $request->get_json_params();
 
-    // 1. Sanitize Input
-    $title = sanitize_text_field($params['name']);
-    $price = sanitize_text_field($params['regular_price']);
-    $sale_price = sanitize_text_field($params['sale_price']);
-    $description = wp_kses_post($params['description']);
-    $cat_id = intval($params['category_id']);
-    $stock = intval($params['stock_quantity']);
+    // 1. Sanitize Input with Null-Coalescing
+    $title = sanitize_text_field($params['name'] ?? '');
+    $price = sanitize_text_field($params['regular_price'] ?? '0');
+    $sale_price = sanitize_text_field($params['sale_price'] ?? '');
+    $description = wp_kses_post($params['description'] ?? '');
+    $cat_id = intval($params['category_id'] ?? 0);
+    $stock = intval($params['stock_quantity'] ?? 0);
     $image_ids = $params['images'] ?? []; // Array of Image IDs
 
     // 2. Create the Product Post
