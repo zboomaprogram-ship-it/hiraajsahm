@@ -57,7 +57,7 @@ class AboutAppScreen extends StatelessWidget {
               delay: const Duration(milliseconds: 100),
               duration: const Duration(milliseconds: 400),
               child: Text(
-                'حراج الساهم',
+                'حراج  سهم',
                 style: TextStyle(
                   fontSize: 28.sp,
                   fontWeight: FontWeight.bold,
@@ -99,7 +99,7 @@ class AboutAppScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 12.h),
                     Text(
-                      'حراج الساهم هو منصة إلكترونية متخصصة في بيع وشراء الإبل والغنم والطيور والمواشي بشكل عام. يتيح التطبيق للمستخدمين عرض منتجاتهم والتواصل مع المشترين والبائعين بسهولة وأمان.',
+                      'حراج  سهم هو منصة إلكترونية متخصصة في بيع وشراء الإبل والغنم والطيور والمواشي بشكل عام. يتيح التطبيق للمستخدمين عرض منتجاتهم والتواصل مع المشترين والبائعين بسهولة وأمان.',
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: AppColors.textSecondary,
@@ -169,7 +169,7 @@ class AboutAppScreen extends StatelessWidget {
 
             // Copyright
             Text(
-              '© 2024 حراج الساهم. جميع الحقوق محفوظة.',
+              '© 2024 حراج  سهم. جميع الحقوق محفوظة.',
               style: TextStyle(
                 fontSize: 12.sp,
                 color: AppColors.textSecondary,

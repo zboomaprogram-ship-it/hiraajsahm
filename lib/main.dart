@@ -142,7 +142,7 @@ class MyApp extends StatelessWidget {
             splitScreenMode: true,
             builder: (context, child) {
               return MaterialApp(
-                title: 'Hiraaj Sahm - هراج سهم',
+                title: 'Hiraaj Sahm - حراج سهم',
                 debugShowCheckedModeBanner: false,
 
                 // Theme Configuration

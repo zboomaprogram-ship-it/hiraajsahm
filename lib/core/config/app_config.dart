@@ -4,7 +4,7 @@ class AppConfig {
 
   // ============ APP INFO ============
   static const String appName = 'Hiraaj Sahm';
-  static const String appNameAr = 'هراج سهم';
+  static const String appNameAr = 'حراج سهم';
   static const String appVersion = '1.0.1';
   static const String buildNumber = '10';
 

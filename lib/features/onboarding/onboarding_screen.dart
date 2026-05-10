@@ -113,7 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       SizedBox(width: 10.w),
                       Text(
-                        'هراج سهم',
+                        'حراج سهم',
                         style: TextStyle(
                           fontSize: 18.sp,
                           fontWeight: FontWeight.bold,

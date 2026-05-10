@@ -384,7 +384,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Share.share('تفضل بزيارة سوقي على هراج سهم: \n$storeUrl');
+                    Share.share('تفضل بزيارة سوقي على حراج سهم: \n$storeUrl');
                   },
                   icon: const Icon(Icons.share, size: 18),
                   label: const Text('مشاركة'),
