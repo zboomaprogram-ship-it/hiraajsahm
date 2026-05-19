@@ -125,3 +125,60 @@ function hiraaj_sahm_render_settings_page() {
     </div>
     <?php
 }
+
+// ============================================================
+// Fix JWT Token Expiring in 48 Hours
+// ============================================================
+add_filter('jwt_auth_expire', function($expire, $issued_at) {
+    return $issued_at + (DAY_IN_SECONDS * 365); // Expires in 1 year
+}, 10, 2);
+
+// ============================================================
+// Add Watermark to Uploaded Images
+// ============================================================
+add_filter('wp_handle_upload', 'hiraaj_sahm_watermark_upload');
+function hiraaj_sahm_watermark_upload($upload) {
+    if (isset($upload['file']) && file_exists($upload['file'])) {
+        $file_path = $upload['file'];
+        $image_type = wp_check_filetype($file_path);
+        
+        if (strpos($image_type['type'], 'image') !== false) {
+            $img = null;
+            if ($image_type['ext'] == 'jpg' || $image_type['ext'] == 'jpeg') {
+                $img = @imagecreatefromjpeg($file_path);
+            } elseif ($image_type['ext'] == 'png') {
+                $img = @imagecreatefrompng($file_path);
+            }
+
+            if ($img) {
+                $width = imagesx($img);
+                $height = imagesy($img);
+                
+                // Simple watermark (Hiraaj Sahm)
+                $text = "Hiraaj Sahm - حراج سهم";
+                $font_size = 5; // Built-in font size (1-5)
+                $margin = 10;
+                
+                $text_width = imagefontwidth($font_size) * strlen($text);
+                $text_height = imagefontheight($font_size);
+                
+                $x = $width - $text_width - $margin;
+                $y = $height - $text_height - $margin;
+                
+                $bg_color = imagecolorallocatealpha($img, 0, 0, 0, 60);
+                $text_color = imagecolorallocate($img, 255, 255, 255);
+                
+                imagefilledrectangle($img, $x - 5, $y - 5, $x + $text_width + 5, $y + $text_height + 5, $bg_color);
+                imagestring($img, $font_size, $x, $y, $text, $text_color);
+                
+                if ($image_type['ext'] == 'jpg' || $image_type['ext'] == 'jpeg') {
+                    imagejpeg($img, $file_path, 90);
+                } elseif ($image_type['ext'] == 'png') {
+                    imagepng($img, $file_path);
+                }
+                imagedestroy($img);
+            }
+        }
+    }
+    return $upload;
+}

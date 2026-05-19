@@ -62,7 +62,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = MediaQuery.of(context).size.width >= 600;
-    final iconSize = isTablet ? 30.w : 26.w;
+    final iconSize = isTablet ? 32.0 : 26.0;
     final navHeight = isTablet ? 80.0 : 70.0;
 
     return BlocListener<CartCubit, CartState>(

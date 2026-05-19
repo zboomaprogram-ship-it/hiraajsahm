@@ -103,16 +103,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
 
     _loadRegions();
-    
+
     // Ensure regions are initialized immediately with defaults to prevent unresponsive dropdowns
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-       final names = await RegionsService().getRegionNames();
-       if (mounted && _regions.isEmpty) {
-         setState(() {
-           _regions = names;
-         });
-         print('📦 AddProduct Regions Initialized Post-Frame: ${names.length}');
-       }
+      final names = await RegionsService().getRegionNames();
+      if (mounted && _regions.isEmpty) {
+        setState(() {
+          _regions = names;
+        });
+        print('📦 AddProduct Regions Initialized Post-Frame: ${names.length}');
+      }
     });
   }
 
@@ -122,7 +122,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       setState(() {
         _regions = names;
         if (_selectedRegion != null) {
-           _loadCitiesForRegion(_selectedRegion!);
+          _loadCitiesForRegion(_selectedRegion!);
         }
       });
     }
@@ -131,9 +131,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _loadCitiesForRegion(String regionStr) async {
     final newCities = await RegionsService().getCitiesForRegion(regionStr);
     if (mounted) {
-       setState(() {
-          _cities = newCities;
-       });
+      setState(() {
+        _cities = newCities;
+      });
     }
   }
 
@@ -450,10 +450,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final mapRegion = result['region'] as String?;
 
       if (mounted) {
-         setState(() {
-           _latLng = '${result['lat']},${result['lng']}';
-           _locationController.text = result['address'] ?? ' ($_latLng)';
-         });
+        setState(() {
+          _latLng = '${result['lat']},${result['lng']}';
+          _locationController.text = result['address'] ?? ' ($_latLng)';
+        });
       }
 
       if (mapRegion != null && _regions.contains(mapRegion)) {
@@ -466,11 +466,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       if (mapCity != null) {
         if (_cities.contains(mapCity)) {
-           await _onCityChanged(mapCity);
+          await _onCityChanged(mapCity);
         } else {
-           setState(() {
-             _cityController.text = mapCity;
-           });
+          setState(() {
+            _cityController.text = mapCity;
+          });
         }
       }
     }
@@ -516,10 +516,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
         stockQuantity: 1,
         description: _descriptionController.text.trim(),
         newImages: _selectedImages, // Only passing new images
-        address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
+        address: _latLng.isNotEmpty
+            ? _latLng
+            : _locationController.text.trim(), // Send coordinates
         region: _selectedRegion,
         city: _selectedCity,
         downPayment: downPayment,
+        video: _selectedVideo,
       );
     } else {
       _addProductCubit.uploadProduct(
@@ -532,10 +535,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
         stockQuantity: 1,
         description: _descriptionController.text.trim(),
         images: _selectedImages,
-        address: _latLng.isNotEmpty ? _latLng : _locationController.text.trim(), // Send coordinates
+        address: _latLng.isNotEmpty
+            ? _latLng
+            : _locationController.text.trim(), // Send coordinates
         region: _selectedRegion,
         city: _selectedCity,
         downPayment: downPayment,
+        video: _selectedVideo,
       );
     }
   }
@@ -619,310 +625,385 @@ class _AddProductScreenState extends State<AddProductScreen> {
             key: _formKey,
             child: SingleChildScrollView(
               padding: EdgeInsets.all(20.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Limit Info
-                  FadeInDown(
-                    duration: const Duration(milliseconds: 400),
-                    child: _buildLimitInfo(isDark),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width >= 600
+                        ? 650
+                        : double.infinity,
                   ),
-                  SizedBox(height: 20.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Limit Info
+                      FadeInDown(
+                        duration: const Duration(milliseconds: 400),
+                        child: _buildLimitInfo(isDark),
+                      ),
+                      SizedBox(height: 20.h),
 
-                  // Image Picker
-                  FadeInUp(
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildImagePicker(isDark),
-                  ),
-                  SizedBox(height: 16.h),
+                      // Image Picker
+                      FadeInUp(
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildImagePicker(isDark),
+                      ),
+                      SizedBox(height: 16.h),
 
-                  // Video Picker
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 50),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildVideoPicker(isDark),
-                  ),
-                  SizedBox(height: 24.h),
+                      // Video Picker
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 50),
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildVideoPicker(isDark),
+                      ),
+                      SizedBox(height: 24.h),
 
-                  // Product Name
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 100),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildTextField(
-                      controller: _nameController,
-                      label: 'اسم الاعلان',
-                      hint: 'مثال: ناقة عمر 3 سنوات',
-                      icon: Icons.inventory_2_outlined,
-                      isDark: isDark,
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Regular Price (Optional)
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 150),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildTextField(
-                      controller: _regularPriceController,
-                      label: 'السعر (اختياري)',
-                      hint: '0',
-                      icon: Icons.attach_money_rounded,
-                      keyboardType: TextInputType.number,
-                      isDark: isDark,
-                      isRequired: false,
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Category Selector
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 300),
-                    child: Column(
-                      children: [
-                        _buildMainCategorySelector(isDark),
-                        SizedBox(height: 12.h),
-                        _buildSubCategorySelector(isDark),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-                  // Upgrade Banner (Show if not Gold AND Zabayeh)
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 225),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildUpgradeBanner(isDark),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Description
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 300),
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildTextField(
-                      controller: _descriptionController,
-                      label: 'الوصف',
-                      hint: 'اكتب وصفاً تفصيلياً للاعلان...',
-                      icon: Icons.description_outlined,
-                      maxLines: 4,
-                      isDark: isDark,
-                      isRequired: false,
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Region / City Selectors
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 310),
-                    duration: const Duration(milliseconds: 300),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'المنطقة',
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              DropdownButtonFormField<String>(
-                                isExpanded: true,
-                                isDense: true,
-                                decoration: InputDecoration(
-                                  hintText: 'اختر المنطقة',
-                                  prefixIcon: Icon(Icons.map_outlined, color: AppColors.textSecondary, size: 20.sp),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: BorderSide(color: AppColors.border),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: BorderSide(color: AppColors.border),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: const BorderSide(color: AppColors.error),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-                                  filled: true,
-                                  fillColor: isDark ? AppColors.cardDark : Colors.white,
-                                ),
-                                value: _selectedRegion,
-                                items: _regions.map((String region) {
-                                  return DropdownMenuItem<String>(
-                                    value: region,
-                                    child: Text(
-                                      region,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: _onRegionChanged,
-                                validator: (value) => value == null || value.isEmpty ? 'مطلوب' : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'المدينة',
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? AppColors.textLight : AppColors.textPrimary,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              DropdownButtonFormField<String>(
-                                isExpanded: true,
-                                isDense: true,
-                                decoration: InputDecoration(
-                                  hintText: 'اختر المدينة',
-                                  prefixIcon: Icon(Icons.location_city_outlined, color: AppColors.textSecondary, size: 20.sp),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: BorderSide(color: AppColors.border),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: BorderSide(color: AppColors.border),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14.r),
-                                    borderSide: const BorderSide(color: AppColors.error),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-                                  filled: true,
-                                  fillColor: isDark ? AppColors.cardDark : Colors.white,
-                                ),
-                                value: _selectedCity,
-                                items: _cities.map((String city) {
-                                  return DropdownMenuItem<String>(
-                                    value: city,
-                                    child: Text(
-                                      city,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: _onCityChanged,
-                                validator: (value) => value == null || value.isEmpty ? 'مطلوب' : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 16.h),
-
-                  // Product Location (New Field - Map Picker)
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 325),
-                    duration: const Duration(milliseconds: 300),
-                    child: GestureDetector(
-                      onTap: _pickLocation,
-                      child: AbsorbPointer(
+                      // Product Name
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 100),
+                        duration: const Duration(milliseconds: 300),
                         child: _buildTextField(
-                          controller: _locationController,
-                          label: 'عنوان الاعلان (مطلوب)',
-                          hint: 'اختر الموقع من الخريطة',
-                          icon: Icons.location_on_outlined,
+                          controller: _nameController,
+                          label: 'اسم الاعلان',
+                          hint: 'مثال: ناقة عمر 3 سنوات',
+                          icon: Icons.inventory_2_outlined,
                           isDark: isDark,
-                          isRequired: true,
-                          readOnly: true,
                         ),
                       ),
-                    ),
-                  ),
-                  SizedBox(height: 32.h),
+                      SizedBox(height: 16.h),
 
-                  // Submit Button
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 350),
-                    duration: const Duration(milliseconds: 300),
-                    child: BlocBuilder<AddProductCubit, AddProductState>(
-                      builder: (context, state) {
-                        final isLoading = state is AddProductUploading;
+                      // Regular Price (Optional)
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 150),
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildTextField(
+                          controller: _regularPriceController,
+                          label: 'السعر (اختياري)',
+                          hint: '0',
+                          icon: Icons.attach_money_rounded,
+                          keyboardType: TextInputType.number,
+                          isDark: isDark,
+                          isRequired: false,
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
 
-                        return Container(
-                          width: double.infinity,
-                          height: 56.h,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            borderRadius: BorderRadius.circular(16.r),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            onPressed: isLoading ? null : _submitProduct,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.r),
-                              ),
-                            ),
-                            child: isLoading
-                                ? SizedBox(
-                                    width: 24.w,
-                                    height: 24.w,
-                                    child: const CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
+                      // Category Selector
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 300),
+                        child: Column(
+                          children: [
+                            _buildMainCategorySelector(isDark),
+                            SizedBox(height: 12.h),
+                            _buildSubCategorySelector(isDark),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+                      // Upgrade Banner (Show if not Gold AND Zabayeh)
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 225),
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildUpgradeBanner(isDark),
+                      ),
+                      SizedBox(height: 16.h),
+
+                      // Description
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 300),
+                        duration: const Duration(milliseconds: 300),
+                        child: _buildTextField(
+                          controller: _descriptionController,
+                          label: 'الوصف',
+                          hint: 'اكتب وصفاً تفصيلياً للاعلان...',
+                          icon: Icons.description_outlined,
+                          maxLines: 4,
+                          isDark: isDark,
+                          isRequired: false,
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+
+                      // Region / City Selectors
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 310),
+                        duration: const Duration(milliseconds: 300),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'المنطقة',
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? AppColors.textLight
+                                          : AppColors.textPrimary,
                                     ),
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.add_rounded, size: 24.sp),
-                                      SizedBox(width: 12.w),
-                                      FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text(
-                                          widget.productToEdit != null
-                                              ? 'تحديث الاعلان'
-                                              : 'نشر الاعلان',
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                  ),
+                                  SizedBox(height: 8.h),
+                                  DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    isDense: true,
+                                    decoration: InputDecoration(
+                                      hintText: 'اختر المنطقة',
+                                      prefixIcon: Icon(
+                                        Icons.map_outlined,
+                                        color: AppColors.textSecondary,
+                                        size: 20.sp,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
                                         ),
                                       ),
-                                    ],
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: const BorderSide(
+                                          color: AppColors.primary,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: const BorderSide(
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12.w,
+                                        vertical: 12.h,
+                                      ),
+                                      filled: true,
+                                      fillColor: isDark
+                                          ? AppColors.cardDark
+                                          : Colors.white,
+                                    ),
+                                    value: _selectedRegion,
+                                    items: _regions.map((String region) {
+                                      return DropdownMenuItem<String>(
+                                        value: region,
+                                        child: Text(
+                                          region,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: _onRegionChanged,
+                                    validator: (value) =>
+                                        value == null || value.isEmpty
+                                        ? 'مطلوب'
+                                        : null,
                                   ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: 8.w),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'المدينة',
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? AppColors.textLight
+                                          : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8.h),
+                                  DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    isDense: true,
+                                    decoration: InputDecoration(
+                                      hintText: 'اختر المدينة',
+                                      prefixIcon: Icon(
+                                        Icons.location_city_outlined,
+                                        color: AppColors.textSecondary,
+                                        size: 20.sp,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: const BorderSide(
+                                          color: AppColors.primary,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                        borderSide: const BorderSide(
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12.w,
+                                        vertical: 12.h,
+                                      ),
+                                      filled: true,
+                                      fillColor: isDark
+                                          ? AppColors.cardDark
+                                          : Colors.white,
+                                    ),
+                                    value: _selectedCity,
+                                    items: _cities.map((String city) {
+                                      return DropdownMenuItem<String>(
+                                        value: city,
+                                        child: Text(
+                                          city,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: _onCityChanged,
+                                    validator: (value) =>
+                                        value == null || value.isEmpty
+                                        ? 'مطلوب'
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 16.h),
+
+                      // Product Location (New Field - Map Picker)
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 325),
+                        duration: const Duration(milliseconds: 300),
+                        child: GestureDetector(
+                          onTap: _pickLocation,
+                          child: AbsorbPointer(
+                            child: _buildTextField(
+                              controller: _locationController,
+                              label: 'عنوان الاعلان (مطلوب)',
+                              hint: 'اختر الموقع من الخريطة',
+                              icon: Icons.location_on_outlined,
+                              isDark: isDark,
+                              isRequired: true,
+                              readOnly: true,
+                            ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                      SizedBox(height: 32.h),
+
+                      // Submit Button
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 350),
+                        duration: const Duration(milliseconds: 300),
+                        child: BlocBuilder<AddProductCubit, AddProductState>(
+                          builder: (context, state) {
+                            final isLoading = state is AddProductUploading;
+
+                            return Container(
+                              width: double.infinity,
+                              height: 56.h,
+                              decoration: BoxDecoration(
+                                gradient: AppColors.primaryGradient,
+                                borderRadius: BorderRadius.circular(16.r),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.3,
+                                    ),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: isLoading ? null : _submitProduct,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16.r),
+                                  ),
+                                ),
+                                child: isLoading
+                                    ? SizedBox(
+                                        width: 24.w,
+                                        height: 24.w,
+                                        child: const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.add_rounded, size: 24.sp),
+                                          SizedBox(width: 12.w),
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              widget.productToEdit != null
+                                                  ? 'تحديث الاعلان'
+                                                  : 'نشر الاعلان',
+                                              style: TextStyle(
+                                                fontSize: 14.sp,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(height: 32.h),
+                    ],
                   ),
-                  SizedBox(height: 32.h),
-                ],
+                ),
               ),
             ),
           ),
@@ -1246,7 +1327,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  onlyZabayeh ? 'باقة الذبائح' : (!isGold ? 'ترقية العضوية' : 'باقة الذبائح'),
+                  onlyZabayeh
+                      ? 'باقة الذبائح'
+                      : (!isGold ? 'ترقية العضوية' : 'باقة الذبائح'),
                   style: TextStyle(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.bold,
@@ -1257,8 +1340,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   onlyZabayeh
                       ? 'اشترك الآن للوصول لقسم الذبائح المميز'
                       : (!isGold
-                          ? 'احصل على مميزات العضوية الذهبية وزيادة حد الإعلانات'
-                          : 'اشترك الآن للوصول لقسم الذبائح المميز'),
+                            ? 'احصل على مميزات العضوية الذهبية وزيادة حد الإعلانات'
+                            : 'اشترك الآن للوصول لقسم الذبائح المميز'),
                   style: TextStyle(
                     fontSize: 11.sp,
                     color: AppColors.textSecondary,

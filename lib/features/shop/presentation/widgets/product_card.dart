@@ -162,7 +162,7 @@ class ProductCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14.sp,
+                      fontSize: isTablet ? 9.sp : 14.sp,
                       fontWeight: FontWeight.w700,
                       color: isDark ? AppColors.textLight : AppColors.textPrimary,
                     ),
@@ -181,7 +181,7 @@ class ProductCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '${product.productRegion} ${product.productCity != null ? "• ${product.productCity}" : ""}',
-                              style: TextStyle(fontSize: 11.sp, color: AppColors.textSecondary),
+                              style: TextStyle(fontSize: isTablet ? 8.sp : 11.sp, color: AppColors.textSecondary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -204,7 +204,7 @@ class ProductCard extends StatelessWidget {
                               Text(
                                 '${product.regularPrice} ر.س',
                                 style: TextStyle(
-                                  fontSize: 11.sp,
+                                  fontSize: isTablet ? 8.sp : 11.sp,
                                   color: AppColors.textSecondary,
                                   decoration: TextDecoration.lineThrough,
                                 ),
@@ -212,7 +212,7 @@ class ProductCard extends StatelessWidget {
                             Text(
                               '${product.price} ر.س',
                               style: TextStyle(
-                                fontSize: 16.sp,
+                                fontSize: isTablet ? 12.sp : 16.sp,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.secondary,
                               ),
@@ -252,7 +252,7 @@ class ProductCard extends StatelessWidget {
                           child: Icon(
                             isOutOfStock ? Icons.remove_shopping_cart_outlined : Icons.add_shopping_cart_rounded,
                             color: Colors.white,
-                            size: 18.sp,
+                            size: isTablet ? 12.sp : 18.sp,
                           ),
                         ),
                       ),

@@ -581,14 +581,6 @@ class ProfileScreen extends StatelessWidget {
           ),
           SizedBox(height: 8.h),
 
-          // Email
-          Text(
-            state.user.email,
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: Colors.white.withOpacity(0.8),
-            ),
-          ),
           SizedBox(height: 20.h),
 
           // Stats Row

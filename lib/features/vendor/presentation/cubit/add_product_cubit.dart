@@ -110,6 +110,7 @@ class AddProductCubit extends Cubit<AddProductState> {
     String? region,
     String? city,
     String? downPayment,
+    File? video,
   }) async {
     // 1. Check Limits (Real-time)
     final userId = await _storageService.getUserId();
@@ -117,6 +118,9 @@ class AddProductCubit extends Cubit<AddProductState> {
       emit(const AddProductError(message: 'يرجى تسجيل الدخول أولاً'));
       return;
     }
+    
+    // Immediately emit uploading to disable the button and prevent double-taps
+    emit(const AddProductUploading(progress: 0.01));
 
     emit(const AddProductUploading(progress: 0.05));
 
@@ -200,6 +204,12 @@ class AddProductCubit extends Cubit<AddProductState> {
         }
       }
 
+      // Upload Video
+      int? videoId;
+      if (video != null) {
+        videoId = await _uploadImage(video);
+      }
+
       // 3. Prepare Data for Custom Endpoint
       // Note: We send simplified data, matching the PHP code above
       final productData = {
@@ -216,6 +226,7 @@ class AddProductCubit extends Cubit<AddProductState> {
           if (region != null) {'key': '_product_region', 'value': region},
           if (city != null) {'key': '_product_city', 'value': city},
           if (downPayment != null) {'key': 'add_down_payment_field', 'value': downPayment},
+          if (videoId != null) {'key': '_product_video_id', 'value': videoId},
         ],
       };
 
@@ -224,7 +235,7 @@ class AddProductCubit extends Cubit<AddProductState> {
 
       // Using _cleanDio to allow standard JSON request
       final response = await _cleanDio.post(
-        '${AppConfig.baseUrl}/custom/v1/add-product', // ⬅️ NEW URL
+        '${AppConfig.baseUrl}/custom/v1/add-product-v2', // ⬅️ NEW URL V2
         data: productData,
         options: Options(
           headers: {
@@ -257,6 +268,8 @@ class AddProductCubit extends Cubit<AddProductState> {
                 if (city != null) {'key': '_product_city', 'value': city},
                 if (downPayment != null)
                   {'key': 'add_down_payment_field', 'value': downPayment},
+                if (videoId != null)
+                  {'key': '_product_video_id', 'value': videoId.toString()},
               ],
             },
           );
@@ -296,6 +309,7 @@ class AddProductCubit extends Cubit<AddProductState> {
     String? region,
     String? city,
     String? downPayment,
+    File? video,
   }) async {
     emit(const AddProductUploading());
 
@@ -314,6 +328,11 @@ class AddProductCubit extends Cubit<AddProductState> {
           currentProgress += perImageProgress;
           emit(AddProductUploading(progress: currentProgress));
         }
+      }
+
+      int? videoId;
+      if (video != null) {
+        videoId = await _uploadImage(video);
       }
 
       // 2. Prepare Update Data
@@ -338,6 +357,8 @@ class AddProductCubit extends Cubit<AddProductState> {
           if (city != null) {'key': '_product_city', 'value': city},
           if (downPayment != null)
             {'key': 'add_down_payment_field', 'value': downPayment},
+          if (videoId != null)
+            {'key': '_product_video_id', 'value': videoId},
         ],
       };
 
@@ -381,6 +402,8 @@ class AddProductCubit extends Cubit<AddProductState> {
                 if (city != null) {'key': '_product_city', 'value': city},
                 if (downPayment != null)
                   {'key': 'add_down_payment_field', 'value': downPayment},
+                if (videoId != null)
+                  {'key': '_product_video_id', 'value': videoId.toString()},
               ],
             },
           );

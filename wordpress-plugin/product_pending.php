@@ -1,24 +1,27 @@
 <?php
 add_action('rest_api_init', function () {
-    register_rest_route('custom/v1', '/add-product', [
+    register_rest_route('custom/v1', '/add-product-v2', [
         'methods' => 'POST',
-        'callback' => 'handle_custom_add_product',
+        'callback' => 'handle_custom_add_product_v2',
         'permission_callback' => function () {
             return is_user_logged_in(); // Requires JWT Token
         }
     ]);
 });
 
-function handle_custom_add_product($request)
+function handle_custom_add_product_v2($request)
 {
     $user_id = get_current_user_id(); // The Vendor
 
     $pack_id = get_user_meta($user_id, 'product_package_id', true);
-    $allowed_packs = [29028, 29030, 29318]; // Silver, Gold and Zabayeh only
-    if (!in_array((int)$pack_id, $allowed_packs) && !current_user_can('manage_options')) {
+    if (empty($pack_id)) {
+        $pack_id = 29026; // Default to Bronze if not set
+    }
+    $allowed_packs = [29026, 29028, 29030, 29318]; // Bronze, Silver, Gold and Zabayeh
+    if (!in_array((int) $pack_id, $allowed_packs) && !current_user_can('manage_options')) {
         return new WP_REST_Response([
             'success' => false,
-            'message' => 'يجب الاشتراك في باقة فضية أو ذهبية لإضافة منتجات'
+            'message' => 'يجب الاشتراك في باقة لإضافة منتجات'
         ], 403);
     }
 
@@ -78,6 +81,25 @@ function handle_custom_add_product($request)
         array_shift($image_ids);
         if (!empty($image_ids)) {
             update_post_meta($product_id, '_product_image_gallery', implode(',', $image_ids));
+        }
+    }
+
+    // 6. Handle Meta Data (including Video)
+    if (!empty($params['meta_data']) && is_array($params['meta_data'])) {
+        foreach ($params['meta_data'] as $meta) {
+            if (isset($meta['key']) && isset($meta['value'])) {
+                update_post_meta($product_id, sanitize_text_field($meta['key']), sanitize_text_field($meta['value']));
+
+                // If the app sent a video ID, convert it to a URL for the theme/app to read
+                if ($meta['key'] === '_product_video_id') {
+                    $video_url = wp_get_attachment_url((int) $meta['value']);
+                    if ($video_url) {
+                        update_post_meta($product_id, '_product_video', $video_url);
+                        // Also Dokan uses _video_url sometimes
+                        update_post_meta($product_id, '_video_url', $video_url);
+                    }
+                }
+            }
         }
     }
 

@@ -12,6 +12,11 @@ add_action('rest_api_init', function () {
         'callback' => 'handle_get_service_providers',
         'permission_callback' => '__return_true',
     ]);
+    register_rest_route('hiraajsahm/v1', '/service-providers', [
+        'methods' => 'GET',
+        'callback' => 'handle_get_service_providers',
+        'permission_callback' => '__return_true',
+    ]);
 });
 
 /**
@@ -61,12 +66,17 @@ function handle_get_service_providers(WP_REST_Request $request) {
         $user_id = $user->ID;
         $store_info = dokan_get_store_info($user_id);
         
+        $seller_type = get_user_meta($user_id, 'seller_type', true);
         $results[] = [
             'id' => $user_id,
+            'name' => $store_info['store_name'] ?? $user->display_name,
             'store_name' => $store_info['store_name'] ?? $user->display_name,
             'phone' => get_user_meta($user_id, 'billing_phone', true) ?: get_user_meta($user_id, 'phone', true),
             'city' => get_user_meta($user_id, 'city', true),
-            'type' => get_user_meta($user_id, 'seller_type', true),
+            'role' => ($seller_type === 'transporter') ? 'ناقل' : 'معاين',
+            'type' => $seller_type,
+            'vehicle_details' => get_user_meta($user_id, 'vehicle_details', true) ?: (($seller_type === 'transporter') ? '🚛 ناقل (نقل مركبات)' : '🔍 معاين (فحص مركبات)'),
+            'price_per_kilo' => get_user_meta($user_id, 'price_per_kilo', true) ?: '0',
             'store_url' => dokan_get_store_url($user_id),
             'image_url' => $store_info['gravatar'] ?? '',
         ];

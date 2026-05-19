@@ -715,9 +715,10 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
   Widget _buildStoreInfoCard(StoreModel store, bool isDark) {
     // Check if we are viewing the logged-in user's profile
     final authState = context.read<AuthCubit>().state;
-    String? phone = store.phone;
+    final isOwnProfile = authState is AuthAuthenticated && authState.user.id == store.id;
+    String phone = store.phone ?? '';
     String? address = store.address?.fullAddress;
-    String? email = store.email;
+    String email = store.email ?? '';
 
     if (authState is AuthAuthenticated &&
         authState.user.isVendor &&
@@ -772,9 +773,60 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
             SizedBox(height: 16.h),
           ],
 
-          // Phone
-          if (phone.isNotEmpty)
-            _buildInfoRow(Icons.phone_outlined, phone, isDark),
+          // Phone / WhatsApp Contact (Only show if phone is present AND it is NOT the logged-in user's own profile)
+          // The actual text phone number is hidden as requested
+          if (phone.isNotEmpty && !isOwnProfile) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  // Sanitize phone number to digits only
+                  final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+                  String waNumber = cleanPhone;
+                  // If it starts with 0 (like Saudi 05xxx), format to 9665xxx
+                  if (waNumber.startsWith('0')) {
+                    waNumber = '966${waNumber.substring(1)}';
+                  } else if (!waNumber.startsWith('966') && waNumber.length == 9) {
+                    waNumber = '966$waNumber';
+                  }
+                  
+                  final whatsappUrl = Uri.parse('https://wa.me/$waNumber');
+                  if (await canLaunchUrl(whatsappUrl)) {
+                    await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تعذر فتح تطبيق واتساب', style: TextStyle(fontFamily: 'Cairo'))),
+                      );
+                    }
+                  }
+                },
+                icon: Image.asset(
+                  'assets/icons/whatsapp.png',
+                  width: 20.w,
+                  height: 20.w,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'تواصل مع البائع',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Cairo',
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366), // WhatsApp Green
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+          ],
 
           // Address
           if (address != null && address.isNotEmpty) ...[
@@ -791,11 +843,7 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
           // Location Coordinates
           if (store.location != null && store.location!.isNotEmpty) ...[
             SizedBox(height: 16.h),
-            MiniMapPreview(
-              latLong: store.location,
-              isDark: isDark,
-              label: 'موقع السوق',
-            ),
+            const SizedBox.shrink(),
           ],
 
           // Social Links

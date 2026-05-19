@@ -24,9 +24,12 @@ class VendorUpgradeCubit extends Cubit<VendorUpgradeState> {
     );
 
     result.fold(
-      (failure) => emit(VendorUpgradeFailure(message: failure.message)),
-      (success) =>
-          emit(const VendorUpgradeSuccess(message: 'تمت الترقية بنجاح!')),
+      (failure) {
+        if (!isClosed) emit(VendorUpgradeFailure(message: failure.message));
+      },
+      (success) {
+        if (!isClosed) emit(const VendorUpgradeSuccess(message: 'تمت الترقية بنجاح!'));
+      },
     );
   }
 

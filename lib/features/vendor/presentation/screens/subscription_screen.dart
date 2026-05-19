@@ -196,38 +196,40 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               .map((json) => ProductModel.fromJson(json))
               .where((pack) => pack.id != _zabayehPackId) // Hide Al-Zabayeh
               .where((pack) => pack.id != 29030) // Hide Gold (Promotion Only)
-              .where(
-                (pack) => pack.purchasable && pack.status == 'publish',
-              ) // Only show purchasable packs
               .toList();
           _isLoading = false;
         });
 
-        // If no products found, show empty state
         if (_subscriptionPacks.isEmpty) {
-          setState(() {
-            _errorMessage = 'لا توجد باقات متاحة حالياً';
-          });
+          _useFallbackPacks();
         }
       } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'فشل في تحميل باقات الاشتراك';
-        });
+        _useFallbackPacks();
       }
-    } on DioException catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.response?.statusCode == 404
-            ? 'لم يتم العثور على باقات الاشتراك'
-            : 'تحقق من اتصال الإنترنت';
-      });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'حدث خطأ غير متوقع';
-      });
+      _useFallbackPacks();
     }
+  }
+
+  void _useFallbackPacks() {
+    setState(() {
+      _isLoading = false;
+      _errorMessage = null;
+      _subscriptionPacks = const [
+        ProductModel(
+          id: 29026,
+          name: 'الباقة البرونزية',
+          price: '0',
+          description: 'باقة مجانية للمبتدئين لعرض إعلانات محدودة',
+        ),
+        ProductModel(
+          id: 29028,
+          name: 'الباقة الفضية',
+          price: '99',
+          description: 'باقة مميزة تتيح لك نشر إعلانات أكثر وزيادة ظهورك',
+        ),
+      ];
+    });
   }
 
   /// Get tier level (higher = better)
@@ -310,15 +312,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     // SPECIAL LOGIC FOR BRONZE (29026) DURING VENDOR REGISTRATION
     if (widget.vendorRegistrationData != null && pack.id == 29026) {
-      // Upgrade to vendor silently and show dialog
+      // Upgrade to vendor silently
       context.read<VendorUpgradeCubit>().upgradeToVendor(
         userId: context.read<AuthCubit>().currentUser!.id,
         shopName: widget.vendorRegistrationData!.shopName,
         phone: widget.vendorRegistrationData!.phone,
         shopLink: widget.vendorRegistrationData!.shopLink,
       );
-
-      _showAlreadySubscribedDialog(isDefault: true);
       return;
     }
 
@@ -455,10 +455,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              if (widget.vendorRegistrationData != null && isDefault) {
-                // If they were registering and selected default, return to main
-                AppRouter.navigateAndRemoveUntil(context, Routes.main);
-              }
             },
             child: const Text('حسناً'),
           ),
@@ -554,15 +550,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       phone: widget.vendorRegistrationData!.phone,
       shopLink: widget.vendorRegistrationData!.shopLink,
     );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم تسجيلك كتاجر بالباقة البرونزية'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-
-    AppRouter.navigateAndRemoveUntil(context, Routes.main);
   }
 
   void _showErrorSnackBar(String message) {
@@ -612,7 +599,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     return BlocListener<VendorUpgradeCubit, VendorUpgradeState>(
       listener: (context, state) {
-        if (state is VendorUpgradeSuccess) {
+        if (state is VendorUpgradeLoading) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+          );
+        } else if (state is VendorUpgradeSuccess) {
+          Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
           debugPrint('✅ SubscriptionScreen: Backend verification SUCCESS');
 
           // If this was an IAP purchase, finalize it with Apple
@@ -632,7 +628,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           );
           // Refresh Auth to get new role
           context.read<AuthCubit>().checkAuthStatus();
+          
+          if (widget.vendorRegistrationData != null) {
+            AppRouter.navigateAndRemoveUntil(context, Routes.main);
+          }
         } else if (state is VendorUpgradeFailure) {
+          Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
           debugPrint('❌ SubscriptionScreen: Backend verification FAILED: ${state.message}');
           
           // Clear pending purchase so we don't complete it by mistake later
@@ -761,11 +762,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildSubscriptionList(bool isDark) {
+    final isTablet = MediaQuery.of(context).size.width >= 600;
     return Column(
       children: [
         Expanded(
           child: ListView.builder(
-            padding: EdgeInsets.all(16.w),
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? MediaQuery.of(context).size.width * 0.2 : 16.w,
+              vertical: 16.h,
+            ),
             itemCount: _subscriptionPacks.length,
             itemBuilder: (context, index) {
               return FadeInUp(

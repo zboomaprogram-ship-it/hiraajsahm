@@ -14,6 +14,7 @@ import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../presentation/cubit/product_details_cubit.dart';
 import '../../presentation/cubit/qna_cubit.dart';
+import '../../data/models/question_model.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../widgets/product_qr_card.dart';
 import '../widgets/service_providers_slider.dart';
@@ -326,12 +327,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         ),
                                         child: Column(
                                           children: [
-                                            MiniMapPreview(
-                                              latLong: location,
-                                              isDark: isDark,
-                                              label: 'الموقع على الخريطة',
-                                              height: 180,
-                                            ),
+                                            const SizedBox.shrink(),
                                             SizedBox(height: 12.h),
                                           ],
                                         ),
@@ -526,21 +522,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 ),
               );
             }
-            return CachedNetworkImage(
-              imageUrl: images[index],
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                color: AppColors.surface,
-                child: const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+            return GestureDetector(
+              onTap: () {
+                if (images[index] != 'placeholder') {
+                  _showFullScreenImage(context, images, index);
+                }
+              },
+              child: CachedNetworkImage(
+                imageUrl: images[index],
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  color: AppColors.surface,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
                 ),
-              ),
-              errorWidget: (_, __, ___) => Container(
-                color: AppColors.surface,
-                child: Icon(
-                  Icons.broken_image,
-                  size: 60.sp,
-                  color: AppColors.textSecondary,
+                errorWidget: (_, __, ___) => Container(
+                  color: AppColors.surface,
+                  child: Icon(
+                    Icons.broken_image,
+                    size: 60.sp,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             );
@@ -601,6 +604,39 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, List<String> images, int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+          body: PageView.builder(
+            controller: PageController(initialPage: initialIndex),
+            itemCount: images.length,
+            itemBuilder: (ctx, index) {
+              return InteractiveViewer(
+                child: CachedNetworkImage(
+                  imageUrl: images[index],
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                  errorWidget: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image, color: Colors.white, size: 60),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 
@@ -859,7 +895,33 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               child:
                   _chewieController != null &&
                       _videoController!.value.isInitialized
-                  ? Chewie(controller: _chewieController!)
+                  ? Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Chewie(controller: _chewieController!),
+                        ),
+                        Positioned(
+                          top: 10.h,
+                          right: 10.w,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(4.r),
+                            ),
+                            child: Text(
+                              'حراج سهم',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Cairo',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   : Container(
                       color: Colors.black,
                       child: const Center(
@@ -1273,10 +1335,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             : AppColors.textPrimary,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _showAddReviewDialog(context),
-                      child: const Text('أضف تقييم'),
-                    ),
+                    if (context.read<AuthCubit>().state is AuthAuthenticated &&
+                        (context.read<AuthCubit>().state as AuthAuthenticated).user.id != widget.product.vendorId)
+                      TextButton(
+                        onPressed: () => _showAddReviewDialog(context),
+                        child: const Text('أضف تقييم'),
+                      ),
                   ],
                 ),
                 SizedBox(height: 12.h),
@@ -1449,6 +1513,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   // ============ Q&A SECTION ============
 
   Widget _buildQnASection(BuildContext context, bool isDark) {
+    final authState = context.read<AuthCubit>().state;
+    final isProductOwner = authState is AuthAuthenticated &&
+        authState.user.id == widget.product.vendorId;
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
       padding: EdgeInsets.all(20.w),
@@ -1471,12 +1539,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   color: isDark ? AppColors.textLight : AppColors.textPrimary,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => _showAskQuestionDialog(context),
-                icon: const Icon(Icons.add_comment_outlined, size: 18),
-                label: const Text('اسأل البائع'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-              ),
+              if (!isProductOwner)
+                TextButton.icon(
+                  onPressed: () => _showAskQuestionDialog(context),
+                  icon: const Icon(Icons.add_comment_outlined, size: 18),
+                  label: const Text('اسأل البائع'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                ),
             ],
           ),
           SizedBox(height: 16.h),
@@ -1551,9 +1620,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             Text(
                               qna.date,
                               style: TextStyle(
-                                fontSize: 10.sp,
-                                color: AppColors.textSecondary,
-                              ),
+                                  fontSize: 10.sp,
+                                  color: AppColors.textSecondary,
+                                ),
                             ),
                           ],
                         ),
@@ -1616,6 +1685,30 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             ],
                           ),
                         ),
+                        if (isProductOwner) ...[
+                          SizedBox(height: 8.h),
+                          Padding(
+                            padding: EdgeInsets.only(right: 32.w),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _showReplyDialog(context, qna),
+                                icon: const Icon(Icons.reply, size: 18),
+                                label: Text(
+                                  qna.isAnswered ? 'تعديل الرد' : 'رد على السؤال',
+                                  style: TextStyle(fontSize: 13.sp, fontFamily: 'Cairo'),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },
@@ -1723,6 +1816,57 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               }
             },
             child: const Text('إرسال'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReplyDialog(BuildContext context, QuestionModel qna) {
+    final controller = TextEditingController(text: qna.answer);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('الرد على السؤال', style: TextStyle(fontFamily: 'Cairo')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              qna.question,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: 16.h),
+            CustomTextField(
+              controller: controller,
+              hint: 'اكتب ردك هنا...',
+              maxLines: 4,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                context.read<QnACubit>().replyToQuestion(
+                  qna.id,
+                  controller.text,
+                );
+                Navigator.pop(ctx);
+                // Refresh the questions for this product
+                context.read<QnACubit>().fetchProductQuestions(widget.product.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم إرسال الرد بنجاح', style: TextStyle(fontFamily: 'Cairo'))),
+                );
+              }
+            },
+            child: const Text('إرسال', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
