@@ -25,6 +25,22 @@ add_action('rest_api_init', function () {
         'callback' => 'hiraaj_restore_iap_purchase',
         'permission_callback' => '__return_true',
     ]);
+
+    // Debug Endpoint to confirm if this file is loaded and active
+    register_rest_route('custom/v1', '/iap-debug', [
+        'methods'  => 'GET',
+        'callback' => function() {
+            return new WP_REST_Response([
+                'status' => 'success',
+                'file' => 'apple_iap _receipt_verification.php',
+                'shared_secret_set' => !empty(get_option('hiraaj_apple_shared_secret')),
+                'shared_secret_length' => strlen(get_option('hiraaj_apple_shared_secret', '')),
+                'php_version' => phpversion(),
+                'time' => current_time('mysql'),
+            ], 200);
+        },
+        'permission_callback' => '__return_true',
+    ]);
 });
 
 /**

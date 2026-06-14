@@ -88,17 +88,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         if (purchaseDetails.status == PurchaseStatus.restored) {
           context.read<VendorUpgradeCubit>().restoreIapPurchase(
             userId: userId,
-            receiptData: purchaseDetails.verificationData.serverVerificationData,
+            receiptData:
+                purchaseDetails.verificationData.serverVerificationData,
           );
         } else {
           context.read<VendorUpgradeCubit>().verifyIapPurchase(
             userId: userId,
             productId: purchaseDetails.productID,
-            receiptData: purchaseDetails.verificationData.serverVerificationData,
+            receiptData:
+                purchaseDetails.verificationData.serverVerificationData,
           );
         }
       } else {
-        debugPrint('❌ SubscriptionScreen: Cannot verify purchase - User ID is NULL');
+        debugPrint(
+          '❌ SubscriptionScreen: Cannot verify purchase - User ID is NULL',
+        );
         _showErrorSnackBar('فشل التحقق: يجب تسجيل الدخول أولاً');
       }
     };
@@ -218,15 +222,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       _subscriptionPacks = const [
         ProductModel(
           id: 29026,
-          name: 'الباقة البرونزية',
+          name: 'العضوية البرونزية',
           price: '0',
-          description: 'باقة مجانية للمبتدئين لعرض إعلانات محدودة',
+          description:
+              'عضوية أساسية بدون رسوم. إعلان واحد في اليوم. السعي %0.5. لا يمكن الاستفادة من الخدمات.',
         ),
         ProductModel(
           id: 29028,
-          name: 'الباقة الفضية',
-          price: '99',
-          description: 'باقة مميزة تتيح لك نشر إعلانات أكثر وزيادة ظهورك',
+          name: 'العضوية الفضية',
+          price: '30', // ✅ FIXED: was 99
+          description:
+              'برسوم اشتراك 30 ريال شهري. ثلاث إعلانات يومياً. لا يوجد سعي. يمكن الاستفادة من الخدمات.',
         ),
       ];
     });
@@ -554,7 +560,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -608,7 +614,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
           );
         } else if (state is VendorUpgradeSuccess) {
-          Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pop(); // dismiss loading dialog
           debugPrint('✅ SubscriptionScreen: Backend verification SUCCESS');
 
           // If this was an IAP purchase, finalize it with Apple
@@ -628,14 +637,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           );
           // Refresh Auth to get new role
           context.read<AuthCubit>().checkAuthStatus();
-          
+
           if (widget.vendorRegistrationData != null) {
             AppRouter.navigateAndRemoveUntil(context, Routes.main);
           }
         } else if (state is VendorUpgradeFailure) {
-          Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
-          debugPrint('❌ SubscriptionScreen: Backend verification FAILED: ${state.message}');
-          
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pop(); // dismiss loading dialog
+          debugPrint(
+            '❌ SubscriptionScreen: Backend verification FAILED: ${state.message}',
+          );
+
           // Clear pending purchase so we don't complete it by mistake later
           _pendingIapPurchase = null;
 
@@ -768,7 +782,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.symmetric(
-              horizontal: isTablet ? MediaQuery.of(context).size.width * 0.2 : 16.w,
+              horizontal: isTablet
+                  ? MediaQuery.of(context).size.width * 0.2
+                  : 16.w,
               vertical: 16.h,
             ),
             itemCount: _subscriptionPacks.length,

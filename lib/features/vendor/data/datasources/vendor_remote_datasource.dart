@@ -154,11 +154,13 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         case 401:
           return AuthFailure(message: message);
         case 403:
-          return AuthFailure(message: 'Access denied');
+          // Use the server's message (not a hardcoded "Access denied")
+          // so the user sees the real reason (e.g. receipt expired, shared secret issue)
+          return AuthFailure(message: message.isNotEmpty ? message : 'رُفض الطلب من الخادم');
         case 404:
           return ServerFailure(message: 'Resource not found');
         case 500:
-          return ServerFailure(message: 'Server error');
+          return ServerFailure(message: message.isNotEmpty ? message : 'خطأ في الخادم');
         default:
           return ServerFailure(message: message);
       }
