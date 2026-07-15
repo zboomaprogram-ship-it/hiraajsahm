@@ -118,7 +118,7 @@ class AddProductCubit extends Cubit<AddProductState> {
       emit(const AddProductError(message: 'يرجى تسجيل الدخول أولاً'));
       return;
     }
-    
+
     // Immediately emit uploading to disable the button and prevent double-taps
     emit(const AddProductUploading(progress: 0.01));
 
@@ -156,32 +156,10 @@ class AddProductCubit extends Cubit<AddProductState> {
         }
       }
 
-      // Check Daily Limit via API count
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      final productsResponse = await _cleanDio.get(
-        '${AppConfig.baseUrl}/dokan/v1/stores/$userId/products',
-        queryParameters: {
-          'after': '${today}T00:00:00',
-          'per_page': 50, // Enough to check limits
-        },
-      );
-
-      if (productsResponse.statusCode == 200 && productsResponse.data is List) {
-        final productsToday = (productsResponse.data as List).length;
-        final tier = await _storageService.getUserTier();
-        final dailyLimit =
-            (tier == 'silver' || tier == 'gold' || tier == 'zabayeh') ? 5 : 1;
-
-        if (productsToday >= dailyLimit) {
-          emit(
-            AddProductError(
-              message:
-                  'لقد وصلت للحد الأقصى للإعلانات اليومية ($dailyLimit إعلانات)',
-            ),
-          );
-          return;
-        }
-      }
+      // Daily-limit enforcement is deliberately performed by the authenticated
+      // WordPress add-product endpoint. Counting from the client can use stale
+      // account data or an incorrectly scoped API response, which can block the
+      // wrong seller. The server is the single source of truth for this rule.
     } catch (e) {
       print('Limit check error: $e');
       // Continue if check fails? Or block? Let's allow but log.
@@ -225,7 +203,8 @@ class AddProductCubit extends Cubit<AddProductState> {
           {'key': '_product_location', 'value': address},
           if (region != null) {'key': '_product_region', 'value': region},
           if (city != null) {'key': '_product_city', 'value': city},
-          if (downPayment != null) {'key': 'add_down_payment_field', 'value': downPayment},
+          if (downPayment != null)
+            {'key': 'add_down_payment_field', 'value': downPayment},
           if (videoId != null) {'key': '_product_video_id', 'value': videoId},
         ],
       };
@@ -357,8 +336,7 @@ class AddProductCubit extends Cubit<AddProductState> {
           if (city != null) {'key': '_product_city', 'value': city},
           if (downPayment != null)
             {'key': 'add_down_payment_field', 'value': downPayment},
-          if (videoId != null)
-            {'key': '_product_video_id', 'value': videoId},
+          if (videoId != null) {'key': '_product_video_id', 'value': videoId},
         ],
       };
 

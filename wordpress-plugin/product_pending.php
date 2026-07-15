@@ -25,6 +25,24 @@ function handle_custom_add_product_v2($request)
         ], 403);
     }
 
+    // Enforce the daily limit on the server, using the authenticated seller's
+    // ID. Do not trust a client-provided user ID or a client-side product count:
+    // either can result in one seller affecting another seller's ability to post.
+    if (!current_user_can('manage_options')) {
+        $daily_limit = hiraaj_sahm_daily_ad_limit((int) $pack_id);
+        $ads_today = hiraaj_sahm_count_seller_ads_today($user_id, $daily_limit);
+
+        if ($ads_today >= $daily_limit) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => sprintf('لقد وصلت للحد الأقصى للإعلانات اليومية (%d إعلانات)', $daily_limit),
+                'code' => 'daily_ad_limit_reached',
+                'daily_limit' => $daily_limit,
+                'ads_today' => $ads_today,
+            ], 429);
+        }
+    }
+
     $params = $request->get_json_params();
 
     // 1. Sanitize Input with Null-Coalescing
@@ -34,7 +52,7 @@ function handle_custom_add_product_v2($request)
     $description = wp_kses_post($params['description'] ?? '');
     $cat_id = intval($params['category_id'] ?? 0);
     $stock = intval($params['stock_quantity'] ?? 0);
-    $image_ids = $params['images'] ?? []; // Array of Image IDs
+    $image_ids = array_values(array_filter(array_map('absint', (array) ($params['images'] ?? [])))); // Array of Image IDs
 
     // 2. Create the Product Post
     $post_data = [
@@ -73,14 +91,20 @@ function handle_custom_add_product_v2($request)
     update_post_meta($product_id, '_visibility', 'visible');
 
     // 5. Handle Images (Thumbnail + Gallery)
-    if (!empty($image_ids) && is_array($image_ids)) {
+    if (!empty($image_ids)) {
+        foreach ($image_ids as $image_id) {
+            if (function_exists('hiraaj_sahm_watermark_attachment')) {
+                hiraaj_sahm_watermark_attachment($image_id);
+            }
+        }
+
         // Set first image as Main Thumbnail
         set_post_thumbnail($product_id, $image_ids[0]);
 
         // Remove first image and set the rest as Gallery
-        array_shift($image_ids);
-        if (!empty($image_ids)) {
-            update_post_meta($product_id, '_product_image_gallery', implode(',', $image_ids));
+        $gallery_image_ids = array_slice($image_ids, 1);
+        if (!empty($gallery_image_ids)) {
+            update_post_meta($product_id, '_product_image_gallery', implode(',', $gallery_image_ids));
         }
     }
 
@@ -108,4 +132,47 @@ function handle_custom_add_product_v2($request)
         'product_id' => $product_id,
         'message' => 'Product created successfully'
     ], 200);
+}
+
+/**
+ * Returns the number of ads a package may create per WordPress calendar day.
+ * Keep this policy on the server; the filter permits a future plugin/settings
+ * page to change it without releasing a new mobile build.
+ */
+function hiraaj_sahm_daily_ad_limit($pack_id)
+{
+    $limits = [
+        29026 => 1, // Bronze
+        29028 => 5, // Silver
+        29030 => 5, // Gold
+        29318 => 5, // Al-Zabayeh
+    ];
+
+    $limit = $limits[$pack_id] ?? 1;
+    return max(1, (int) apply_filters('hiraaj_sahm_daily_ad_limit', $limit, $pack_id));
+}
+
+/**
+ * Counts this seller's ads from WordPress midnight onward. Pending posts are
+ * included because this endpoint creates ads as pending before approval.
+ */
+function hiraaj_sahm_count_seller_ads_today($user_id, $limit)
+{
+    $day_start = current_time('Y-m-d') . ' 00:00:00';
+
+    $query = new WP_Query([
+        'author' => (int) $user_id,
+        'post_type' => 'product',
+        'post_status' => ['publish', 'pending', 'draft', 'private'],
+        'date_query' => [[
+            'after' => $day_start,
+            'inclusive' => true,
+        ]],
+        'fields' => 'ids',
+        'posts_per_page' => (int) $limit,
+        'no_found_rows' => true,
+        'ignore_sticky_posts' => true,
+    ]);
+
+    return count($query->posts);
 }

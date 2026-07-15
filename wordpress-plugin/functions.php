@@ -323,186 +323,216 @@ function hiraaj_sahm_refresh_token(WP_REST_Request $request) {
 }
 
 // ============================================================
-// Add Watermark to Uploaded Images
+// Product Image Watermark
 // ============================================================
-add_filter('wp_handle_upload', 'hiraaj_sahm_watermark_upload');
-add_filter('wp_handle_sideload', 'hiraaj_sahm_watermark_upload');
+if (!defined('HIRAAJ_WATERMARK_URL')) {
+    define('HIRAAJ_WATERMARK_URL', 'https://hiraajsahm.com/wp-content/uploads/2026/05/%D8%AD%D8%B1%D8%A7%D8%AC-%D8%B3%D9%87%D9%85-1-3-1.png');
+}
+if (!defined('HIRAAJ_WATERMARK_SIZE')) {
+    define('HIRAAJ_WATERMARK_SIZE', 0.16);
+}
+if (!defined('HIRAAJ_WATERMARK_MARGIN')) {
+    define('HIRAAJ_WATERMARK_MARGIN', 40);
+}
+if (!defined('HIRAAJ_WATERMARK_META')) {
+    define('HIRAAJ_WATERMARK_META', '_hiraaj_watermarked');
+}
 
-function hiraaj_sahm_watermark_upload($upload) {
-    if (!isset($upload['file']) || !file_exists($upload['file'])) {
+add_filter('wp_handle_upload', 'hiraaj_sahm_watermark_product_upload');
+add_action('woocommerce_process_product_meta', 'hiraaj_sahm_watermark_product_images_on_save', 10, 1);
+add_action('woocommerce_rest_insert_product_object', 'hiraaj_sahm_watermark_product_images_on_rest_save', 10, 3);
+
+function hiraaj_sahm_watermark_product_upload($upload) {
+    if (!hiraaj_sahm_is_product_upload_context()) {
         return $upload;
     }
 
-    if (!extension_loaded('gd')) {
-        return $upload;
+    return hiraaj_sahm_apply_watermark_to_upload($upload);
+}
+
+function hiraaj_sahm_watermark_product_images_on_save($product_id) {
+    $thumbnail_id = get_post_thumbnail_id($product_id);
+    if ($thumbnail_id) {
+        hiraaj_sahm_watermark_attachment((int) $thumbnail_id);
     }
 
-    $file_path = $upload['file'];
-    $image_type = wp_check_filetype($file_path);
-    $mime_type = $image_type['type'];
+    $gallery_ids = get_post_meta($product_id, '_product_image_gallery', true);
+    if (!empty($gallery_ids)) {
+        foreach (explode(',', $gallery_ids) as $attachment_id) {
+            hiraaj_sahm_watermark_attachment((int) trim($attachment_id));
+        }
+    }
+}
 
-    if (strpos($mime_type, 'image') === false) {
-        return $upload;
+function hiraaj_sahm_watermark_product_images_on_rest_save($product, $request, $creating) {
+    if (!is_a($product, 'WC_Product')) {
+        return;
     }
 
-    try {
-        $img = null;
-        $ext = strtolower($image_type['ext']);
+    $image_ids = array_filter(array_merge(
+        [(int) $product->get_image_id()],
+        array_map('absint', (array) $product->get_gallery_image_ids())
+    ));
 
-        if ($ext === 'jpg' || $ext === 'jpeg') {
-            if (function_exists('imagecreatefromjpeg')) {
-                $img = @imagecreatefromjpeg($file_path);
-            }
-        } elseif ($ext === 'png') {
-            if (function_exists('imagecreatefrompng')) {
-                $img = @imagecreatefrompng($file_path);
-            }
-        } elseif ($ext === 'webp') {
-            if (function_exists('imagecreatefromwebp')) {
-                $img = @imagecreatefromwebp($file_path);
-            }
-        }
+    foreach ($image_ids as $attachment_id) {
+        hiraaj_sahm_watermark_attachment((int) $attachment_id);
+    }
+}
 
-        if (!$img) {
-            return $upload;
-        }
+function hiraaj_sahm_is_product_upload_context() {
+    $post_id = (int) ($_REQUEST['post_id'] ?? $_REQUEST['post'] ?? 0);
 
-        $width = imagesx($img);
-        $height = imagesy($img);
+    if ($post_id && get_post_type($post_id) === 'product') {
+        return true;
+    }
 
-        // Do not watermark tiny images
-        if ($width < 150 || $height < 150) {
-            imagedestroy($img);
-            return $upload;
-        }
+    return false;
+}
 
-        // Try to dynamically detect the logo path
-        $logo_path = '';
-        $logo_ext = '';
+function hiraaj_sahm_watermark_attachment($attachment_id) {
+    if (!$attachment_id || get_post_meta($attachment_id, HIRAAJ_WATERMARK_META, true)) {
+        return false;
+    }
 
-        // 1. Check WordPress Customizer Logo
-        $logo_id = get_theme_mod('custom_logo');
-        if ($logo_id) {
-            $logo_file = get_attached_file($logo_id);
-            if ($logo_file && file_exists($logo_file)) {
-                $logo_path = $logo_file;
-                $logo_type = wp_check_filetype($logo_path);
-                $logo_ext = strtolower($logo_type['ext']);
-            }
-        }
+    $mime = get_post_mime_type($attachment_id);
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        return false;
+    }
 
-        // 2. Fallback: Check for logo.png in the active theme folder
-        if (empty($logo_path)) {
-            $theme_logo = get_stylesheet_directory() . '/logo.png';
-            if (file_exists($theme_logo)) {
-                $logo_path = $theme_logo;
-                $logo_ext = 'png';
+    $file_path = get_attached_file($attachment_id);
+    if (!$file_path || !file_exists($file_path)) {
+        return false;
+    }
+
+    $changed = hiraaj_sahm_apply_watermark_to_file($file_path);
+    $metadata = wp_get_attachment_metadata($attachment_id);
+
+    if (!empty($metadata['sizes']) && !empty($metadata['file'])) {
+        $uploads = wp_upload_dir();
+        $base_dir = trailingslashit($uploads['basedir']) . trailingslashit(dirname($metadata['file']));
+
+        foreach ($metadata['sizes'] as $size) {
+            if (!empty($size['file'])) {
+                $changed = hiraaj_sahm_apply_watermark_to_file($base_dir . $size['file']) || $changed;
             }
         }
+    }
 
-        // 3. Fallback: Check for logo.png in the root uploads directory
-        if (empty($logo_path)) {
-            $upload_dir = wp_upload_dir();
-            $upload_logo = $upload_dir['basedir'] . '/logo.png';
-            if (file_exists($upload_logo)) {
-                $logo_path = $upload_logo;
-                $logo_ext = 'png';
-            }
-        }
+    if ($changed) {
+        update_post_meta($attachment_id, HIRAAJ_WATERMARK_META, '1');
+    }
 
-        $watermark_applied = false;
+    return $changed;
+}
 
-        // Apply logo watermark if detected
-        if (!empty($logo_path) && file_exists($logo_path)) {
-            $logo = null;
-            if ($logo_ext === 'jpg' || $logo_ext === 'jpeg') {
-                if (function_exists('imagecreatefromjpeg')) {
-                    $logo = @imagecreatefromjpeg($logo_path);
-                }
-            } elseif ($logo_ext === 'png') {
-                if (function_exists('imagecreatefrompng')) {
-                    $logo = @imagecreatefrompng($logo_path);
-                }
-            } elseif ($logo_ext === 'webp') {
-                if (function_exists('imagecreatefromwebp')) {
-                    $logo = @imagecreatefromwebp($logo_path);
-                }
-            }
-
-            if ($logo) {
-                $logo_w = imagesx($logo);
-                $logo_h = imagesy($logo);
-
-                // Calculate scaled dimensions: logo width should be 20% of image width
-                $scale_w = round($width * 0.20);
-                $scale_w = max(60, min(300, $scale_w));
-                $scale_h = round($logo_h * ($scale_w / $logo_w));
-
-                $scaled_logo = imagecreatetruecolor($scale_w, $scale_h);
-                if ($scaled_logo) {
-                    imagealphablending($scaled_logo, false);
-                    imagesavealpha($scaled_logo, true);
-                    $transparent = imagecolorallocatealpha($scaled_logo, 0, 0, 0, 127);
-                    imagefill($scaled_logo, 0, 0, $transparent);
-
-                    imagecopyresampled($scaled_logo, $logo, 0, 0, 0, 0, $scale_w, $scale_h, $logo_w, $logo_h);
-
-                    // Position: bottom right
-                    $margin = 15;
-                    $x = $width - $scale_w - $margin;
-                    $y = $height - $scale_h - $margin;
-
-                    if ($x < 0) $x = $margin;
-                    if ($y < 0) $y = $margin;
-
-                    // Blend onto the original image
-                    imagealphablending($img, true);
-                    imagecopy($img, $scaled_logo, $x, $y, 0, 0, $scale_w, $scale_h);
-
-                    imagedestroy($scaled_logo);
-                    $watermark_applied = true;
-                }
-                imagedestroy($logo);
-            }
-        }
-
-        // Fallback: Text watermark if logo detection failed/unconfigured
-        if (!$watermark_applied) {
-            $text = "Hiraaj Sahm";
-            $font_size = 5;
-            $margin = 15;
-
-            $text_width = imagefontwidth($font_size) * strlen($text);
-            $text_height = imagefontheight($font_size);
-
-            $x = $width - $text_width - $margin;
-            $y = $height - $text_height - $margin;
-
-            if ($x < 0) $x = $margin;
-            if ($y < 0) $y = $margin;
-
-            $bg_color = imagecolorallocatealpha($img, 0, 0, 0, 80);
-            $text_color = imagecolorallocate($img, 255, 255, 255);
-
-            if ($bg_color !== false && $text_color !== false) {
-                imagefilledrectangle($img, $x - 5, $y - 5, $x + $text_width + 5, $y + $text_height + 5, $bg_color);
-                imagestring($img, $font_size, $x, $y, $text, $text_color);
-            }
-        }
-
-        // Save back to disk
-        if ($ext === 'jpg' || $ext === 'jpeg') {
-            imagejpeg($img, $file_path, 90);
-        } elseif ($ext === 'png') {
-            imagepng($img, $file_path, 6);
-        } elseif ($ext === 'webp') {
-            imagewebp($img, $file_path, 85);
-        }
-
-        imagedestroy($img);
-    } catch (Exception $e) {
-        error_log('Hiraaj Watermark Error: ' . $e->getMessage());
+function hiraaj_sahm_apply_watermark_to_upload($upload) {
+    if (isset($upload['file'])) {
+        hiraaj_sahm_apply_watermark_to_file($upload['file']);
     }
 
     return $upload;
+}
+
+function hiraaj_sahm_apply_watermark_to_file($file_path) {
+    if (!extension_loaded('gd') || !$file_path || !file_exists($file_path)) {
+        return false;
+    }
+
+    $file_type = wp_check_filetype($file_path);
+    $ext = strtolower($file_type['ext'] ?? '');
+
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        return false;
+    }
+
+    $image = hiraaj_sahm_create_image_resource($file_path, $ext);
+    if (!$image) {
+        return false;
+    }
+
+    $image_width = imagesx($image);
+    $image_height = imagesy($image);
+
+    if ($image_width < 150 || $image_height < 150) {
+        imagedestroy($image);
+        return false;
+    }
+
+    $watermark_data = wp_remote_retrieve_body(wp_remote_get(HIRAAJ_WATERMARK_URL, ['timeout' => 10]));
+    if (empty($watermark_data)) {
+        imagedestroy($image);
+        return false;
+    }
+
+    $watermark = @imagecreatefromstring($watermark_data);
+    if (!$watermark) {
+        imagedestroy($image);
+        return false;
+    }
+
+    $watermark_width = imagesx($watermark);
+    $watermark_height = imagesy($watermark);
+    $new_width = max(40, (int) round($image_width * HIRAAJ_WATERMARK_SIZE));
+    $new_height = (int) round(($watermark_height / $watermark_width) * $new_width);
+
+    $resized_watermark = imagecreatetruecolor($new_width, $new_height);
+    imagealphablending($resized_watermark, false);
+    imagesavealpha($resized_watermark, true);
+    imagefilledrectangle(
+        $resized_watermark,
+        0,
+        0,
+        $new_width,
+        $new_height,
+        imagecolorallocatealpha($resized_watermark, 0, 0, 0, 127)
+    );
+    imagecopyresampled($resized_watermark, $watermark, 0, 0, 0, 0, $new_width, $new_height, $watermark_width, $watermark_height);
+
+    $margin = min(HIRAAJ_WATERMARK_MARGIN, max(10, (int) round($image_width * 0.04)));
+    $x = max(0, $image_width - $new_width - $margin);
+    $y = max(0, $image_height - $new_height - $margin);
+
+    imagealphablending($image, true);
+    imagecopy($image, $resized_watermark, $x, $y, 0, 0, $new_width, $new_height);
+
+    $saved = hiraaj_sahm_save_image_resource($image, $file_path, $ext);
+
+    imagedestroy($image);
+    imagedestroy($watermark);
+    imagedestroy($resized_watermark);
+
+    return $saved;
+}
+
+function hiraaj_sahm_create_image_resource($file_path, $ext) {
+    if (($ext === 'jpg' || $ext === 'jpeg') && function_exists('imagecreatefromjpeg')) {
+        return @imagecreatefromjpeg($file_path);
+    }
+
+    if ($ext === 'png' && function_exists('imagecreatefrompng')) {
+        return @imagecreatefrompng($file_path);
+    }
+
+    if ($ext === 'webp' && function_exists('imagecreatefromwebp')) {
+        return @imagecreatefromwebp($file_path);
+    }
+
+    return false;
+}
+
+function hiraaj_sahm_save_image_resource($image, $file_path, $ext) {
+    if ($ext === 'jpg' || $ext === 'jpeg') {
+        return imagejpeg($image, $file_path, 94);
+    }
+
+    if ($ext === 'png') {
+        imagesavealpha($image, true);
+        return imagepng($image, $file_path, 6);
+    }
+
+    if ($ext === 'webp' && function_exists('imagewebp')) {
+        return imagewebp($image, $file_path, 90);
+    }
+
+    return false;
 }
