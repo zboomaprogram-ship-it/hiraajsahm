@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../config/app_config.dart';
 import '../services/storage_service.dart';
 import '../utils/navigator_key.dart';
@@ -9,42 +10,29 @@ import '../routes/routes.dart';
 class ApiInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (AppConfig.enableLogging) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    if (AppConfig.enableLogging && kDebugMode) {
       print('📤 REQUEST[${options.method}] => PATH: ${options.path}');
-      print('Headers: ${options.headers}');
-      print('Query Parameters: ${options.queryParameters}');
-      if (options.data != null) {
-        print('Body: ${options.data}');
-      }
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
     super.onRequest(options, handler);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (AppConfig.enableLogging) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    if (AppConfig.enableLogging && kDebugMode) {
       print(
         '📥 RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}',
       );
-      print('Data: ${response.data}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
     super.onResponse(response, handler);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (AppConfig.enableLogging) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    if (AppConfig.enableLogging && kDebugMode) {
       print(
         '❌ ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}',
       );
       print('Message: ${err.message}');
-      print('Response: ${err.response?.data}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
     super.onError(err, handler);
   }
@@ -99,7 +87,23 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     // Handle 401 Unauthorized - Token expired
-    if (err.response?.statusCode == 401) {
+    final responseCode = err.response?.data is Map
+        ? err.response?.data['code']?.toString()
+        : null;
+    final hasBearerToken =
+        err.requestOptions.headers['Authorization']?.toString().startsWith(
+          'Bearer ',
+        ) ==
+        true;
+    final invalidTokenCodes = {
+      'jwt_auth_invalid_token',
+      'jwt_auth_expired_token',
+      'jwt_auth_bad_iss',
+      'jwt_auth_no_auth_header',
+    };
+    if (err.response?.statusCode == 401 &&
+        hasBearerToken &&
+        invalidTokenCodes.contains(responseCode)) {
       // Clear all auth data
       await _storageService.logout();
 
@@ -124,8 +128,9 @@ class RetryInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     // Only retry on connection errors
-    if (_shouldRetry(err) && err.requestOptions.extra['retryCount'] == null) {
-      int retryCount = err.requestOptions.extra['retryCount'] ?? 0;
+    if (_shouldRetry(err)) {
+      final int retryCount =
+          err.requestOptions.extra['retryCount'] as int? ?? 0;
 
       if (retryCount < maxRetries) {
         err.requestOptions.extra['retryCount'] = retryCount + 1;
@@ -137,8 +142,9 @@ class RetryInterceptor extends Interceptor {
           final response = await dio.fetch(err.requestOptions);
           handler.resolve(response);
           return;
-        } catch (e) {
-          // Continue with original error
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+          return;
         }
       }
     }
@@ -148,7 +154,7 @@ class RetryInterceptor extends Interceptor {
 
   bool _shouldRetry(DioException err) {
     if (err.requestOptions.method != 'GET') return false;
-    
+
     return err.type == DioExceptionType.connectionTimeout ||
         err.type == DioExceptionType.receiveTimeout ||
         err.type == DioExceptionType.sendTimeout ||

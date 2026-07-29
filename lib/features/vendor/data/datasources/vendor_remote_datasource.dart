@@ -86,12 +86,17 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         }),
       );
 
-      if (response.statusCode == 200) {
+      final data = response.data;
+      if (response.statusCode == 200 &&
+          data is Map &&
+          data['success'] == true) {
         return const Right(true);
       } else {
         return Left(
           ServerFailure(
-            message: response.data['message'] ?? 'Failed to verify IAP receipt',
+            message: data is Map
+                ? data['message']?.toString() ?? 'Failed to verify IAP receipt'
+                : 'Failed to verify IAP receipt',
           ),
         );
       }
@@ -123,12 +128,17 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         }),
       );
 
-      if (response.statusCode == 200) {
+      final data = response.data;
+      if (response.statusCode == 200 &&
+          data is Map &&
+          data['success'] == true) {
         return const Right(true);
       } else {
         return Left(
           ServerFailure(
-            message: response.data['message'] ?? 'Failed to restore IAP receipt',
+            message: data is Map
+                ? data['message']?.toString() ?? 'Failed to restore IAP receipt'
+                : 'Failed to restore IAP receipt',
           ),
         );
       }
@@ -156,11 +166,15 @@ class VendorRemoteDataSourceImpl implements VendorRemoteDataSource {
         case 403:
           // Use the server's message (not a hardcoded "Access denied")
           // so the user sees the real reason (e.g. receipt expired, shared secret issue)
-          return AuthFailure(message: message.isNotEmpty ? message : 'رُفض الطلب من الخادم');
+          return AuthFailure(
+            message: message.isNotEmpty ? message : 'رُفض الطلب من الخادم',
+          );
         case 404:
           return ServerFailure(message: 'Resource not found');
         case 500:
-          return ServerFailure(message: message.isNotEmpty ? message : 'خطأ في الخادم');
+          return ServerFailure(
+            message: message.isNotEmpty ? message : 'خطأ في الخادم',
+          );
         default:
           return ServerFailure(message: message);
       }

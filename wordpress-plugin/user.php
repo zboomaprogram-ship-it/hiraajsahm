@@ -107,19 +107,12 @@ function handle_vendor_request($request)
     // Initialize Vendor in Dokan
     do_action('dokan_new_seller_created', $user_id, $dokan_settings);
 
-    // --- MODE 3: ACTIVATE PACK ID (NEW FIX) ---
-    if ($pack_id > 0) {
-        $allowed_packs = [29026, 29028, 29030, 29318];
-        if (in_array($pack_id, $allowed_packs)) {
-            update_user_meta($user_id, 'product_package_id', $pack_id);
-            update_user_meta($user_id, 'product_pack_startdate', current_time('mysql'));
-            update_user_meta($user_id, 'product_pack_enddate', 'unlimited');
-
-            if ($pack_id === 29318) {
-                update_user_meta($user_id, 'sacrifices_verified', 'yes');
-            }
-        }
-    }
+    // Registration may only grant the free Bronze tier. Paid tiers are
+    // activated later by the verified WooCommerce/Telr or Apple IAP flow.
+    $registration_pack_id = 29026;
+    update_user_meta($user_id, 'product_package_id', $registration_pack_id);
+    update_user_meta($user_id, 'product_pack_startdate', current_time('mysql'));
+    update_user_meta($user_id, 'product_pack_enddate', 'unlimited');
 
     // Get Store URL
     $store_url = function_exists('dokan_get_store_url') ? dokan_get_store_url($user_id) : home_url('/store/' . $store_slug . '/');

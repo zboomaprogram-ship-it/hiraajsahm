@@ -5,12 +5,12 @@ class AppConfig {
   // ============ APP INFO ============
   static const String appName = 'Hiraaj Sahm';
   static const String appNameAr = 'حراج سهم';
-  static const String appVersion = '1.0.1';
-  static const String buildNumber = '10';
+  static const String appVersion = '1.0.6';
+  static const String buildNumber = '16';
 
   // ============ ENVIRONMENT ============
-  static const bool isProduction = false;
-  static const bool enableLogging = true;
+  static const bool isProduction = true;
+  static const bool enableLogging = false;
 
   // ============ API CONFIGURATION ============
   static const String productionBaseUrl = 'https://hiraajsahm.com/wp-json';
@@ -38,6 +38,10 @@ class AppConfig {
       '/custom/v1/restore-iap'; // Custom Endpoint
   static const String serviceProvidersEndpoint =
       '/hiraajsahm/v1/service-providers'; // Custom Endpoint
+  static const String followEndpoint = '/custom/v1/follows';
+  static const String vendorProductsSecureEndpoint =
+      '/custom/v1/vendor/products';
+  static const String conversationsEndpoint = '/custom/v1/messages';
 
   // Dokan Endpoints
   static const String dokanVendorsEndpoint = '/dokan/v1/vendors';

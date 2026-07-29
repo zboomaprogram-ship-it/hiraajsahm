@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
+import '../di/injection_container.dart';
 import 'notification_service.dart';
 
 /// Service for following/unfollowing vendors
@@ -14,7 +17,7 @@ class FollowService {
   /// Follow a vendor - subscribes to their OneSignal topic
   Future<void> followVendor(int vendorId) async {
     try {
-      // Subscribe to vendor's OneSignal topic
+      await _syncFollow(vendorId, follow: true);
       final topicName = 'vendor_$vendorId';
       await NotificationService().subscribeToTopic(topicName);
 
@@ -31,7 +34,7 @@ class FollowService {
   /// Unfollow a vendor - unsubscribes from their OneSignal topic
   Future<void> unfollowVendor(int vendorId) async {
     try {
-      // Unsubscribe from vendor's OneSignal topic
+      await _syncFollow(vendorId, follow: false);
       final topicName = 'vendor_$vendorId';
       await NotificationService().unsubscribeFromTopic(topicName);
 
@@ -47,6 +50,26 @@ class FollowService {
 
   /// Check if currently following a vendor
   Future<bool> isFollowing(int vendorId) async {
+    try {
+      final response = await sl<Dio>().get(
+        '${AppConfig.followEndpoint}/$vendorId',
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final following = response.data['following'] == true;
+        if (following) {
+          await _addFollowedVendor(vendorId);
+        } else {
+          await _removeFollowedVendor(vendorId);
+        }
+        return following;
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 401 &&
+          e.response?.statusCode != 403 &&
+          e.response?.statusCode != 404) {
+        rethrow;
+      }
+    }
     final followedVendors = await getFollowedVendors();
     return followedVendors.contains(vendorId);
   }
@@ -87,11 +110,15 @@ class FollowService {
     await prefs.setStringList(_followedVendorsKey, current);
   }
 
-  /// Get follower count for a vendor (placeholder - needs backend API)
-  /// TODO: Implement actual API call to get follower count
   Future<int> getFollowerCount(int vendorId) async {
-    // This would need a backend endpoint to track followers
-    return 0;
+    try {
+      final response = await sl<Dio>().get(
+        '${AppConfig.followEndpoint}/$vendorId',
+      );
+      return int.tryParse(response.data?['count']?.toString() ?? '') ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Toggle follow status
@@ -104,6 +131,23 @@ class FollowService {
     } else {
       await followVendor(vendorId);
       return true;
+    }
+  }
+
+  Future<void> _syncFollow(int vendorId, {required bool follow}) async {
+    try {
+      await sl<Dio>().post(
+        '${AppConfig.followEndpoint}/$vendorId',
+        data: {'follow': follow},
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw Exception('يرجى تسجيل الدخول لمتابعة البائع');
+      }
+      if (e.response?.statusCode == 404) {
+        throw Exception('خدمة المتابعة غير متاحة على الخادم');
+      }
+      rethrow;
     }
   }
 }

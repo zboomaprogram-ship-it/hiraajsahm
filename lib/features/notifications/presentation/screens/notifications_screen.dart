@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../../core/theme/colors.dart';
-import '../../../../core/routes/app_router.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../data/models/notification_model.dart';
 import '../cubit/notifications_cubit.dart';
 
@@ -269,6 +269,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.star_outline;
       case 'payment':
         return Icons.payments_outlined;
+      case 'message':
+        return Icons.chat_bubble_outline_rounded;
       case 'promo':
         return Icons.local_offer_outlined;
       default:
@@ -288,6 +290,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Colors.amber;
       case 'payment':
         return AppColors.success;
+      case 'message':
+        return AppColors.primary;
       case 'promo':
         return AppColors.accent;
       default:
@@ -300,16 +304,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     context.read<NotificationsCubit>().markAsRead(notification.id);
 
     // Handle deep linking
-    final data = notification.data;
-    if (data != null) {
-      if (data.containsKey('order_id')) {
-        // Navigate to order details
-        // AppRouter.pushNamed(context, '/order-details', arguments: data['order_id']);
-      } else if (data.containsKey('product_id')) {
-        // Navigate to product details
-        // AppRouter.pushNamed(context, '/product-details', arguments: data['product_id']);
-      }
-    }
+    NotificationService().openNotificationData(notification.data);
   }
 
   void _showClearConfirmation(BuildContext context) {

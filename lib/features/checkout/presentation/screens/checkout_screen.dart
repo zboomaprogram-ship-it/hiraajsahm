@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/storage_service.dart';
-import 'package:hiraajsahm/core/services/telr_payment_service.dart';
 import 'package:telr_mobile_payment_sdk/telr_mobile_payment_sdk.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -74,18 +74,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       // Use explicit first/last name if available, fallback to splitting displayName
       // Improved name parsing: if firstName is missing or lastName is missing, try splitting displayName
-      if (user.firstName != null && user.firstName!.isNotEmpty && 
-          user.lastName != null && user.lastName!.isNotEmpty) {
+      if (user.firstName != null &&
+          user.firstName!.isNotEmpty &&
+          user.lastName != null &&
+          user.lastName!.isNotEmpty) {
         _firstNameController.text = user.firstName!;
         _lastNameController.text = user.lastName!;
       } else {
         // Fallback: split display name
         final nameParts = user.displayName.split(' ');
         if (nameParts.isNotEmpty) {
-          _firstNameController.text = user.firstName?.isNotEmpty == true 
-              ? user.firstName! 
+          _firstNameController.text = user.firstName?.isNotEmpty == true
+              ? user.firstName!
               : nameParts.first;
-              
+
           if (user.lastName?.isNotEmpty == true) {
             _lastNameController.text = user.lastName!;
           } else if (nameParts.length > 1) {
@@ -134,7 +136,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final cartState = context.read<CartCubit>().state;
     String calculatedPaymentType = 'full';
     if (cartState is CartLoaded) {
-
       // Determine Payment Type from Cart Items (Inspection vs Full)
       final depositItem = cartState.items.firstWhere(
         (item) => item.isDeposit,
@@ -201,17 +202,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       // ✅ STEP A: Get Token from WordPress Backend (FL-3)
-      final String basicAuth = 'Basic ${base64.encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}';
-      
-      final url = Uri.parse('${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}').replace(
-        queryParameters: {
-          'order_id': orderId.toString(),
-          'amount': amount,
-          'currency': 'SAR',
-          'customer_email': customerEmail,
-          'customer_name': customerName,
-        },
-      );
+      final String basicAuth =
+          'Basic ${base64.encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}';
+
+      final url =
+          Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}',
+          ).replace(
+            queryParameters: {
+              'order_id': orderId.toString(),
+              'amount': amount,
+              'currency': 'SAR',
+              'customer_email': customerEmail,
+              'customer_name': customerName,
+            },
+          );
 
       print('🔵 Fetching Telr URLs from: $url');
       final response = await http.get(
@@ -224,7 +229,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       final data = json.decode(response.body);
-      
+
       // ✅ STEP B: Extract Telr URLs (FL-3)
       final String? tokenUrl = data['tokenUrl']; // _links.auth.href
       final String? orderUrl = data['orderUrl']; // _links.self.href
@@ -233,7 +238,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       print('🔵 orderUrl: $orderUrl');
 
       if (tokenUrl == null || orderUrl == null) {
-        _checkoutCubit.failPayment('فشل في الحصول على روابط الدفع من Telr', orderId: orderId);
+        _checkoutCubit.failPayment(
+          'فشل في الحصول على روابط الدفع من Telr',
+          orderId: orderId,
+        );
         return;
       }
 
@@ -243,13 +251,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       print('✅ SDK result: ${res.success} ${res.message}');
 
       if (res.success) {
-        _checkoutCubit.completePayment(orderId, isSubscription: isSubscription);
+        await _checkoutCubit.completePayment(
+          orderId,
+          isSubscription: isSubscription,
+        );
       } else {
-        _checkoutCubit.failPayment(res.message, orderId: orderId);
+        await _checkoutCubit.failPayment(res.message, orderId: orderId);
       }
     } catch (e) {
       print('❌ TelrSDK Exception: $e');
-      _checkoutCubit.failPayment('خطأ في عملية الدفع: $e', orderId: orderId);
+      await _checkoutCubit.failPayment(
+        'خطأ في عملية الدفع: $e',
+        orderId: orderId,
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -270,7 +284,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           BlocListener<CheckoutCubit, CheckoutState>(
             listener: (context, state) {
               if (state is CheckoutSuccess) {
-                _showSuccessDialog(context, state.orderId, isSubscription: state.isSubscription);
+                _showSuccessDialog(
+                  context,
+                  state.orderId,
+                  isSubscription: state.isSubscription,
+                );
               } else if (state is CheckoutFailure) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -348,10 +366,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             body: BlocBuilder<CartCubit, CartState>(
               builder: (context, cartState) {
                 bool isVirtual = false;
+                bool isZeroTotal = false;
                 if (cartState is CartLoaded) {
                   isVirtual =
                       cartState.items.isNotEmpty &&
                       cartState.items.every((i) => i.product.virtual);
+                  isZeroTotal = cartState.total <= 0;
                 }
 
                 return Form(
@@ -390,24 +410,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                         SizedBox(height: 24.h),
 
-                        // Payment Method
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 200),
-                          duration: const Duration(milliseconds: 300),
-                          child: _buildSectionTitle(
-                            'طريقة الدفع',
-                            Icons.payment_rounded,
+                        if (isZeroTotal)
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.all(16.w),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: .1),
+                              borderRadius: BorderRadius.circular(12.r),
+                              border: Border.all(color: AppColors.info),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.request_quote_outlined,
+                                  color: AppColors.info,
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'هذا الإعلان بدون سعر محدد. سيتم إرسال الطلب بدون دفع إلكتروني ليتواصل معك البائع لتحديد السعر.',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          FadeInUp(
+                            delay: const Duration(milliseconds: 200),
+                            duration: const Duration(milliseconds: 300),
+                            child: _buildSectionTitle(
+                              'طريقة الدفع',
+                              Icons.payment_rounded,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 16.h),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 250),
-                          duration: const Duration(milliseconds: 300),
-                          child: _buildPaymentMethods(
-                            isDark,
-                            isVirtual: isVirtual,
+                          SizedBox(height: 16.h),
+                          FadeInUp(
+                            delay: const Duration(milliseconds: 250),
+                            duration: const Duration(milliseconds: 300),
+                            child: _buildPaymentMethods(
+                              isDark,
+                              isVirtual: isVirtual,
+                            ),
                           ),
-                        ),
+                        ],
                         SizedBox(height: 16.h),
 
                         // Notes
@@ -426,7 +471,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             builder: (context, state) {
                               final isLoading =
                                   state is CheckoutProcessing ||
-                                      _isPaymentProcessing;
+                                  _isPaymentProcessing;
 
                               return Container(
                                 width: double.infinity,
@@ -502,6 +547,91 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             child: Column(
               children: [
+                if (state.items.isNotEmpty) ...[
+                  Builder(
+                    builder: (context) {
+                      final item = state.items.first;
+                      final product = item.product;
+                      final agreement = item.bidCommentId != null
+                          ? 'سعر مزاد علني مقبول'
+                          : item.privateOfferMessageId != null
+                          ? 'عرض سعر خاص مقبول'
+                          : 'شراء مباشر';
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10.r),
+                            child: SizedBox(
+                              width: 76.w,
+                              height: 76.w,
+                              child: product.images.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: product.images.first,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (_, __, ___) =>
+                                          const Icon(Icons.image_outlined),
+                                    )
+                                  : const ColoredBox(
+                                      color: Color(0xFFF1F3F5),
+                                      child: Icon(Icons.image_outlined),
+                                    ),
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  product.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? AppColors.textLight
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                                if ((product.vendorName ?? '').isNotEmpty) ...[
+                                  SizedBox(height: 4.h),
+                                  Text(
+                                    'البائع: ${product.vendorName}',
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                                SizedBox(height: 5.h),
+                                Text(
+                                  agreement,
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(height: 4.h),
+                                Text(
+                                  '${product.priceAsDouble.toStringAsFixed(2)} ر.س',
+                                  style: TextStyle(
+                                    fontSize: 15.sp,
+                                    color: AppColors.secondary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  Divider(height: 28.h, color: AppColors.border),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

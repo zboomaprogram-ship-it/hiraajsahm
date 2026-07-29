@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
+import '../../../../core/api/transient_retry.dart';
 import '../../../../core/config/app_config.dart';
 import '../../data/models/product_model.dart';
 
@@ -82,6 +83,8 @@ class ProductsError extends ProductsState {
 // ============ PRODUCTS CUBIT ============
 class ProductsCubit extends Cubit<ProductsState> {
   static const int _perPage = 20;
+  bool _isLoadingMore = false;
+  int _requestGeneration = 0;
 
   // Category ID to exclude (subscription packs)
   static const int _excludeCategoryId = 122;
@@ -104,7 +107,7 @@ class ProductsCubit extends Cubit<ProductsState> {
 
   // Cache of resolved category filter strings
   String? _resolvedCategoryFilter;
-  
+
   // Cache WC categories to avoid massive sequential recursion
   List<dynamic>? _cachedWcCategories;
 
@@ -116,16 +119,19 @@ class ProductsCubit extends Cubit<ProductsState> {
     String? city,
     bool refresh = false,
   }) async {
-    if (state is ProductsLoading && !refresh) return;
+    final requestGeneration = ++_requestGeneration;
+    final hasRegion = region != null && region.isNotEmpty && region != 'الكل';
+    final hasCity = city != null && city.isNotEmpty && city != 'الكل';
+    final pageSize = (hasRegion || hasCity) ? AppConfig.maxPageSize : _perPage;
 
     emit(const ProductsLoading());
 
     try {
       // Build query parameters
       final queryParams = <String, dynamic>{
-        'per_page': _perPage,
+        'per_page': pageSize,
         'page': 1,
-        'status': 'any', // Use any and then filter locally to avoid API error
+        'status': 'publish',
         'consumer_key': AppConfig.wcConsumerKey,
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
@@ -138,7 +144,7 @@ class ProductsCubit extends Cubit<ProductsState> {
         final subIds = await _fetchAllDescendantIds(categoryId);
         final allIds = [categoryId, ...subIds];
         _resolvedCategoryFilter = allIds.join(',');
-        
+
         // Append directly to URL to avoid Dio translating ',' to '%2C'
         fullUrl = '$fullUrl?category=$_resolvedCategoryFilter';
       } else {
@@ -149,21 +155,28 @@ class ProductsCubit extends Cubit<ProductsState> {
         queryParams['search'] = search;
       }
 
-      final response = await _cleanDio.get(
+      var response = await getWithTransientRetry(
+        _cleanDio,
         fullUrl,
         queryParameters: queryParams,
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
+        var currentPage = 1;
+        List<dynamic> data = response.data;
 
-        // Filter only published products and exclude:
+        // Parse each item independently. A single malformed marketplace
+        // product must not crash the entire shop page.
         // 1. Subscription packs (Category 122)
         // 2. Al-Zabayeh activation fee (Product ID 29318)
         const alZabayehProductId = 29318;
         var products = data
-            .map((json) => ProductModel.fromJson(json))
-            .where((product) => product.status == 'publish' || product.status == 'pending')
+            .map(_tryParseProduct)
+            .whereType<ProductModel>()
+            .where(
+              (product) =>
+                  product.status == 'publish' || product.status == 'pending',
+            )
             .where(
               (product) =>
                   !product.categories.any((c) => c.id == _excludeCategoryId),
@@ -172,34 +185,49 @@ class ProductsCubit extends Cubit<ProductsState> {
             .toList();
 
         // Apply Region & City Filter client-side
-        final hasRegion = region != null && region.isNotEmpty && region != 'الكل';
-        final hasCity = city != null && city.isNotEmpty && city != 'الكل';
-
         if (hasRegion || hasCity) {
-          products = products.where((p) {
-            bool matches = true;
-            if (hasRegion) {
-              final loc = p.productLocation?.toLowerCase() ?? '';
-              final reg = p.productRegion?.toLowerCase() ?? '';
-              final cityVal = p.productCity?.toLowerCase() ?? '';
-              final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(region.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
-            }
-            if (hasCity) {
-              final loc = p.productLocation?.toLowerCase() ?? '';
-              final reg = p.productRegion?.toLowerCase() ?? '';
-              final cityVal = p.productCity?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(city.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
-            }
-            return matches;
-          }).toList();
+          products = products
+              .where((p) => _matchesLocation(p, region: region, city: city))
+              .toList();
         }
 
+        // Location metadata is not natively filterable by WooCommerce REST.
+        // Continue scanning server pages until a match is found or the real
+        // end is reached, so an empty first page cannot hide later matches.
+        var hasNextPage = _hasNextPage(response, currentPage, data.length);
+        while ((hasRegion || hasCity) &&
+            products.isEmpty &&
+            hasNextPage &&
+            requestGeneration == _requestGeneration) {
+          currentPage++;
+          queryParams['page'] = currentPage;
+          response = await getWithTransientRetry(
+            _cleanDio,
+            fullUrl,
+            queryParameters: queryParams,
+          );
+          if (response.statusCode != 200) break;
+          data = List<dynamic>.from(response.data as List);
+          products = data
+              .map(_tryParseProduct)
+              .whereType<ProductModel>()
+              .where((product) => product.status == 'publish')
+              .where(
+                (product) =>
+                    !product.categories.any((c) => c.id == _excludeCategoryId),
+              )
+              .where((product) => product.id != alZabayehProductId)
+              .where((p) => _matchesLocation(p, region: region, city: city))
+              .toList();
+          hasNextPage = _hasNextPage(response, currentPage, data.length);
+        }
+
+        if (requestGeneration != _requestGeneration) return;
         emit(
           ProductsLoaded(
             products: products,
-            page: 1,
-            hasReachedMax: data.length < _perPage,
+            page: currentPage,
+            hasReachedMax: !hasNextPage,
             categoryId: categoryId,
             search: search,
             region: region,
@@ -207,6 +235,7 @@ class ProductsCubit extends Cubit<ProductsState> {
           ),
         );
       } else {
+        if (requestGeneration != _requestGeneration) return;
         emit(const ProductsError(message: 'فشل في تحميل الاعلانات'));
       }
     } on DioException catch (e) {
@@ -216,9 +245,13 @@ class ProductsCubit extends Cubit<ProductsState> {
         errorMessage = e.response?.data['message'] ?? errorMessage;
       }
 
-      emit(ProductsError(message: errorMessage));
+      if (requestGeneration == _requestGeneration) {
+        emit(ProductsError(message: errorMessage));
+      }
     } catch (e) {
-      emit(ProductsError(message: e.toString()));
+      if (requestGeneration == _requestGeneration) {
+        emit(ProductsError(message: e.toString()));
+      }
     }
   }
 
@@ -227,13 +260,15 @@ class ProductsCubit extends Cubit<ProductsState> {
     if (state is! ProductsLoaded) return;
 
     final currentState = state as ProductsLoaded;
-    if (currentState.hasReachedMax) return;
+    if (currentState.hasReachedMax || _isLoadingMore) return;
+    _isLoadingMore = true;
 
     try {
+      final nextPage = currentState.page + 1;
       final queryParams = <String, dynamic>{
         'per_page': _perPage,
-        'page': currentState.page + 1,
-        'status': 'any', // Use any and then filter locally to avoid API error
+        'page': nextPage,
+        'status': 'publish',
         'consumer_key': AppConfig.wcConsumerKey,
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
@@ -248,7 +283,8 @@ class ProductsCubit extends Cubit<ProductsState> {
         queryParams['search'] = currentState.search;
       }
 
-      final response = await _cleanDio.get(
+      final response = await getWithTransientRetry(
+        _cleanDio,
         fullUrl,
         queryParameters: queryParams,
       );
@@ -258,52 +294,98 @@ class ProductsCubit extends Cubit<ProductsState> {
         // Also filter 29318 from pagination results
         const alZabayehProductId = 29318;
         var newProducts = data
-            .map((json) => ProductModel.fromJson(json))
-            .where((product) => product.status == 'publish' || product.status == 'pending')
+            .map(_tryParseProduct)
+            .whereType<ProductModel>()
+            .where(
+              (product) =>
+                  product.status == 'publish' || product.status == 'pending',
+            )
             .where(
               (product) =>
                   !product.categories.any((c) => c.id == _excludeCategoryId),
             )
             .where((product) => product.id != alZabayehProductId)
             .toList();
-            
+
         // Apply Region & City Filter client-side
-        final hasRegion = currentState.region != null && currentState.region!.isNotEmpty && currentState.region != 'الكل';
-        final hasCity = currentState.city != null && currentState.city!.isNotEmpty && currentState.city != 'الكل';
+        final hasRegion =
+            currentState.region != null &&
+            currentState.region!.isNotEmpty &&
+            currentState.region != 'الكل';
+        final hasCity =
+            currentState.city != null &&
+            currentState.city!.isNotEmpty &&
+            currentState.city != 'الكل';
 
         if (hasRegion || hasCity) {
           final region = currentState.region;
           final city = currentState.city;
-          newProducts = newProducts.where((p) {
-            bool matches = true;
-            if (hasRegion) {
-              final loc = p.productLocation?.toLowerCase() ?? '';
-              final reg = p.productRegion?.toLowerCase() ?? '';
-              final cityVal = p.productCity?.toLowerCase() ?? '';
-              final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(region!.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
-            }
-            if (hasCity) {
-              final loc = p.productLocation?.toLowerCase() ?? '';
-              final reg = p.productRegion?.toLowerCase() ?? '';
-              final cityVal = p.productCity?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(city!.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
-            }
-            return matches;
-          }).toList();
+          newProducts = newProducts
+              .where((p) => _matchesLocation(p, region: region, city: city))
+              .toList();
         }
+
+        final existingIds = currentState.products
+            .map((product) => product.id)
+            .toSet();
+        newProducts = newProducts
+            .where((product) => existingIds.add(product.id))
+            .toList();
 
         emit(
           currentState.copyWith(
             products: [...currentState.products, ...newProducts],
-            page: currentState.page + 1,
-            hasReachedMax: data.length < _perPage,
+            page: nextPage,
+            hasReachedMax: !_hasNextPage(response, nextPage, data.length),
           ),
         );
       }
     } catch (e) {
-      // Silently fail for pagination errors
+      // Keep the existing page visible and allow a later retry.
+      print('ProductsCubit pagination failed: $e');
+    } finally {
+      _isLoadingMore = false;
     }
+  }
+
+  ProductModel? _tryParseProduct(dynamic json) {
+    try {
+      return ProductModel.fromJson(Map<String, dynamic>.from(json as Map));
+    } catch (e) {
+      print('Skipping malformed product: $e');
+      return null;
+    }
+  }
+
+  bool _matchesLocation(ProductModel product, {String? region, String? city}) {
+    final normalizedRegion = region?.trim().toLowerCase();
+    final normalizedCity = city?.trim().toLowerCase();
+    final values = [
+      product.productLocation,
+      product.productRegion,
+      product.productCity,
+      product.vendorAddress,
+    ].whereType<String>().map((value) => value.toLowerCase()).toList();
+
+    final regionMatches =
+        normalizedRegion == null ||
+        normalizedRegion.isEmpty ||
+        normalizedRegion == 'الكل' ||
+        values.any((value) => value.contains(normalizedRegion));
+    final cityMatches =
+        normalizedCity == null ||
+        normalizedCity.isEmpty ||
+        normalizedCity == 'الكل' ||
+        values.any((value) => value.contains(normalizedCity));
+    return regionMatches && cityMatches;
+  }
+
+  bool _hasNextPage(Response<dynamic> response, int page, int received) {
+    final totalPages = int.tryParse(
+      response.headers.value('x-wp-totalpages') ?? '',
+    );
+    if (totalPages != null) return page < totalPages;
+    return received == _perPage;
   }
 
   /// Search products
@@ -329,7 +411,12 @@ class ProductsCubit extends Cubit<ProductsState> {
       region = state.region;
       city = state.city;
     }
-    await loadProducts(categoryId: categoryId, search: search, region: region, city: city);
+    await loadProducts(
+      categoryId: categoryId,
+      search: search,
+      region: region,
+      city: city,
+    );
   }
 
   /// Filter by region
@@ -343,7 +430,12 @@ class ProductsCubit extends Cubit<ProductsState> {
       search = state.search;
       city = state.city;
     }
-    await loadProducts(categoryId: categoryId, search: search, region: region, city: city);
+    await loadProducts(
+      categoryId: categoryId,
+      search: search,
+      region: region,
+      city: city,
+    );
   }
 
   /// Filter by city
@@ -357,7 +449,12 @@ class ProductsCubit extends Cubit<ProductsState> {
       search = state.search;
       region = state.region;
     }
-    await loadProducts(categoryId: categoryId, search: search, region: region, city: city);
+    await loadProducts(
+      categoryId: categoryId,
+      search: search,
+      region: region,
+      city: city,
+    );
   }
 
   /// Get a single product by ID (for deep linking)
@@ -368,7 +465,8 @@ class ProductsCubit extends Cubit<ProductsState> {
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
 
-      final response = await _cleanDio.get(
+      final response = await getWithTransientRetry(
+        _cleanDio,
         'https://hiraajsahm.com/wp-json/wc/v3/products/$productId',
         queryParameters: queryParams,
       );
@@ -392,11 +490,15 @@ class ProductsCubit extends Cubit<ProductsState> {
     try {
       if (_cachedWcCategories == null) {
         const url = 'https://hiraajsahm.com/wp-json/wc/v3/products/categories';
-        final response = await _cleanDio.get(url, queryParameters: {
-          'per_page': 100,
-          'consumer_key': AppConfig.wcConsumerKey,
-          'consumer_secret': AppConfig.wcConsumerSecret,
-        });
+        final response = await getWithTransientRetry(
+          _cleanDio,
+          url,
+          queryParameters: {
+            'per_page': 100,
+            'consumer_key': AppConfig.wcConsumerKey,
+            'consumer_secret': AppConfig.wcConsumerSecret,
+          },
+        );
         if (response.statusCode == 200 && response.data is List) {
           _cachedWcCategories = response.data as List;
         } else {
@@ -405,7 +507,9 @@ class ProductsCubit extends Cubit<ProductsState> {
       }
 
       final List<int> ids = [];
-      final children = _cachedWcCategories!.where((cat) => cat['parent'] == parentId);
+      final children = _cachedWcCategories!.where(
+        (cat) => cat['parent'] == parentId,
+      );
       for (final cat in children) {
         final id = cat['id'] as int;
         ids.add(id);

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
-import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 
 /// Service to handle native Apple In-App Purchases
 class IAPService {
@@ -25,13 +23,9 @@ class IAPService {
   // Keep constants for mapping but these don't exist in App Store Connect
   static const String tierBronze = 'tier_bronze_monthly';
   static const String tierGold = 'tier_gold_monthly';
-  
+
   // List of all valid App Store Product IDs
-  static const List<String> _productIds = [
-    tierSilver,
-    tierZabayeh,
-    tierGold,
-  ];
+  static const List<String> _productIds = [tierSilver, tierZabayeh];
 
   List<ProductDetails> _products = [];
   List<ProductDetails> get products => _products;
@@ -47,7 +41,9 @@ class IAPService {
   Future<void> initialize() async {
     if (Platform.isAndroid) return; // Only for iOS
     if (_isInitialized) {
-      debugPrint('ℹ️ IAP already initialized with ${_products.length} products');
+      debugPrint(
+        'ℹ️ IAP already initialized with ${_products.length} products',
+      );
       return;
     }
 
@@ -80,12 +76,17 @@ class IAPService {
   Future<void> fetchProducts() async {
     try {
       debugPrint('🔄 IAP: Fetching products: $_productIds');
-      final ProductDetailsResponse response =
-          await _iap.queryProductDetails(_productIds.toSet());
+      final ProductDetailsResponse response = await _iap.queryProductDetails(
+        _productIds.toSet(),
+      );
 
       if (response.notFoundIDs.isNotEmpty) {
-        debugPrint('⚠️ IAP: Products NOT found in App Store Connect: ${response.notFoundIDs}');
-        debugPrint('   ↳ Make sure these product IDs exist in App Store Connect and are in "Ready to Submit" or "Approved" state.');
+        debugPrint(
+          '⚠️ IAP: Products NOT found in App Store Connect: ${response.notFoundIDs}',
+        );
+        debugPrint(
+          '   ↳ Make sure these product IDs exist in App Store Connect and are in "Ready to Submit" or "Approved" state.',
+        );
       }
 
       if (response.error != null) {
@@ -103,12 +104,16 @@ class IAPService {
   }
 
   Future<void> buyProduct(ProductDetails product) async {
-    debugPrint('🔄 IAP: Starting purchase for ${product.id} (${product.price})');
+    debugPrint(
+      '🔄 IAP: Starting purchase for ${product.id} (${product.price})',
+    );
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
-    
+
     try {
       // For Auto-Renewable Subscriptions
-      final bool success = await _iap.buyNonConsumable(purchaseParam: purchaseParam);
+      final bool success = await _iap.buyNonConsumable(
+        purchaseParam: purchaseParam,
+      );
       debugPrint('🔄 IAP: buyNonConsumable request sent: $success');
     } catch (e) {
       debugPrint('❌ IAP: Error starting purchase: $e');
@@ -129,16 +134,24 @@ class IAPService {
   /// Manually complete a purchase after backend verification
   Future<void> completePurchase(PurchaseDetails purchaseDetails) async {
     if (purchaseDetails.pendingCompletePurchase) {
-      debugPrint('🏁 IAP: Finalizing purchase for ${purchaseDetails.productID}...');
+      debugPrint(
+        '🏁 IAP: Finalizing purchase for ${purchaseDetails.productID}...',
+      );
       try {
         await _iap.completePurchase(purchaseDetails);
-        _pendingPurchases.removeWhere((p) => p.purchaseID == purchaseDetails.purchaseID);
-        debugPrint('✅ IAP: Purchase ${purchaseDetails.purchaseID} completed successfully');
+        _pendingPurchases.removeWhere(
+          (p) => p.purchaseID == purchaseDetails.purchaseID,
+        );
+        debugPrint(
+          '✅ IAP: Purchase ${purchaseDetails.purchaseID} completed successfully',
+        );
       } catch (e) {
         debugPrint('❌ IAP: Error completing purchase: $e');
       }
     } else {
-      debugPrint('ℹ️ IAP: Purchase ${purchaseDetails.productID} no longer pending completion');
+      debugPrint(
+        'ℹ️ IAP: Purchase ${purchaseDetails.productID} no longer pending completion',
+      );
     }
   }
 
@@ -155,7 +168,7 @@ class IAPService {
       } else if (purchaseDetails.status == PurchaseStatus.canceled) {
         debugPrint('🚫 IAP: Purchase canceled by user');
         onError?.call('تم إلغاء عملية الشراء');
-        
+
         if (purchaseDetails.pendingCompletePurchase) {
           _iap.completePurchase(purchaseDetails);
         }
@@ -163,38 +176,43 @@ class IAPService {
         debugPrint('❌ IAP: Purchase Error: ${purchaseDetails.error?.code}');
         debugPrint('   ↳ Message: ${purchaseDetails.error?.message}');
         onError?.call(purchaseDetails.error?.message ?? 'فشلت عملية الشراء');
-        
+
         if (purchaseDetails.pendingCompletePurchase) {
           _iap.completePurchase(purchaseDetails);
         }
       } else if (purchaseDetails.status == PurchaseStatus.purchased ||
           purchaseDetails.status == PurchaseStatus.restored) {
-        
         debugPrint('✅ IAP: VALID TRANSACTION DETECTED');
-        final hasData = purchaseDetails.verificationData.serverVerificationData.isNotEmpty;
+        final hasData =
+            purchaseDetails.verificationData.serverVerificationData.isNotEmpty;
         debugPrint('   ↳ Receipt data available: $hasData');
-        
+
         if (hasData) {
-          final receiptLen = purchaseDetails.verificationData.serverVerificationData.length;
+          final receiptLen =
+              purchaseDetails.verificationData.serverVerificationData.length;
           debugPrint('   ↳ Receipt length: $receiptLen characters');
-          
+
           // Store in pending list if not already there
-          if (!_pendingPurchases.any((p) => p.purchaseID == purchaseDetails.purchaseID)) {
+          if (!_pendingPurchases.any(
+            (p) => p.purchaseID == purchaseDetails.purchaseID,
+          )) {
             _pendingPurchases.add(purchaseDetails);
           }
-          
+
           // Trigger the completion callback which will handle backend verification
           // IMPORTANT: completePurchase will be called ONLY after backend call succeeds
           if (onPurchaseComplete != null) {
             debugPrint('🔄 IAP: Triggering onPurchaseComplete callback...');
             onPurchaseComplete?.call(purchaseDetails);
           } else {
-            debugPrint('⚠️ IAP: No onPurchaseComplete handler set! Purchase will stay pending.');
+            debugPrint(
+              '⚠️ IAP: No onPurchaseComplete handler set! Purchase will stay pending.',
+            );
           }
         } else {
           debugPrint('❌ IAP: CRITICAL - Purchased but NO receipt data found!');
           onError?.call('خطأ: لم يتم العثور على بيانات إيصال الشراء');
-          
+
           if (purchaseDetails.pendingCompletePurchase) {
             _iap.completePurchase(purchaseDetails);
           }

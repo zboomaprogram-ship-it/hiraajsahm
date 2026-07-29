@@ -87,7 +87,7 @@ class StoreModel extends Equatable {
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
       email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
+      phone: _parsePhone(json),
       showEmail: _parseBool(json['show_email']),
       banner: json['banner'],
       bannerId: json['banner_id'],
@@ -136,6 +136,21 @@ class StoreModel extends Equatable {
     return defaultValue;
   }
 
+  static String _parsePhone(Map<String, dynamic> json) {
+    final candidates = <dynamic>[
+      json['phone'],
+      json['dokan_store_phone'],
+      json['billing_phone'],
+      if (json['billing'] is Map) json['billing']['phone'],
+    ];
+
+    for (final value in candidates) {
+      final phone = value?.toString().trim() ?? '';
+      if (phone.isNotEmpty) return phone;
+    }
+    return '';
+  }
+
   static String _parseVendorTier(Map<String, dynamic> json) {
     // Helper to check ID
     String checkId(String? id) {
@@ -166,8 +181,9 @@ class StoreModel extends Equatable {
       if (label != null) {
         if (label.contains('Gold') || label.contains('ذهبية')) return 'gold';
         if (label.contains('Silver') || label.contains('فضية')) return 'silver';
-        if (label.contains('Bronze') || label.contains('برونزية'))
+        if (label.contains('Bronze') || label.contains('برونزية')) {
           return 'bronze';
+        }
       }
     }
 

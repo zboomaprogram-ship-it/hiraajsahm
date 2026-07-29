@@ -6,6 +6,7 @@ import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:hiraajsahm/core/utils/html_utils.dart';
 import 'package:hiraajsahm/features/settings/presentation/screens/webview_screen.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../core/config/app_config.dart';
 import '../cubit/vendor_dashboard_cubit.dart';
 import '../../data/models/vendor_stats_model.dart';
 import 'vendor_products_tab.dart';
@@ -22,6 +23,8 @@ import 'dart:io';
 import '../../../../core/di/injection_container.dart' as di;
 import '../../../../core/services/iap_service.dart';
 import '../../presentation/cubit/vendor_upgrade_cubit.dart';
+import '../../../messages/presentation/screens/messages_screen.dart';
+import '../../../messages/presentation/message_unread_controller.dart';
 
 /// Vendor Dashboard Screen
 /// Displays vendor statistics, charts, and quick actions
@@ -79,7 +82,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     try {
       final dio = Dio();
       final response = await dio.get(
-        'https://hiraajsahm.com/wp-json/wc/v3/products/29318?consumer_key=ck_78ec6d3f6325ae403400781192045474f592b24a&consumer_secret=cs_0accb11f98ea7516ab4630e521748e73ce3d3b54',
+        '${AppConfig.baseUrl}${AppConfig.wcProductsEndpoint}/29318',
+        queryParameters: {
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
       );
       if (response.statusCode == 200) {
         if (mounted) {
@@ -116,6 +123,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       case 2:
         return const VendorOrdersTab();
       case 3:
+        return const MessagesScreen();
+      case 4:
         // Use Builder to access context
         return Builder(
           builder: (context) {
@@ -191,10 +200,18 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   ? Colors.white
                   : const Color(0xFF1B4965),
             ),
+            UnreadMessageIcon(
+              dio: di.sl<Dio>(),
+              icon: Icons.chat_bubble_outline_rounded,
+              size: 26.sp,
+              color: _currentIndex == 3
+                  ? Colors.white
+                  : const Color(0xFF1B4965),
+            ),
             Icon(
               Icons.person_rounded,
               size: 26.sp,
-              color: _currentIndex == 3
+              color: _currentIndex == 4
                   ? Colors.white
                   : const Color(0xFF1B4965),
             ),
@@ -204,7 +221,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
           backgroundColor: Colors.transparent,
           animationCurve: Curves.easeInOut,
           animationDuration: const Duration(milliseconds: 300),
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            setState(() => _currentIndex = index);
+            if (index == 3) {
+              MessageUnreadController.instance.refresh(di.sl<Dio>());
+            }
+          },
         ),
       ),
     );
@@ -905,12 +927,13 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     if (Platform.isIOS) {
       final iapService = di.sl<IAPService>();
 
+      final List<dynamic> matchingProducts = iapService.products
+          .where((p) => p.id == IAPService.tierZabayeh)
+          .toList();
 
-      final List<dynamic> matchingProducts = iapService.products.where(
-        (p) => p.id == IAPService.tierZabayeh,
-      ).toList();
-      
-      final updatedProduct = matchingProducts.isNotEmpty ? matchingProducts.first : null;
+      final updatedProduct = matchingProducts.isNotEmpty
+          ? matchingProducts.first
+          : null;
 
       if (updatedProduct != null) {
         iapService.buyProduct(updatedProduct);
@@ -940,7 +963,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     try {
       final dio = Dio();
       final response = await dio.get(
-        'https://hiraajsahm.com/wp-json/wc/v3/products/29318?consumer_key=ck_78ec6d3f6325ae403400781192045474f592b24a&consumer_secret=cs_0accb11f98ea7516ab4630e521748e73ce3d3b54',
+        '${AppConfig.baseUrl}${AppConfig.wcProductsEndpoint}/29318',
+        queryParameters: {
+          'consumer_key': AppConfig.wcConsumerKey,
+          'consumer_secret': AppConfig.wcConsumerSecret,
+        },
       );
 
       // ignore: use_build_context_synchronously

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import '../../core/config/app_config.dart';
+import '../api/transient_retry.dart';
 
 /// Model for a Saudi region with its cities
 class RegionModel {
@@ -22,16 +23,12 @@ class RegionModel {
       // ACF sub_fields structure
       for (final sf in json['sub_fields']) {
         if (sf['choices'] is Map) {
-          cities.addAll(
-            (sf['choices'] as Map).values.map((e) => e.toString()),
-          );
+          cities.addAll((sf['choices'] as Map).values.map((e) => e.toString()));
         }
       }
     } else if (json['choices'] is Map) {
       // Direct ACF choices map (e.g. when fetching raw fields list)
-      cities.addAll(
-        (json['choices'] as Map).values.map((e) => e.toString()),
-      );
+      cities.addAll((json['choices'] as Map).values.map((e) => e.toString()));
     }
 
     String label = json['label']?.toString() ?? json['name']?.toString() ?? '';
@@ -68,24 +65,32 @@ class RegionsService {
   /// Get all regions (fetches from API on first call, then cached)
   Future<List<RegionModel>> getRegions() async {
     if (_cachedRegions != null) return _cachedRegions!;
-    
+
     if (_fetchCompleter != null) {
       return _fetchCompleter!.future;
     }
 
     _fetchCompleter = Completer<List<RegionModel>>();
-    
+
     try {
       final siteUrl = AppConfig.baseUrl.replaceAll('/wp-json', '');
-      final response = await _dio.get('$siteUrl/wp-json/custom/v1/regions');
+      final response = await getWithTransientRetry(
+        _dio,
+        '$siteUrl/wp-json/custom/v1/regions',
+      );
 
       if (response.statusCode == 200 && response.data is List) {
         final data = response.data as List;
         _cachedRegions = data
             .map((e) => RegionModel.fromJson(e as Map<String, dynamic>))
-            .where((r) => r.name != 'areas' && r.label.isNotEmpty && r.cities.isNotEmpty)
+            .where(
+              (r) =>
+                  r.name != 'areas' &&
+                  r.label.isNotEmpty &&
+                  r.cities.isNotEmpty,
+            )
             .toList();
-        
+
         if (_cachedRegions!.isNotEmpty) {
           _fetchCompleter!.complete(_cachedRegions);
           _fetchCompleter = null;

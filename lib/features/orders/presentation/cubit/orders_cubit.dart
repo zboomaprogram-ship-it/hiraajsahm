@@ -81,7 +81,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       const ordersUrl = 'https://hiraajsahm.com/wp-json/wc/v3/orders';
 
       final queryParams = <String, dynamic>{
-        'per_page': 50,
+        'per_page': 100,
         'customer': currentUserId,
         'status':
             'any', // CRITICAL: Fetch all statuses (pending, processing, etc.)
@@ -89,42 +89,58 @@ class OrdersCubit extends Cubit<OrdersState> {
         'consumer_secret': AppConfig.wcConsumerSecret,
       };
 
-      final response = await _cleanDio.get(
-        ordersUrl,
-        queryParameters: queryParams,
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        final allOrders = data
-            .map((json) => OrderModel.fromJson(json))
-            .toList();
-
-        // Separate current and history orders
-        final currentStatuses = ['processing', 'on-hold', 'pending'];
-        final historyStatuses = [
-          'completed',
-          'cancelled',
-          'refunded',
-          'failed',
-        ];
-
-        final currentOrders = allOrders
-            .where((o) => currentStatuses.contains(o.status))
-            .toList();
-        final historyOrders = allOrders
-            .where((o) => historyStatuses.contains(o.status))
-            .toList();
-
-        emit(
-          OrdersLoaded(
-            currentOrders: currentOrders,
-            historyOrders: historyOrders,
-          ),
+      final allOrders = <OrderModel>[];
+      var page = 1;
+      while (true) {
+        queryParams['page'] = page;
+        final response = await _cleanDio.get(
+          ordersUrl,
+          queryParameters: queryParams,
         );
-      } else {
-        emit(const OrdersError(message: 'فشل في تحميل الطلبات'));
+        if (response.statusCode != 200 || response.data is! List) {
+          emit(const OrdersError(message: 'فشل في تحميل الطلبات'));
+          return;
+        }
+        final data = response.data as List<dynamic>;
+        for (final item in data) {
+          try {
+            final order = OrderModel.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            );
+            if (order.customerId == currentUserId) {
+              allOrders.add(order);
+            }
+          } catch (_) {
+            // Keep other valid orders visible.
+          }
+        }
+        if (data.length < 100) break;
+        page++;
       }
+
+      // Treat every non-terminal/custom status as current so plugin-defined
+      // WooCommerce statuses cannot silently disappear.
+      final historyStatuses = [
+        'completed',
+        'cancelled',
+        'refunded',
+        'failed',
+        'trash',
+      ];
+
+      final currentOrders = allOrders
+          .where((o) => !historyStatuses.contains(o.status))
+          .toList();
+      final historyOrders = allOrders
+          .where((o) => historyStatuses.contains(o.status))
+          .toList();
+
+      emit(
+        OrdersLoaded(
+          currentOrders: currentOrders,
+          historyOrders: historyOrders,
+        ),
+      );
     } on DioException catch (e) {
       String errorMessage = 'خطأ في الاتصال بالخادم';
 
@@ -160,7 +176,12 @@ class OrdersCubit extends Cubit<OrdersState> {
       );
 
       if (response.statusCode == 200) {
-        final order = OrderModel.fromJson(response.data);
+        final order = OrderModel.fromJson(
+          Map<String, dynamic>.from(response.data as Map),
+        );
+        if (order.customerId != currentUserId) {
+          return null;
+        }
         // Optionally update the list state if we want to reflect changes in the list view too
         // But that requires finding and replacing in the list which is immutable.
         // For now, just return the fresh order.

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shop/data/models/product_model.dart';
 
 // ============ CART ITEM MODEL ============
@@ -8,24 +11,39 @@ class CartItem extends Equatable {
   final int quantity;
   final bool isDeposit;
   final double depositPercentage;
+  final int? privateOfferMessageId;
+  final int? privateConversationId;
+  final int? bidCommentId;
 
   CartItem({
     required this.product,
     this.quantity = 1,
     this.isDeposit = false,
     double? depositPercentage,
+    this.privateOfferMessageId,
+    this.privateConversationId,
+    this.bidCommentId,
   }) : depositPercentage = depositPercentage ?? product.depositPercentage;
 
   CartItem copyWith({
+    ProductModel? product,
     int? quantity,
     bool? isDeposit,
     double? depositPercentage,
+    int? privateOfferMessageId,
+    int? privateConversationId,
+    int? bidCommentId,
   }) {
     return CartItem(
-      product: product,
+      product: product ?? this.product,
       quantity: quantity ?? this.quantity,
       isDeposit: isDeposit ?? this.isDeposit,
       depositPercentage: depositPercentage ?? this.depositPercentage,
+      privateOfferMessageId:
+          privateOfferMessageId ?? this.privateOfferMessageId,
+      privateConversationId:
+          privateConversationId ?? this.privateConversationId,
+      bidCommentId: bidCommentId ?? this.bidCommentId,
     );
   }
 
@@ -39,10 +57,13 @@ class CartItem extends Equatable {
 
   @override
   List<Object?> get props => [
-    product.id,
+    product,
     quantity,
     isDeposit,
     depositPercentage,
+    privateOfferMessageId,
+    privateConversationId,
+    bidCommentId,
   ];
 }
 
@@ -67,7 +88,7 @@ class CartLoaded extends CartState {
     return CartLoaded(items: items ?? this.items);
   }
 
-  int get totalItems => items.fold(0, (sum, item) => sum + item.quantity);
+  int get totalItems => items.length;
 
   double get subtotal => items.fold(0.0, (sum, item) => sum + item.totalPrice);
 
@@ -106,10 +127,82 @@ class CartReplaceConfirmation extends CartState {
 
 // ============ CART CUBIT ============
 class CartCubit extends Cubit<CartState> {
-  CartCubit() : super(const CartLoaded(items: []));
+  static const _storageKey = 'persisted_marketplace_cart_v1';
+  final SharedPreferences _preferences;
+
+  CartCubit({required SharedPreferences preferences})
+    : _preferences = preferences,
+      super(CartLoaded(items: _restoreItems(preferences)));
 
   // Cached state for after confirmation
   List<CartItem> _lastItems = [];
+
+  static List<CartItem> _restoreItems(SharedPreferences preferences) {
+    final encoded = preferences.getString(_storageKey);
+    if (encoded == null || encoded.isEmpty) return const [];
+    try {
+      final data = Map<String, dynamic>.from(jsonDecode(encoded) as Map);
+      final productData = Map<String, dynamic>.from(data['product'] as Map);
+      final product = ProductModel.fromJson(productData);
+      if (product.id <= 0) return const [];
+      return [
+        CartItem(
+          product: product,
+          quantity: 1,
+          isDeposit: data['is_deposit'] == true,
+          depositPercentage:
+              double.tryParse(data['deposit_percentage']?.toString() ?? '') ??
+              product.depositPercentage,
+          privateOfferMessageId: int.tryParse(
+            data['private_offer_message_id']?.toString() ?? '',
+          ),
+          privateConversationId: int.tryParse(
+            data['private_conversation_id']?.toString() ?? '',
+          ),
+          bidCommentId: int.tryParse(data['bid_comment_id']?.toString() ?? ''),
+        ),
+      ];
+    } catch (_) {
+      preferences.remove(_storageKey);
+      return const [];
+    }
+  }
+
+  void _emitLoaded(List<CartItem> items) {
+    if (items.isEmpty) {
+      _preferences.remove(_storageKey);
+    } else {
+      final item = items.first;
+      final product = item.product;
+      _preferences.setString(
+        _storageKey,
+        jsonEncode({
+          'product': {
+            ...product.toJson(),
+            'permalink': product.permalink,
+            'purchasable': product.purchasable,
+            'virtual': product.virtual,
+            'stock_status': product.stockStatus,
+            'stock_quantity': product.stockQuantity,
+            'manage_stock': product.manageStock,
+            'store': {
+              'id': product.vendorId,
+              'store_name': product.vendorName,
+              'phone': product.vendorPhone,
+              'gravatar': product.vendorAvatar,
+              'vendor_tier': product.vendorTier,
+            },
+          },
+          'is_deposit': item.isDeposit,
+          'deposit_percentage': item.depositPercentage,
+          'private_offer_message_id': item.privateOfferMessageId,
+          'private_conversation_id': item.privateConversationId,
+          'bid_comment_id': item.bidCommentId,
+        }),
+      );
+    }
+    emit(CartLoaded(items: items));
+  }
 
   /// Add item to cart (enforces single-item rule for animals)
   void addItem(
@@ -117,6 +210,9 @@ class CartCubit extends Cubit<CartState> {
     int quantity = 1,
     bool isDeposit = false,
     double? depositPercentage,
+    int? privateOfferMessageId,
+    int? privateConversationId,
+    int? bidCommentId,
   }) {
     final currentState = state;
 
@@ -134,16 +230,37 @@ class CartCubit extends Cubit<CartState> {
         );
 
         if (existingIndex >= 0) {
-          // Same product, update quantity and mode
+          // Marketplace listings are single items. Re-adding the same product
+          // updates its price/mode/offer metadata without increasing quantity.
           final updatedItems = List<CartItem>.from(currentState.items);
           final existingItem = updatedItems[existingIndex];
-          // Update mode to the new selection (e.g. user switched from Buy Now to Inspection)
-          updatedItems[existingIndex] = existingItem.copyWith(
-            quantity: existingItem.quantity + quantity,
-            isDeposit: isDeposit,
-            depositPercentage: depositPercentage ?? product.depositPercentage,
+          final hasNewAgreement =
+              privateOfferMessageId != null || bidCommentId != null;
+          final hasStoredAgreement =
+              existingItem.privateOfferMessageId != null ||
+              existingItem.bidCommentId != null;
+          updatedItems[existingIndex] = CartItem(
+            product: hasNewAgreement || !hasStoredAgreement
+                ? product
+                : existingItem.product,
+            quantity: 1,
+            isDeposit: hasStoredAgreement && !hasNewAgreement
+                ? existingItem.isDeposit
+                : isDeposit,
+            depositPercentage: hasStoredAgreement && !hasNewAgreement
+                ? existingItem.depositPercentage
+                : (depositPercentage ?? product.depositPercentage),
+            privateOfferMessageId: hasNewAgreement
+                ? privateOfferMessageId
+                : existingItem.privateOfferMessageId,
+            privateConversationId: hasNewAgreement
+                ? privateConversationId
+                : existingItem.privateConversationId,
+            bidCommentId: hasNewAgreement
+                ? bidCommentId
+                : existingItem.bidCommentId,
           );
-          emit(CartLoaded(items: updatedItems));
+          _emitLoaded(updatedItems);
         } else {
           // Different product - require confirmation
           emit(
@@ -160,44 +277,60 @@ class CartCubit extends Cubit<CartState> {
       }
 
       // Cart is empty, add normally
-      emit(
-        CartLoaded(
-          items: [
-            CartItem(
-              product: product,
-              quantity: quantity,
-              isDeposit: isDeposit,
-              depositPercentage: depositPercentage ?? product.depositPercentage,
-            ),
-          ],
+      _emitLoaded([
+        CartItem(
+          product: product,
+          quantity: 1,
+          isDeposit: isDeposit,
+          depositPercentage: depositPercentage ?? product.depositPercentage,
+          privateOfferMessageId: privateOfferMessageId,
+          privateConversationId: privateConversationId,
+          bidCommentId: bidCommentId,
         ),
-      );
+      ]);
     }
+  }
+
+  /// Atomically replaces the cart with an accepted marketplace agreement.
+  /// This keeps the accepted item persisted even if navigation is interrupted.
+  void replaceWithAgreement(
+    ProductModel product, {
+    int? privateOfferMessageId,
+    int? privateConversationId,
+    int? bidCommentId,
+  }) {
+    _emitLoaded([
+      CartItem(
+        product: product,
+        quantity: 1,
+        isDeposit: false,
+        depositPercentage: product.depositPercentage,
+        privateOfferMessageId: privateOfferMessageId,
+        privateConversationId: privateConversationId,
+        bidCommentId: bidCommentId,
+      ),
+    ]);
   }
 
   /// Confirm cart replacement (user accepted to clear and add new item)
   void confirmReplace() {
     final currentState = state;
     if (currentState is CartReplaceConfirmation) {
-      emit(
-        CartLoaded(
-          items: [
-            CartItem(
-              product: currentState.pendingProduct,
-              quantity: currentState.pendingQuantity,
-              isDeposit: currentState.pendingIsDeposit,
-              depositPercentage: currentState.pendingDepositPercentage,
-            ),
-          ],
+      _emitLoaded([
+        CartItem(
+          product: currentState.pendingProduct,
+          quantity: 1,
+          isDeposit: currentState.pendingIsDeposit,
+          depositPercentage: currentState.pendingDepositPercentage,
         ),
-      );
+      ]);
     }
   }
 
   /// Cancel cart replacement (user rejected)
   void cancelReplace() {
     if (state is CartReplaceConfirmation) {
-      emit(CartLoaded(items: _lastItems));
+      _emitLoaded(_lastItems);
     }
   }
 
@@ -208,11 +341,11 @@ class CartCubit extends Cubit<CartState> {
       final updatedItems = currentState.items
           .where((item) => item.product.id != productId)
           .toList();
-      emit(CartLoaded(items: updatedItems));
+      _emitLoaded(updatedItems);
     }
   }
 
-  /// Update item quantity
+  /// Marketplace products are unique listings, so their quantity is fixed at 1.
   void updateQuantity(int productId, int quantity) {
     final currentState = state;
     if (currentState is CartLoaded) {
@@ -223,50 +356,18 @@ class CartCubit extends Cubit<CartState> {
 
       final updatedItems = currentState.items.map((item) {
         if (item.product.id == productId) {
-          return item.copyWith(quantity: quantity);
+          return item.copyWith(quantity: 1);
         }
         return item;
       }).toList();
 
-      emit(CartLoaded(items: updatedItems));
-    }
-  }
-
-  /// Increment item quantity
-  void incrementQuantity(int productId) {
-    final currentState = state;
-    if (currentState is CartLoaded) {
-      final item = currentState.items.firstWhere(
-        (item) => item.product.id == productId,
-        orElse: () => CartItem(
-          product: const ProductModel(id: 0, name: '', price: '0'),
-        ),
-      );
-      if (item.product.id != 0) {
-        updateQuantity(productId, item.quantity + 1);
-      }
-    }
-  }
-
-  /// Decrement item quantity
-  void decrementQuantity(int productId) {
-    final currentState = state;
-    if (currentState is CartLoaded) {
-      final item = currentState.items.firstWhere(
-        (item) => item.product.id == productId,
-        orElse: () => CartItem(
-          product: const ProductModel(id: 0, name: '', price: '0'),
-        ),
-      );
-      if (item.product.id != 0) {
-        updateQuantity(productId, item.quantity - 1);
-      }
+      _emitLoaded(updatedItems);
     }
   }
 
   /// Clear all items from cart
   void clearCart() {
-    emit(const CartLoaded(items: []));
+    _emitLoaded(const []);
   }
 
   /// Check if product is in cart

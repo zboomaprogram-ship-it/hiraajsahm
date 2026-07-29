@@ -208,7 +208,8 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
             BaseOptions(
               baseUrl: AppConfig.baseUrl,
               headers: {
-                'Authorization': 'Basic ${base64Encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}',
+                'Authorization':
+                    'Basic ${base64Encode(utf8.encode('${AppConfig.wcConsumerKey}:${AppConfig.wcConsumerSecret}'))}',
                 'Content-Type': 'application/json',
               },
             ),
@@ -220,7 +221,7 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
                 if (state != null) {'key': 'city', 'value': state},
                 if (city != null) {'key': 'region', 'value': city},
                 if (location != null) {'key': 'location', 'value': location},
-              ]
+              ],
             },
           );
         } catch (e) {
@@ -392,10 +393,10 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
       'consumer_secret': AppConfig.wcConsumerSecret,
     };
 
-    // We'll try 2 paths for reliability:
-    // A: Dokan Store Endpoint
-    // B: WC Products with 'vendor' filter
+    // Use the author-scoped custom endpoint first. WooCommerce installations
+    // can silently ignore the `vendor` query and return every marketplace item.
     final List<String> paths = [
+      '${AppConfig.baseUrl}/custom/v1/vendors/$vendorId/products',
       '${AppConfig.dokanStoreEndpoint}/$vendorId/products',
       '${AppConfig.wcProductsEndpoint}?vendor=$vendorId',
     ];
@@ -409,7 +410,12 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
               .map((json) => ProductModel.fromJson(json))
               .where((product) {
                 final name = product.name.toLowerCase();
-                return !name.contains('باقة') &&
+                final belongsToVendor =
+                    product.vendorId == null ||
+                    product.vendorId == 0 ||
+                    product.vendorId == vendorId;
+                return belongsToVendor &&
+                    !name.contains('باقة') &&
                     !name.contains('عضوية') &&
                     !name.contains('subscription') &&
                     !name.contains('membership') &&
@@ -420,7 +426,10 @@ class VendorProfileCubit extends Cubit<VendorProfileState> {
           final totalPages =
               int.tryParse(response.headers.value('x-wp-totalpages') ?? '1') ??
               1;
-          return _ProductsResult(products: products, hasMore: page < totalPages);
+          return _ProductsResult(
+            products: products,
+            hasMore: page < totalPages,
+          );
         }
       } catch (e) {
         // Continue to next path

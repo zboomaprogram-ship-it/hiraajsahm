@@ -62,6 +62,8 @@ class Routes {
 
   // Notifications
   static const String notifications = '/notifications';
+  static const String messages = '/messages';
+  static const String chat = '/messages/chat';
 
   // Addresses
   static const String addresses = '/addresses';

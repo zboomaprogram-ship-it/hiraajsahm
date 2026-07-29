@@ -1,4 +1,43 @@
 <?php
+
+/**
+ * Expose the vendor's public store phone on WooCommerce product responses.
+ * The Flutter product-details screen uses this as a fallback when Dokan does
+ * not include the phone inside its nested store object.
+ */
+if (!function_exists('hiraaj_register_product_vendor_phone_field')) {
+    function hiraaj_register_product_vendor_phone_field() {
+        register_rest_field('product', 'vendor_phone', [
+            'get_callback' => function ($product_data) {
+                $product_id = isset($product_data['id'])
+                    ? absint($product_data['id'])
+                    : 0;
+                if (!$product_id) {
+                    return '';
+                }
+
+                $vendor_id = (int) get_post_field('post_author', $product_id);
+                if (!$vendor_id) {
+                    return '';
+                }
+
+                $phone = get_user_meta($vendor_id, 'dokan_store_phone', true);
+                if (empty($phone)) {
+                    $phone = get_user_meta($vendor_id, 'billing_phone', true);
+                }
+
+                return sanitize_text_field($phone);
+            },
+            'schema' => [
+                'description' => 'Vendor public store phone',
+                'type' => 'string',
+                'context' => ['view', 'edit'],
+                'readonly' => true,
+            ],
+        ]);
+    }
+    add_action('rest_api_init', 'hiraaj_register_product_vendor_phone_field');
+}
 // أضف هذا الكود في ملف functions.php
 add_action('woocommerce_order_status_completed', 'auto_upgrade_customer_to_vendor_on_subscription', 10, 1);
 
@@ -118,7 +157,7 @@ function hiraaj_sahm_render_settings_page() {
                 </tr>
                 <tr valign="top">
                     <th scope="row">OneSignal API Key</th>
-                    <td><input type="text" name="onesignal_api_key" value="<?php echo esc_attr(get_option('onesignal_api_key', 'os_v2_app_t6pnkwjmo5b6lhchi4yeh4xg2ssu6244cxtustmk6cejgwg65kqv3y433om47zx3wljkb54lqexmptcciinbzv7ig7kxcpattlgag3a')); ?>" class="regular-text" /></td>
+                    <td><input type="password" name="onesignal_api_key" value="<?php echo esc_attr(get_option('onesignal_api_key', '')); ?>" class="regular-text" autocomplete="new-password" /></td>
                 </tr>
                 <tr valign="top">
                     <th scope="row">🍎 Apple IAP Shared Secret</th>

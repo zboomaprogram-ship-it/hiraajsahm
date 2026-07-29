@@ -4,19 +4,104 @@ add_action('rest_api_init', function () {
         'methods' => 'POST',
         'callback' => 'handle_custom_add_product_v2',
         'permission_callback' => function () {
-            return is_user_logged_in(); // Requires JWT Token
+            if (!is_user_logged_in()) {
+                return false;
+            }
+            $user = wp_get_current_user();
+            return current_user_can('manage_options') || in_array('seller', (array) $user->roles, true);
+        }
+    ]);
+    register_rest_route('custom/v1', '/add-product-quota', [
+        'methods' => 'GET',
+        'callback' => 'hiraaj_sahm_get_add_product_quota',
+        'permission_callback' => function () {
+            if (!is_user_logged_in()) {
+                return false;
+            }
+            $user = wp_get_current_user();
+            return current_user_can('manage_options') || in_array('seller', (array) $user->roles, true);
         }
     ]);
 });
+
+/**
+ * Resolve the active package across current and legacy Dokan metadata.
+ * Existing sellers created before product_package_id was introduced retain
+ * the free Bronze entitlement instead of being incorrectly blocked.
+ */
+function hiraaj_sahm_resolve_seller_pack_id($user_id)
+{
+    $allowed_packs = [29026, 29028, 29030, 29318];
+    $meta_keys = [
+        'product_package_id',
+        'dokan_feature_seller_package_id',
+        '_dokan_subscription_pack_id',
+        'dokan_subscription_pack_id',
+        'dokan_subscription_pack',
+    ];
+    foreach ($meta_keys as $meta_key) {
+        $candidate = absint(get_user_meta($user_id, $meta_key, true));
+        if (in_array($candidate, $allowed_packs, true)) {
+            return $candidate;
+        }
+    }
+
+    $profile = get_user_meta($user_id, 'dokan_profile_settings', true);
+    if (is_array($profile)) {
+        $candidate = absint(
+            $profile['assigned_subscription']
+            ?? $profile['assigned_subscription_info']['subscription_id']
+            ?? 0
+        );
+        if (in_array($candidate, $allowed_packs, true)) {
+            return $candidate;
+        }
+    }
+
+    if (get_user_meta($user_id, 'sacrifices_verified', true) === 'yes') {
+        return 29318;
+    }
+
+    $user = get_userdata($user_id);
+    if ($user && in_array('seller', (array) $user->roles, true)) {
+        update_user_meta($user_id, 'product_package_id', 29026);
+        return 29026;
+    }
+    return 0;
+}
+
+function hiraaj_sahm_get_add_product_quota()
+{
+    $user_id = get_current_user_id();
+    $pack_id = hiraaj_sahm_resolve_seller_pack_id($user_id);
+    if (!$pack_id && !current_user_can('manage_options')) {
+        return new WP_Error('subscription_required', 'يجب الاشتراك في باقة لإضافة منتجات', ['status' => 403]);
+    }
+
+    $daily_limit = current_user_can('manage_options')
+        ? -1
+        : hiraaj_sahm_daily_ad_limit($pack_id);
+    $ads_today = current_user_can('manage_options')
+        ? 0
+        : hiraaj_sahm_count_seller_ads_today($user_id, $daily_limit);
+
+    return new WP_REST_Response([
+        'pack_id' => (int) $pack_id,
+        'daily_limit' => (int) $daily_limit,
+        'ads_today' => (int) $ads_today,
+        'remaining_today' => $daily_limit < 0
+            ? -1
+            : max(0, $daily_limit - $ads_today),
+        'can_add' => $daily_limit < 0 || $ads_today < $daily_limit,
+        'resets_at' => (new DateTimeImmutable('tomorrow', wp_timezone()))->format(DATE_ATOM),
+    ], 200);
+}
 
 function handle_custom_add_product_v2($request)
 {
     $user_id = get_current_user_id(); // The Vendor
 
-    $pack_id = get_user_meta($user_id, 'product_package_id', true);
-    if (empty($pack_id)) {
-        $pack_id = 29026; // Default to Bronze if not set
-    }
+    $pack_id = hiraaj_sahm_resolve_seller_pack_id($user_id);
     $allowed_packs = [29026, 29028, 29030, 29318]; // Bronze, Silver, Gold and Zabayeh
     if (!in_array((int) $pack_id, $allowed_packs) && !current_user_can('manage_options')) {
         return new WP_REST_Response([
@@ -53,12 +138,38 @@ function handle_custom_add_product_v2($request)
     $cat_id = intval($params['category_id'] ?? 0);
     $stock = intval($params['stock_quantity'] ?? 0);
     $image_ids = array_values(array_filter(array_map('absint', (array) ($params['images'] ?? [])))); // Array of Image IDs
+    if ($title === '' || $cat_id <= 0) {
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => 'Product name and category are required',
+        ], 400);
+    }
+    foreach ($image_ids as $image_id) {
+        $attachment = get_post($image_id);
+        if (
+            !$attachment ||
+            $attachment->post_type !== 'attachment' ||
+            (!current_user_can('manage_options') && (int) $attachment->post_author !== (int) $user_id)
+        ) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'One or more uploaded files are invalid',
+            ], 403);
+        }
+    }
+
+    $can_publish = current_user_can('manage_options') ||
+        (
+            get_user_meta($user_id, 'dokan_enable_selling', true) === 'yes' &&
+            get_user_meta($user_id, 'dokan_publishing', true) === 'yes'
+        );
 
     // 2. Create the Product Post
     $post_data = [
         'post_title' => $title,
         'post_content' => $description,
-        'post_status' => 'pending', // 🔒 FORCE PENDING STATUS
+        // The server, not the mobile app, decides whether this vendor may publish.
+        'post_status' => $can_publish ? 'publish' : 'pending',
         'post_type' => 'product',
         'post_author' => $user_id,  // 👤 ASSIGN TO VENDOR
     ];
@@ -110,8 +221,29 @@ function handle_custom_add_product_v2($request)
 
     // 6. Handle Meta Data (including Video)
     if (!empty($params['meta_data']) && is_array($params['meta_data'])) {
+        $allowed_meta_keys = [
+            '_product_location',
+            '_product_region',
+            '_product_city',
+            'add_down_payment_field',
+            '_product_video_id',
+        ];
         foreach ($params['meta_data'] as $meta) {
-            if (isset($meta['key']) && isset($meta['value'])) {
+            if (
+                isset($meta['key'], $meta['value']) &&
+                in_array($meta['key'], $allowed_meta_keys, true)
+            ) {
+                if ($meta['key'] === '_product_video_id') {
+                    $video_id = absint($meta['value']);
+                    $video = get_post($video_id);
+                    if (
+                        !$video ||
+                        $video->post_type !== 'attachment' ||
+                        (!current_user_can('manage_options') && (int) $video->post_author !== (int) $user_id)
+                    ) {
+                        continue;
+                    }
+                }
                 update_post_meta($product_id, sanitize_text_field($meta['key']), sanitize_text_field($meta['value']));
 
                 // If the app sent a video ID, convert it to a URL for the theme/app to read
@@ -130,6 +262,7 @@ function handle_custom_add_product_v2($request)
     return new WP_REST_Response([
         'success' => true,
         'product_id' => $product_id,
+        'status' => get_post_status($product_id),
         'message' => 'Product created successfully'
     ], 200);
 }

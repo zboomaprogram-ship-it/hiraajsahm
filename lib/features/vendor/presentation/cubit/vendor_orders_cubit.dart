@@ -37,18 +37,36 @@ class VendorOrdersCubit extends Cubit<VendorOrdersState> {
   Future<void> loadOrders({String status = 'any'}) async {
     emit(VendorOrdersLoading());
     try {
-      final response = await _dio.get(
-        '/dokan/v1/orders',
-        queryParameters: {'status': status, 'per_page': 20},
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        final orders = data.map((json) => OrderModel.fromJson(json)).toList();
-        emit(VendorOrdersLoaded(orders));
-      } else {
-        emit(const VendorOrdersError('Failed to load orders'));
+      const perPage = 100;
+      var page = 1;
+      final orders = <OrderModel>[];
+      while (true) {
+        final response = await _dio.get(
+          '/dokan/v1/orders',
+          queryParameters: {
+            'status': status,
+            'per_page': perPage,
+            'page': page,
+          },
+        );
+        if (response.statusCode != 200 || response.data is! List) {
+          emit(const VendorOrdersError('Failed to load orders'));
+          return;
+        }
+        final data = response.data as List<dynamic>;
+        for (final item in data) {
+          try {
+            orders.add(
+              OrderModel.fromJson(Map<String, dynamic>.from(item as Map)),
+            );
+          } catch (_) {
+            // Keep valid marketplace orders visible if one record is malformed.
+          }
+        }
+        if (data.length < perPage) break;
+        page++;
       }
+      emit(VendorOrdersLoaded(orders));
     } on DioException catch (e) {
       emit(
         VendorOrdersError(

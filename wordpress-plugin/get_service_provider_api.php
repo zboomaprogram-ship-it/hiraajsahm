@@ -17,7 +17,33 @@ add_action('rest_api_init', function () {
         'callback' => 'handle_get_service_providers',
         'permission_callback' => '__return_true',
     ]);
+    register_rest_route('hiraajsahm/v1', '/service-providers/register', [
+        'methods' => 'POST',
+        'callback' => 'handle_register_service_provider',
+        'permission_callback' => function () {
+            if (!is_user_logged_in()) {
+                return false;
+            }
+            $user = wp_get_current_user();
+            return current_user_can('manage_options') || in_array('seller', (array) $user->roles, true);
+        },
+    ]);
 });
+
+function handle_register_service_provider(WP_REST_Request $request) {
+    $type = sanitize_key($request->get_param('type'));
+    if (!in_array($type, ['inspector', 'transporter'], true)) {
+        return new WP_Error('invalid_provider_type', 'Invalid provider type', ['status' => 400]);
+    }
+    $user_id = get_current_user_id();
+    update_user_meta($user_id, 'seller_type', $type);
+    update_user_meta($user_id, 'dokan_enable_selling', 'yes');
+    return new WP_REST_Response([
+        'success' => true,
+        'type' => $type,
+        'message' => 'Service provider registration updated',
+    ], 200);
+}
 
 /**
  * GET /wp-json/custom/v1/service-providers

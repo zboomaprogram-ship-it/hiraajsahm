@@ -16,7 +16,7 @@ import '../cart/presentation/cubit/cart_cubit.dart';
 /// Container for the main app tabs
 class MainLayoutScreen extends StatefulWidget {
   final int initialIndex;
-  
+
   const MainLayoutScreen({super.key, this.initialIndex = 0});
 
   @override
@@ -27,20 +27,16 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   late int _currentIndex;
   final GlobalKey<CurvedNavigationBarState> _bottomNavKey = GlobalKey();
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const ShopScreen(),
-    BlocProvider(
-      create: (context) => sl<RequestsCubit>(),
-      child: const RequestsScreen(),
-    ),
-    const ProfileScreen(),
-  ];
+  late final List<Widget?> _screens;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex >= 0 && widget.initialIndex < 4
+        ? widget.initialIndex
+        : 0;
+    _screens = List<Widget?>.filled(4, null);
+    _screens[_currentIndex] = _buildScreen(_currentIndex);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -53,9 +49,22 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
     if (index != _currentIndex) {
       HapticFeedback.lightImpact();
       setState(() {
+        _screens[index] ??= _buildScreen(index);
         _currentIndex = index;
       });
     }
+  }
+
+  Widget _buildScreen(int index) {
+    return switch (index) {
+      0 => const HomeScreen(),
+      1 => const ShopScreen(),
+      2 => BlocProvider(
+        create: (context) => sl<RequestsCubit>(),
+        child: const RequestsScreen(),
+      ),
+      _ => const ProfileScreen(),
+    };
   }
 
   @override
@@ -73,7 +82,12 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       },
       child: Scaffold(
         extendBody: true,
-        body: IndexedStack(index: _currentIndex, children: _screens),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens
+              .map((screen) => screen ?? const SizedBox.shrink())
+              .toList(),
+        ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -116,7 +130,6 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                       ? Colors.white
                       : const Color(0xFF1B4965),
                 ),
-
                 Image.asset(
                   'assets/icons/user.png',
                   width: iconSize,

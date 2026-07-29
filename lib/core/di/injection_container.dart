@@ -123,6 +123,7 @@ Future<void> init() async {
     () => AuthCubit(
       authRemoteDataSource: sl<AuthRemoteDataSource>(),
       storageService: sl<StorageService>(),
+      cartCubit: sl<CartCubit>(),
     ),
   );
 
@@ -147,7 +148,9 @@ Future<void> init() async {
   sl.registerFactory(() => ProductDetailsCubit(dio: sl<Dio>()));
 
   // Cart Cubit
-  sl.registerLazySingleton(() => CartCubit());
+  sl.registerLazySingleton(
+    () => CartCubit(preferences: sl<SharedPreferences>()),
+  );
 
   // Add Product Cubit
   sl.registerFactory(() => AddProductCubit());
@@ -164,8 +167,7 @@ Future<void> init() async {
 
   // ✅ 2. Register NotificationsCubit
   // Note: If your NotificationsCubit takes arguments (like Dio), add them here:
-  // e.g., () => NotificationsCubit(dio: sl<Dio>())
-  sl.registerFactory(() => NotificationsCubit());
+  sl.registerFactory(() => NotificationsCubit(dio: sl<Dio>()));
 
   // Addresses Cubit
   sl.registerFactory(() => AddressesCubit());

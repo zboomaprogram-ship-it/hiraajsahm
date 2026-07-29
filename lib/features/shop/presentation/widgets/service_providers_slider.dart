@@ -12,7 +12,7 @@ class ServiceProvidersSlider extends StatelessWidget {
   final bool isProductOwner;
 
   const ServiceProvidersSlider({
-    super.key, 
+    super.key,
     this.userCity,
     this.isVendorBronzeOrUnsubscribed = false,
     this.isProductOwner = false,
@@ -50,7 +50,9 @@ class ServiceProvidersSlider extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16.sp,
-                        color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                        color: isDark
+                            ? AppColors.textLight
+                            : AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                         height: 1.5,
                       ),
@@ -60,7 +62,10 @@ class ServiceProvidersSlider extends StatelessWidget {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, Routes.vendorSubscription);
+                          Navigator.pushNamed(
+                            context,
+                            Routes.vendorSubscription,
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
@@ -125,37 +130,47 @@ class ServiceProvidersSlider extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20.w),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'مقدمي الخدمة (الفحص والنقل)',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.textLight
-                            : AppColors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'مقدمي الخدمة (الفحص والنقل)',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.textLight
+                              : AppColors.textPrimary,
+                        ),
                       ),
                     ),
-                    if (userCity != null)
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          userCity!,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
+                    if (userCity != null && userCity!.isNotEmpty) ...[
+                      SizedBox(width: 8.w),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: 120.w),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 4.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8.r),
+                          ),
+                          child: Text(
+                            userCity!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),

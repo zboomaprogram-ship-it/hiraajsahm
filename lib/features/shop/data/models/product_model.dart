@@ -129,7 +129,7 @@ class ProductModel extends Equatable {
           json['store']?['shop_name'] ??
           'المتجر',
       vendorAvatar: json['store']?['gravatar'] ?? json['store']?['shop_url'],
-      vendorPhone: json['store']?['phone'],
+      vendorPhone: _parseVendorPhone(json),
       vendorTier: _parseVendorTier(json['store']),
       isVendorVerified:
           json['store']?['is_verified'] == true ||
@@ -183,8 +183,9 @@ class ProductModel extends Equatable {
       if (label != null) {
         if (label.contains('Gold') || label.contains('ذهبية')) return 'gold';
         if (label.contains('Silver') || label.contains('فضية')) return 'silver';
-        if (label.contains('Bronze') || label.contains('برونزية'))
+        if (label.contains('Bronze') || label.contains('برونزية')) {
           return 'bronze';
+        }
       }
     }
 
@@ -204,6 +205,23 @@ class ProductModel extends Equatable {
     }
 
     return 'bronze';
+  }
+
+  static String? _parseVendorPhone(Map<String, dynamic> json) {
+    final store = json['store'];
+    final candidates = <dynamic>[
+      json['vendor_phone'],
+      if (store is Map) store['phone'],
+      if (store is Map) store['dokan_store_phone'],
+      if (store is Map) store['billing_phone'],
+      if (store is Map && store['billing'] is Map) store['billing']['phone'],
+    ];
+
+    for (final value in candidates) {
+      final phone = value?.toString().trim() ?? '';
+      if (phone.isNotEmpty) return phone;
+    }
+    return null;
   }
 
   static String? _parseVendorLocation(dynamic store) {

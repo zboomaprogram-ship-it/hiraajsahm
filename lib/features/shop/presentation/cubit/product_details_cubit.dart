@@ -91,14 +91,14 @@ class ProductDetailsCubit extends Cubit<ProductDetailsState> {
     }
   }
 
-  Future<void> submitReview({
+  Future<bool> submitReview({
     required int productId,
     required String review,
     required int rating,
     required String reviewer,
     required String reviewerEmail,
   }) async {
-    if (isClosed) return;
+    if (isClosed) return false;
     emit(ProductDetailsLoading());
 
     try {
@@ -119,16 +119,19 @@ class ProductDetailsCubit extends Cubit<ProductDetailsState> {
         ),
       );
 
-      if (isClosed) return;
+      if (isClosed) return false;
 
       if (response.statusCode == 201) {
         // Reload reviews to show the new one immediately
         await loadReviews(productId);
+        return true;
       } else {
         emit(const ProductDetailsError('فشل في إرسال التقييم'));
+        return false;
       }
     } catch (e) {
       if (!isClosed) emit(ProductDetailsError(e.toString()));
+      return false;
     }
   }
 }

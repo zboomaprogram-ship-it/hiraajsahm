@@ -9,12 +9,12 @@ class TelrPaymentService {
   final Dio _dio;
 
   TelrPaymentService()
-      : _dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 30),
-          ),
-        );
+    : _dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
 
   /// ⚠️ NOT USED FOR SDK CALL: Build clean URLs for manual tracking
   String buildTokenUrl({
@@ -33,9 +33,9 @@ class TelrPaymentService {
       'consumer_secret': AppConfig.wcConsumerSecret,
     };
 
-    return Uri.parse('${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}')
-        .replace(queryParameters: params)
-        .toString();
+    return Uri.parse(
+      '${AppConfig.baseUrl}${AppConfig.telrTokenEndpoint}',
+    ).replace(queryParameters: params).toString();
   }
 
   /// ⚠️ NOT USED FOR SDK CALL: Status check URL
@@ -46,8 +46,8 @@ class TelrPaymentService {
       'consumer_secret': AppConfig.wcConsumerSecret,
     };
 
-    return Uri.parse('${AppConfig.baseUrl}${AppConfig.telrOrderEndpoint}')
-        .replace(queryParameters: params)
-        .toString();
+    return Uri.parse(
+      '${AppConfig.baseUrl}${AppConfig.telrOrderEndpoint}',
+    ).replace(queryParameters: params).toString();
   }
 }

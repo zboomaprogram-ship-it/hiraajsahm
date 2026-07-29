@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 /// Order Model for WooCommerce orders
 class OrderModel extends Equatable {
   final int id;
+  final int customerId;
   final String status;
   final String dateCreated;
   final String total;
@@ -16,6 +17,7 @@ class OrderModel extends Equatable {
 
   const OrderModel({
     required this.id,
+    required this.customerId,
     required this.status,
     required this.dateCreated,
     required this.total,
@@ -31,6 +33,7 @@ class OrderModel extends Equatable {
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
       id: json['id'] ?? 0,
+      customerId: int.tryParse(json['customer_id']?.toString() ?? '') ?? 0,
       status: json['status'] ?? 'pending',
       dateCreated: json['date_created'] ?? '',
       total: json['total'] ?? '0',
@@ -81,7 +84,7 @@ class OrderModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, status, dateCreated, total];
+  List<Object?> get props => [id, customerId, status, dateCreated, total];
 }
 
 class BillingAddress extends Equatable {

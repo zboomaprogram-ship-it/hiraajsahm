@@ -60,9 +60,75 @@ class VendorOrderDetailsScreen extends StatelessWidget {
                   const Divider(),
                   _buildDetailRow(
                     'طريقة الدفع',
-                    'الدفع عند الاستلام', // Placeholder or add to model
+                    order.paymentMethodTitle.isNotEmpty
+                        ? order.paymentMethodTitle
+                        : (order.paymentMethod == 'cod'
+                              ? 'الدفع عند الاستلام'
+                              : order.paymentMethod),
                     isDark,
                   ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+
+            // Buyer details from this WooCommerce order.
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.cardDark : AppColors.card,
+                borderRadius: BorderRadius.circular(12.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'بيانات المشتري',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? AppColors.textLight
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  _buildBuyerRow(
+                    Icons.person_outline_rounded,
+                    'الاسم',
+                    order.buyerName,
+                    isDark,
+                  ),
+                  _buildBuyerRow(
+                    Icons.phone_outlined,
+                    'رقم الجوال',
+                    order.buyerPhone,
+                    isDark,
+                    selectable: true,
+                  ),
+                  if (order.buyerEmail.isNotEmpty)
+                    _buildBuyerRow(
+                      Icons.email_outlined,
+                      'البريد الإلكتروني',
+                      order.buyerEmail,
+                      isDark,
+                      selectable: true,
+                    ),
+                  if (order.buyerAddress.isNotEmpty)
+                    _buildBuyerRow(
+                      Icons.location_on_outlined,
+                      'العنوان',
+                      order.buyerAddress,
+                      isDark,
+                    ),
                 ],
               ),
             ),
@@ -111,6 +177,46 @@ class VendorOrderDetailsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBuyerRow(
+    IconData icon,
+    String label,
+    String value,
+    bool isDark, {
+    bool selectable = false,
+  }) {
+    final displayedValue = value.trim().isEmpty ? 'غير مسجل' : value.trim();
+    final valueStyle = TextStyle(
+      fontSize: 14.sp,
+      fontWeight: FontWeight.w500,
+      color: value.trim().isEmpty
+          ? AppColors.textSecondary
+          : (isDark ? AppColors.textLight : AppColors.textPrimary),
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 7.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 19.sp, color: AppColors.primary),
+          SizedBox(width: 9.w),
+          SizedBox(
+            width: 88.w,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13.sp, color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            child: selectable
+                ? SelectableText(displayedValue, style: valueStyle)
+                : Text(displayedValue, style: valueStyle),
+          ),
+        ],
       ),
     );
   }

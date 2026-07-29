@@ -3,7 +3,7 @@ import '../../../../core/data/regions_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/routes/routes.dart';
 import '../../../core/routes/app_router.dart';
@@ -14,9 +14,10 @@ import '../../shop/data/models/product_model.dart';
 import '../../shop/data/models/category_model.dart';
 // ✅ Import Notification Cubit
 import '../../notifications/presentation/cubit/notifications_cubit.dart';
-import '../../cart/presentation/cubit/cart_cubit.dart';
 import '../../auth/presentation/cubit/auth_cubit.dart';
 import '../../shop/presentation/widgets/product_card.dart';
+import '../../../core/di/injection_container.dart';
+import '../../../core/services/favorites_service.dart';
 
 /// Hiraaj Sahm - Home Screen
 /// Livestock marketplace home with categories, auctions, and products
@@ -35,13 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCity = 'الكل';
   int? _selectedSubCategoryId;
 
-  List<String> _saudiRegions = [
-    'الكل',
-    'الموقع الحالي',
-  ];
-  List<String> _saudiCities = [
-    'الكل',
-  ];
+  List<String> _saudiRegions = ['الكل', 'الموقع الحالي'];
+  List<String> _saudiCities = ['الكل'];
 
   // Icon mapping for categories based on slug or name
   IconData _getCategoryIcon(CategoryModel category) {
@@ -100,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // ✅ Load Notifications to get badge count
     context.read<NotificationsCubit>().loadNotifications();
+    FavoritesService.instance.load(sl<Dio>());
 
     _loadRegions();
   }
@@ -140,7 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: null,
-          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          region: _selectedRegion == 'الكل'
+              ? null
+              : (_selectedRegion == 'الموقع الحالي'
+                    ? context.read<AuthCubit>().currentUser?.region
+                    : _selectedRegion),
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
@@ -149,7 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: category.id,
-          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          region: _selectedRegion == 'الكل'
+              ? null
+              : (_selectedRegion == 'الموقع الحالي'
+                    ? context.read<AuthCubit>().currentUser?.region
+                    : _selectedRegion),
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       }
@@ -164,14 +169,22 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSubCategoryId = null;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: _selectedParentCategoryId,
-          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          region: _selectedRegion == 'الكل'
+              ? null
+              : (_selectedRegion == 'الموقع الحالي'
+                    ? context.read<AuthCubit>().currentUser?.region
+                    : _selectedRegion),
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       } else {
         _selectedSubCategoryId = subCategory.id;
         context.read<HomeContentCubit>().loadHomeContent(
           categoryId: subCategory.id,
-          region: _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion),
+          region: _selectedRegion == 'الكل'
+              ? null
+              : (_selectedRegion == 'الموقع الحالي'
+                    ? context.read<AuthCubit>().currentUser?.region
+                    : _selectedRegion),
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
       }
@@ -187,17 +200,23 @@ class _HomeScreenState extends State<HomeScreen> {
       if (user == null || user.region == null || user.region!.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي'),
+            content: Text(
+              'الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
         return;
       }
       filterRegion = user.region;
-      
+
       // Print to console as requested by user (instead of snackbar)
-      print('📍 CURRENT LOCATION DETECTED: Region: ${user.region}, City: ${user.city}');
-      debugPrint('📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}');
+      print(
+        '📍 CURRENT LOCATION DETECTED: Region: ${user.region}, City: ${user.city}',
+      );
+      debugPrint(
+        '📍 SELECTED LOCATION: Region: ${user.region}, City: ${user.city}',
+      );
     }
 
     setState(() {
@@ -207,35 +226,35 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (filterRegion != 'الكل' && filterRegion != 'الموقع الحالي') {
-        final cities = await RegionsService().getCitiesForRegion(filterRegion!);
-        if (mounted) {
-          setState(() {
-            // Hide 'الكل' if it's the current location mode
-            if (region == 'الموقع الحالي') {
-              _saudiCities = cities;
-              if (cities.isNotEmpty) {
-                // Optionally auto-select user's city if it's in the list
-                final userCity = context.read<AuthCubit>().currentUser?.city;
-                if (userCity != null && cities.contains(userCity)) {
-                  _selectedCity = userCity;
-                } else if (cities.isNotEmpty) {
-                  _selectedCity = cities.first;
-                }
+      final cities = await RegionsService().getCitiesForRegion(filterRegion!);
+      if (mounted) {
+        setState(() {
+          // Hide 'الكل' if it's the current location mode
+          if (region == 'الموقع الحالي') {
+            _saudiCities = cities;
+            if (cities.isNotEmpty) {
+              // Optionally auto-select user's city if it's in the list
+              final userCity = context.read<AuthCubit>().currentUser?.city;
+              if (userCity != null && cities.contains(userCity)) {
+                _selectedCity = userCity;
+              } else if (cities.isNotEmpty) {
+                _selectedCity = cities.first;
               }
-            } else {
-              _saudiCities = ['الكل', ...cities];
             }
-          });
-        }
+          } else {
+            _saudiCities = ['الكل', ...cities];
+          }
+        });
+      }
     }
 
     // Trigger content reload
     if (mounted) {
       context.read<HomeContentCubit>().loadHomeContent(
-            categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
-            region: filterRegion == 'الكل' ? null : filterRegion,
-            city: null,
-          );
+        categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
+        region: filterRegion == 'الكل' ? null : filterRegion,
+        city: null,
+      );
     }
   }
 
@@ -247,18 +266,19 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     context.read<HomeContentCubit>().loadHomeContent(
-          categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
-          region: _selectedRegion == 'الكل' ? null : _selectedRegion,
-          city: city == 'الكل' ? null : city,
-        );
+      categoryId: _selectedSubCategoryId ?? _selectedParentCategoryId,
+      region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+      city: city == 'الكل' ? null : city,
+    );
   }
 
   void _onViewAllProducts() {
     // Pass explicit null so ShopScreen loads ALL products, not Zabayeh
-    AppRouter.navigateTo(context, Routes.products, arguments: {
-      'categoryId': null,
-      'categoryName': null,
-    });
+    AppRouter.navigateTo(
+      context,
+      Routes.products,
+      arguments: {'categoryId': null, 'categoryName': null},
+    );
   }
 
   @override
@@ -428,9 +448,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(width: 12.w),
                   _buildHeaderIcon(
-                    Icons.shopping_bag_outlined,
+                    Icons.favorite_border_rounded,
                     onTap: () {
-                      AppRouter.navigateTo(context, Routes.cart);
+                      AppRouter.navigateTo(context, Routes.wishlist);
                     },
                   ),
                 ],
@@ -688,8 +708,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: _selectedSubCategoryId == subCat.id
                                   ? AppColors.primary
                                   : (isDark
-                                      ? AppColors.surfaceDark
-                                      : Colors.white),
+                                        ? AppColors.surfaceDark
+                                        : Colors.white),
                               borderRadius: BorderRadius.circular(20.r),
                               border: Border.all(
                                 color: _selectedSubCategoryId == subCat.id
@@ -792,7 +812,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCityFilter(bool isDark) {
-    if (_saudiCities.length <= 1 && _selectedRegion == 'الكل') return const SizedBox.shrink();
+    if (_saudiCities.length <= 1 && _selectedRegion == 'الكل')
+      return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.only(top: 16.h),
@@ -984,9 +1005,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
-    return ProductCard(
-      product: product,
-      isTablet: isTablet,
-    );
+    return ProductCard(product: product, isTablet: isTablet);
   }
 }

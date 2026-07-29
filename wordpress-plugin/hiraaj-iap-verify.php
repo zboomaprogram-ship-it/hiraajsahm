@@ -16,14 +16,18 @@ add_action('rest_api_init', function () {
     register_rest_route('custom/v1', '/verify-iap-receipt', array(
         'methods' => 'POST',
         'callback' => 'hiraaj_verify_iap_receipt',
-        'permission_callback' => '__return_true', // We verify user_id in the callback
+        'permission_callback' => function () {
+            return is_user_logged_in();
+        },
     ));
 
     // Restore Purchases Endpoint
     register_rest_route('custom/v1', '/restore-iap', [
         'methods'  => 'POST',
         'callback' => 'hiraaj_restore_iap_purchase',
-        'permission_callback' => '__return_true',
+        'permission_callback' => function () {
+            return is_user_logged_in();
+        },
     ]);
 
     // Debug Endpoint to confirm if this file is loaded and active
@@ -39,7 +43,9 @@ add_action('rest_api_init', function () {
                 'time' => current_time('mysql'),
             ], 200);
         },
-        'permission_callback' => '__return_true',
+        'permission_callback' => function () {
+            return current_user_can('manage_options');
+        },
     ]);
 });
 
@@ -72,20 +78,17 @@ function hiraaj_get_iap_tier_name($product_id)
  * RESTORE PURCHASES ENDPOINT
  */
 function hiraaj_restore_iap_purchase(WP_REST_Request $request) {
-    $user_id      = absint($request->get_param('user_id'));
+    $user_id      = get_current_user_id();
     $receipt_data = $request->get_param('receipt_data');
     $platform     = sanitize_text_field($request->get_param('platform') ?? 'ios');
 
-    // ✅ FIX: Fallback to raw JSON body
-    if (empty($receipt_data) || empty($user_id)) {
+    if (empty($receipt_data)) {
         $raw_body = file_get_contents('php://input');
         if (!empty($raw_body)) {
             $body = json_decode($raw_body, true);
             if (is_array($body)) {
-                if (empty($user_id))      $user_id      = absint($body['user_id'] ?? 0);
                 if (empty($receipt_data)) $receipt_data = $body['receipt_data'] ?? '';
                 if (empty($platform))     $platform     = sanitize_text_field($body['platform'] ?? 'ios');
-                error_log('IAP Restore: Used raw body fallback.');
             }
         }
     }
@@ -99,44 +102,65 @@ function hiraaj_restore_iap_purchase(WP_REST_Request $request) {
         return new WP_REST_Response(['success' => false, 'message' => 'User not found'], 404);
     }
 
-    // Re-verify the receipt with Apple (skip if shared secret not configured)
-    $shared_secret = get_option('hiraaj_apple_shared_secret', '');
-    if (!empty($shared_secret)) {
-        $is_valid = hiraaj_validate_apple_receipt($receipt_data);
-        if (!$is_valid) {
-            error_log("IAP Restore FAILED: Apple rejected receipt for user $user_id");
-            // SAFE QUEUE FLUSH: Return 200 to force iOS app to clear the pending queue, 
-            // but return early so they don't get free access.
-            return new WP_REST_Response([
-                'success' => false, 
-                'message' => 'تم تفريغ العمليات المعلقة السابقة.'
-            ], 200);
-        }
-    } else {
-        error_log("IAP Restore: Skipping Apple verification (shared secret not configured) for user $user_id");
-    }
-
-    // Read what's already saved for this user
-    $pack_id   = get_user_meta($user_id, 'product_package_id', true);
-    $tier      = get_user_meta($user_id, '_iap_tier', true);
-    $expiry    = get_user_meta($user_id, 'product_pack_enddate', true);
-
-    // Fallback tier detection from pack_id
-    if (empty($tier)) {
-        $tier_map = [29026 => 'bronze', 29028 => 'silver', 29030 => 'gold', 29318 => 'zabayeh'];
-        $tier = $tier_map[(int)$pack_id] ?? 'bronze';
-    }
-
-    // If no pack found, try to detect from receipt (Apple returns latest_receipt_info)
-    // For now, return current saved state if valid
-    if (empty($pack_id)) {
+    if (empty(get_option('hiraaj_apple_shared_secret', ''))) {
         return new WP_REST_Response([
             'success' => false,
-            'message' => 'No active subscription found for this user'
-        ], 404);
+            'message' => 'Apple receipt verification is not configured',
+        ], 503);
     }
 
-    // Ensure role is still seller
+    $apple_result = hiraaj_validate_apple_receipt_detailed($receipt_data);
+    if ($apple_result['valid'] !== true) {
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => $apple_result['reason'] ?? 'Apple rejected receipt',
+        ], 422);
+    }
+
+    $product_id = sanitize_text_field($apple_result['product_id'] ?? '');
+    $iap_map = hiraaj_get_iap_to_wc_map();
+    if (!isset($iap_map[$product_id])) {
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => 'No supported active subscription was found',
+        ], 422);
+    }
+
+    // Restoring Al-Zabayeh is allowed for an existing Zabayeh subscriber or
+    // for a user who currently has the prerequisite Silver package.
+    if ($product_id === 'tier_zabayeh_monthly') {
+        $current_pack = (int) get_user_meta($user_id, 'product_package_id', true);
+        if (
+            $current_pack !== 29028
+            && $current_pack !== 29318
+            && !current_user_can('manage_options')
+        ) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'يجب الاشتراك في الباقة الفضية أولاً للوصول إلى باقة الذبائح',
+            ], 403);
+        }
+    }
+
+    $claim = hiraaj_claim_iap_transaction(
+        $user_id,
+        $apple_result['original_transaction_id'] ?? $apple_result['transaction_id'] ?? ''
+    );
+    if (is_wp_error($claim)) {
+        return $claim;
+    }
+
+    $pack_id = (int) $iap_map[$product_id];
+    $tier = hiraaj_get_iap_tier_name($product_id);
+    $expiry = wp_date('Y-m-d H:i:s', (int) $apple_result['expires_at']);
+    update_user_meta($user_id, 'product_package_id', $pack_id);
+    update_user_meta($user_id, 'product_pack_enddate', $expiry);
+    update_user_meta($user_id, '_iap_tier', $tier);
+    update_user_meta($user_id, '_iap_product_id', $product_id);
+    update_user_meta($user_id, '_iap_transaction_id', sanitize_text_field($apple_result['transaction_id'] ?? ''));
+    update_user_meta($user_id, '_iap_original_transaction_id', sanitize_text_field($apple_result['original_transaction_id'] ?? ''));
+    update_user_meta($user_id, '_iap_expiry', $expiry);
+
     $user_obj = new WP_User($user_id);
     if (!in_array('administrator', $user_obj->roles)) {
         $user_obj->set_role('seller');
@@ -160,18 +184,17 @@ function hiraaj_restore_iap_purchase(WP_REST_Request $request) {
 function hiraaj_verify_iap_receipt(WP_REST_Request $request) {
     // ✅ FIX: Try get_param() first, then fall back to raw JSON body
     // Dio sometimes sends application/json body that WordPress doesn't fully parse via get_param()
-    $user_id      = absint($request->get_param('user_id'));
+    $user_id      = get_current_user_id();
     $product_id   = sanitize_text_field($request->get_param('product_id'));
     $receipt_data = $request->get_param('receipt_data');
     $platform     = sanitize_text_field($request->get_param('platform') ?? 'ios');
 
     // Fallback: parse raw JSON body directly if params are missing
-    if (empty($receipt_data) || empty($product_id) || empty($user_id)) {
+    if (empty($receipt_data) || empty($product_id)) {
         $raw_body = file_get_contents('php://input');
         if (!empty($raw_body)) {
             $body = json_decode($raw_body, true);
             if (is_array($body)) {
-                if (empty($user_id))      $user_id      = absint($body['user_id'] ?? 0);
                 if (empty($product_id))   $product_id   = sanitize_text_field($body['product_id'] ?? '');
                 if (empty($receipt_data)) $receipt_data = $body['receipt_data'] ?? '';
                 if (empty($platform))     $platform     = sanitize_text_field($body['platform'] ?? 'ios');
@@ -206,25 +229,29 @@ function hiraaj_verify_iap_receipt(WP_REST_Request $request) {
     $tier_name  = hiraaj_get_iap_tier_name($product_id);
 
     // === APPLE RECEIPT VERIFICATION ===
-    $shared_secret = get_option('hiraaj_apple_shared_secret', '');
-    if (!empty($shared_secret)) {
-        // Shared secret is set → verify with Apple properly
-        $apple_result = hiraaj_validate_apple_receipt_detailed($receipt_data);
-        if ($apple_result['valid'] !== true) {
-            $reason = $apple_result['reason'] ?? 'Apple verification failed';
-            error_log("IAP FAILED: user=$user_id product=$product_id reason=$reason");
-            
-            // SAFE QUEUE FLUSH: Return 200 to force the old iOS app to call completePurchase() 
-            // and clear the stuck transaction. We return early so NO database update happens.
-            // The user will NOT get the Silver tier.
-            return new WP_REST_Response([
-                'success' => false, 
-                'message' => 'تم تفريغ العملية المرفوضة، يرجى المحاولة مرة أخرى'
-            ], 200);
-        }
-    } else {
-        // Shared secret NOT configured → skip Apple verification, just activate
-        error_log("IAP: Skipping Apple verification (shared secret not configured) for user $user_id, product $product_id");
+    if (empty(get_option('hiraaj_apple_shared_secret', ''))) {
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => 'Apple receipt verification is not configured',
+        ], 503);
+    }
+
+    $apple_result = hiraaj_validate_apple_receipt_detailed($receipt_data, $product_id);
+    if ($apple_result['valid'] !== true) {
+        $reason = $apple_result['reason'] ?? 'Apple verification failed';
+        error_log("IAP FAILED: user=$user_id product=$product_id reason=$reason");
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => $reason,
+        ], 422);
+    }
+
+    $claim = hiraaj_claim_iap_transaction(
+        $user_id,
+        $apple_result['original_transaction_id'] ?? $apple_result['transaction_id'] ?? ''
+    );
+    if (is_wp_error($claim)) {
+        return $claim;
     }
 
     // ✅ Guard: Al-Zabayeh requires active Silver subscription
@@ -239,7 +266,7 @@ function hiraaj_verify_iap_receipt(WP_REST_Request $request) {
     }
 
     // === ACTIVATE SUBSCRIPTION ===
-    $expiry = date('Y-m-d H:i:s', strtotime('+1 month'));
+    $expiry = wp_date('Y-m-d H:i:s', (int) $apple_result['expires_at']);
 
     // Core subscription meta
     update_user_meta($user_id, 'product_package_id',    $wc_pack_id);
@@ -252,6 +279,8 @@ function hiraaj_verify_iap_receipt(WP_REST_Request $request) {
     update_user_meta($user_id, '_iap_activated_at', current_time('mysql'));
     update_user_meta($user_id, '_iap_platform',     $platform);
     update_user_meta($user_id, '_iap_expiry',        $expiry);
+    update_user_meta($user_id, '_iap_transaction_id', sanitize_text_field($apple_result['transaction_id'] ?? ''));
+    update_user_meta($user_id, '_iap_original_transaction_id', sanitize_text_field($apple_result['original_transaction_id'] ?? ''));
 
     // ✅ BUG FIX: Set seller role (was missing entirely)
     $user_obj = new WP_User($user_id);
@@ -280,7 +309,7 @@ function hiraaj_verify_iap_receipt(WP_REST_Request $request) {
 /**
  * Validate Apple receipt — returns structured result with reason
  */
-function hiraaj_validate_apple_receipt_detailed($receipt_data)
+function hiraaj_validate_apple_receipt_detailed($receipt_data, $expected_product_id = '')
 {
     $shared_secret = get_option('hiraaj_apple_shared_secret', '');
 
@@ -312,8 +341,47 @@ function hiraaj_validate_apple_receipt_detailed($receipt_data)
         }
 
         if ($response && $response['status'] == 0) {
-            error_log('IAP: Receipt verified successfully.');
-            return ['valid' => true];
+            $transactions = [];
+            if (!empty($response['latest_receipt_info']) && is_array($response['latest_receipt_info'])) {
+                $transactions = $response['latest_receipt_info'];
+            } elseif (!empty($response['receipt']['in_app']) && is_array($response['receipt']['in_app'])) {
+                $transactions = $response['receipt']['in_app'];
+            }
+
+            $supported_products = array_keys(hiraaj_get_iap_to_wc_map());
+            $now_ms = (int) round(microtime(true) * 1000);
+            $active = [];
+            foreach ($transactions as $transaction) {
+                $transaction_product = sanitize_text_field($transaction['product_id'] ?? '');
+                $expires_ms = (int) ($transaction['expires_date_ms'] ?? 0);
+                if (!in_array($transaction_product, $supported_products, true)) {
+                    continue;
+                }
+                if (!empty($expected_product_id) && $transaction_product !== $expected_product_id) {
+                    continue;
+                }
+                if (!empty($transaction['cancellation_date_ms']) || $expires_ms <= $now_ms) {
+                    continue;
+                }
+                $active[] = $transaction;
+            }
+
+            if (empty($active)) {
+                return ['valid' => false, 'reason' => 'No active matching subscription was found'];
+            }
+
+            usort($active, function ($a, $b) {
+                return ((int) ($b['expires_date_ms'] ?? 0)) <=> ((int) ($a['expires_date_ms'] ?? 0));
+            });
+            $verified = $active[0];
+
+            return [
+                'valid' => true,
+                'product_id' => sanitize_text_field($verified['product_id'] ?? ''),
+                'transaction_id' => sanitize_text_field($verified['transaction_id'] ?? ''),
+                'original_transaction_id' => sanitize_text_field($verified['original_transaction_id'] ?? ''),
+                'expires_at' => (int) floor(((int) $verified['expires_date_ms']) / 1000),
+            ];
         }
 
         $status = $response['status'] ?? 'unknown';
@@ -347,6 +415,32 @@ function hiraaj_validate_apple_receipt($receipt_data)
 }
 
 /**
+ * Bind an App Store original transaction to a single WordPress account.
+ */
+function hiraaj_claim_iap_transaction($user_id, $transaction_id)
+{
+    $transaction_id = sanitize_text_field($transaction_id);
+    if (empty($transaction_id)) {
+        return new WP_Error('missing_transaction', 'Apple transaction ID is missing', ['status' => 422]);
+    }
+
+    $option_key = 'hiraaj_iap_owner_' . hash('sha256', $transaction_id);
+    $owner = (int) get_option($option_key, 0);
+    if ($owner > 0 && $owner !== (int) $user_id) {
+        return new WP_Error('receipt_already_used', 'This purchase belongs to another account', ['status' => 409]);
+    }
+    if ($owner === 0) {
+        add_option($option_key, (int) $user_id, '', false);
+        $owner = (int) get_option($option_key, 0);
+        if ($owner !== (int) $user_id) {
+            return new WP_Error('receipt_already_used', 'This purchase belongs to another account', ['status' => 409]);
+        }
+    }
+
+    return true;
+}
+
+/**
  * Send receipt to Apple's verification server
  */
 function hiraaj_send_receipt_to_apple($url, $payload)
@@ -367,4 +461,3 @@ function hiraaj_send_receipt_to_apple($url, $payload)
     $body = wp_remote_retrieve_body($response);
     return json_decode($body, true);
 }
-

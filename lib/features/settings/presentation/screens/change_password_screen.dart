@@ -62,6 +62,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
       );
 
+      final email = await storageService.getUserEmail();
+      if (email == null || email.isEmpty) {
+        _showError('تعذر التحقق من بيانات الحساب');
+        return;
+      }
+
+      // Re-authenticate before allowing a sensitive password change.
+      final loginResponse = await dio.post(
+        AppConfig.jwtTokenEndpoint,
+        data: {'username': email, 'password': _currentPasswordController.text},
+      );
+      if (loginResponse.statusCode != 200 ||
+          loginResponse.data?['token'] == null) {
+        _showError('كلمة المرور الحالية غير صحيحة');
+        return;
+      }
+
       final url = '${AppConfig.wpUsersEndpoint}/me';
 
       final response = await dio.post(

@@ -17,6 +17,7 @@ import '../../features/auth/presentation/screens/edit_user_profile_screen.dart';
 import '../../features/shop/presentation/screens/shop_screen.dart';
 import '../../features/shop/presentation/screens/sub_category_screen.dart';
 import '../../features/shop/presentation/screens/product_details_screen.dart';
+import '../../features/shop/presentation/screens/favorites_screen.dart';
 import '../../features/shop/presentation/cubit/products_cubit.dart';
 import '../../features/shop/data/models/product_model.dart';
 import '../../features/shop/data/models/category_model.dart';
@@ -24,7 +25,6 @@ import '../../features/cart/presentation/screens/cart_screen.dart';
 import '../../features/checkout/presentation/screens/checkout_screen.dart';
 
 // Vendor
-import '../../features/vendor/presentation/screens/vendor_dashboard_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_order_details_screen.dart';
 import '../../features/vendor/data/models/order_model.dart' as vendor_order;
 import '../../features/vendor/data/models/vendor_registration_data.dart';
@@ -39,6 +39,7 @@ import '../../features/vendor/presentation/cubit/vendor_upgrade_cubit.dart';
 // Orders & Profile
 import '../../features/orders/presentation/screens/my_orders_screen.dart';
 import '../../features/orders/presentation/screens/order_details_screen.dart';
+import '../../features/orders/presentation/cubit/orders_cubit.dart';
 import '../../features/orders/data/models/order_model.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 // import '../../features/profile/presentation/screens/edit_profile_screen.dart';
@@ -55,6 +56,8 @@ import '../../features/requests/presentation/screens/requests_screen.dart';
 // Notifications
 import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/notifications/presentation/cubit/notifications_cubit.dart';
+import '../../features/messages/presentation/screens/messages_screen.dart';
+import '../../features/messages/presentation/screens/chat_screen.dart';
 
 // Addresses
 import '../../features/addresses/presentation/screens/addresses_screen.dart';
@@ -76,7 +79,10 @@ class AppRouter {
       case Routes.main:
         final args = settings.arguments as Map<String, dynamic>?;
         final initialIndex = args?['initialIndex'] as int? ?? 0;
-        return _buildRoute(MainLayoutScreen(initialIndex: initialIndex), settings);
+        return _buildRoute(
+          MainLayoutScreen(initialIndex: initialIndex),
+          settings,
+        );
 
       case Routes.home:
         return _buildRoute(const HomeScreen(), settings);
@@ -215,9 +221,7 @@ class AppRouter {
         }
         // 2. Deep Linking (ID Only)
         else if (args is int) {
-          // Fallback: Redirect to My Orders list so user can select the order
-          // This avoids crashes when the notification only sends an ID
-          return _buildRoute(const MyOrdersScreen(), settings);
+          return _buildRoute(_OrderDetailsLoader(orderId: args), settings);
         }
         return _buildRoute(_buildErrorScreen('Order not found'), settings);
 
@@ -227,6 +231,22 @@ class AppRouter {
           BlocProvider(
             create: (context) => sl<NotificationsCubit>()..loadNotifications(),
             child: const NotificationsScreen(),
+          ),
+          settings,
+        );
+
+      case Routes.messages:
+        return _buildRoute(const MessagesScreen(), settings);
+
+      case Routes.chat:
+        final args = settings.arguments as Map<String, dynamic>? ?? const {};
+        return _buildRoute(
+          ChatScreen(
+            conversationId: args['conversationId'] as int?,
+            vendorId: args['vendorId'] as int?,
+            productId: args['productId'] as int?,
+            title: args['title'] as String? ?? 'محادثة',
+            productName: args['productName'] as String? ?? '',
           ),
           settings,
         );
@@ -242,10 +262,7 @@ class AppRouter {
         );
 
       case Routes.wishlist:
-        return _buildRoute(
-          _buildPlaceholderScreen('المفضلة', 'صفحة المفضلة قيد التطوير'),
-          settings,
-        );
+        return _buildRoute(const FavoritesScreen(), settings);
 
       // --- Addresses ---
       case Routes.addresses:
@@ -384,5 +401,44 @@ class AppRouter {
 
   static void goBackWithResult<T>(BuildContext context, T result) {
     Navigator.pop(context, result);
+  }
+}
+
+class _OrderDetailsLoader extends StatefulWidget {
+  final int orderId;
+
+  const _OrderDetailsLoader({required this.orderId});
+
+  @override
+  State<_OrderDetailsLoader> createState() => _OrderDetailsLoaderState();
+}
+
+class _OrderDetailsLoaderState extends State<_OrderDetailsLoader> {
+  late final Future<OrderModel?> _order = OrdersCubit().fetchOrder(
+    widget.orderId,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<OrderModel?>(
+      future: _order,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final order = snapshot.data;
+        if (order == null) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(
+              child: Text('تعذر العثور على الطلب أو لا تملك صلاحية عرضه'),
+            ),
+          );
+        }
+        return OrderDetailsScreen(order: order);
+      },
+    );
   }
 }

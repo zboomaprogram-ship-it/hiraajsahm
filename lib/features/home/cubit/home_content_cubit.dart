@@ -1,7 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
-import '../../../../core/config/app_config.dart';
+import '../../../core/api/transient_retry.dart';
+import '../../../core/config/app_config.dart';
 import '../../shop/data/models/product_model.dart';
 
 // ============ HOME CONTENT STATES ============
@@ -78,10 +79,16 @@ class HomeContentCubit extends Cubit<HomeContentState> {
   int? get activeCategory => _currentCategoryId;
 
   /// Load home content - latest products and featured items (with optional filters)
-  Future<void> loadHomeContent({int? categoryId, String? region, String? city}) async {
+  Future<void> loadHomeContent({
+    int? categoryId,
+    String? region,
+    String? city,
+  }) async {
     // If not matching current filters, ignore "already loading" state
     final isNewFilters =
-        categoryId != _currentCategoryId || region != _currentRegion || city != _currentCity;
+        categoryId != _currentCategoryId ||
+        region != _currentRegion ||
+        city != _currentCity;
     if (state is HomeContentLoading && !isNewFilters) return;
 
     _currentCategoryId = categoryId;
@@ -128,11 +135,13 @@ class HomeContentCubit extends Cubit<HomeContentState> {
       };
 
       // Prepare both requests
-      final latestRequest = _cleanDio.get(
+      final latestRequest = getWithTransientRetry(
+        _cleanDio,
         productsUrl,
         queryParameters: latestParams,
       );
-      final featuredRequest = _cleanDio.get(
+      final featuredRequest = getWithTransientRetry(
+        _cleanDio,
         productsUrl,
         queryParameters: featuredParams,
       );
@@ -155,7 +164,10 @@ class HomeContentCubit extends Cubit<HomeContentState> {
         final List<dynamic> data = latestResponse.data;
         var latestProducts = data
             .map((json) => ProductModel.fromJson(json))
-            .where((product) => product.status == 'publish' || product.status == 'pending')
+            .where(
+              (product) =>
+                  product.status == 'publish' || product.status == 'pending',
+            )
             .where((product) => product.id != alZabayehProductId)
             .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
             .toList();
@@ -166,14 +178,18 @@ class HomeContentCubit extends Cubit<HomeContentState> {
           final List<dynamic> featuredData = featuredResponse.data;
           featuredProducts = featuredData
               .map((json) => ProductModel.fromJson(json))
-              .where((product) => product.status == 'publish' || product.status == 'pending')
+              .where(
+                (product) =>
+                    product.status == 'publish' || product.status == 'pending',
+              )
               .where((product) => product.id != alZabayehProductId)
               .where((p) => !p.categories.any((c) => c.id == excludeCategoryId))
               .toList();
         }
 
         // Apply Region & City Filter client-side
-        final hasRegion = region != null && region.isNotEmpty && region != 'الكل';
+        final hasRegion =
+            region != null && region.isNotEmpty && region != 'الكل';
         final hasCity = city != null && city.isNotEmpty && city != 'الكل';
 
         if (hasRegion || hasCity) {
@@ -184,13 +200,22 @@ class HomeContentCubit extends Cubit<HomeContentState> {
               final reg = p.productRegion?.toLowerCase() ?? '';
               final cityVal = p.productCity?.toLowerCase() ?? '';
               final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(region.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
+              matches =
+                  matches &&
+                  (loc.contains(region.toLowerCase()) ||
+                      reg.contains(region.toLowerCase()) ||
+                      cityVal.contains(region.toLowerCase()) ||
+                      vendorLoc.contains(region.toLowerCase()));
             }
             if (hasCity) {
               final loc = p.productLocation?.toLowerCase() ?? '';
               final reg = p.productRegion?.toLowerCase() ?? '';
               final cityVal = p.productCity?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(city.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
+              matches =
+                  matches &&
+                  (loc.contains(city.toLowerCase()) ||
+                      reg.contains(city.toLowerCase()) ||
+                      cityVal.contains(city.toLowerCase()));
             }
             return matches;
           }).toList();
@@ -202,13 +227,22 @@ class HomeContentCubit extends Cubit<HomeContentState> {
               final reg = p.productRegion?.toLowerCase() ?? '';
               final cityVal = p.productCity?.toLowerCase() ?? '';
               final vendorLoc = p.vendorAddress?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(region.toLowerCase()) || reg.contains(region.toLowerCase()) || cityVal.contains(region.toLowerCase()) || vendorLoc.contains(region.toLowerCase()));
+              matches =
+                  matches &&
+                  (loc.contains(region.toLowerCase()) ||
+                      reg.contains(region.toLowerCase()) ||
+                      cityVal.contains(region.toLowerCase()) ||
+                      vendorLoc.contains(region.toLowerCase()));
             }
             if (hasCity) {
               final loc = p.productLocation?.toLowerCase() ?? '';
               final reg = p.productRegion?.toLowerCase() ?? '';
               final cityVal = p.productCity?.toLowerCase() ?? '';
-              matches = matches && (loc.contains(city.toLowerCase()) || reg.contains(city.toLowerCase()) || cityVal.contains(city.toLowerCase()));
+              matches =
+                  matches &&
+                  (loc.contains(city.toLowerCase()) ||
+                      reg.contains(city.toLowerCase()) ||
+                      cityVal.contains(city.toLowerCase()));
             }
             return matches;
           }).toList();
@@ -245,7 +279,8 @@ class HomeContentCubit extends Cubit<HomeContentState> {
     try {
       if (_cachedWcCategories == null) {
         const url = 'https://hiraajsahm.com/wp-json/wc/v3/products/categories';
-        final response = await _cleanDio.get(
+        final response = await getWithTransientRetry(
+          _cleanDio,
           url,
           queryParameters: {
             'per_page': 100,

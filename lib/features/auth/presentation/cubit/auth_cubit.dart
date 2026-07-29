@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 // import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/subscription_pack_model.dart';
@@ -117,6 +118,7 @@ class VendorRegisteredWithPack extends AuthState {
 class AuthCubit extends Cubit<AuthState> {
   final AuthRemoteDataSource _authRemoteDataSource;
   final StorageService _storageService;
+  final CartCubit _cartCubit;
 
   UserModel? _currentUser;
   String? _currentToken;
@@ -125,8 +127,10 @@ class AuthCubit extends Cubit<AuthState> {
   AuthCubit({
     required AuthRemoteDataSource authRemoteDataSource,
     required StorageService storageService,
+    required CartCubit cartCubit,
   }) : _authRemoteDataSource = authRemoteDataSource,
        _storageService = storageService,
+       _cartCubit = cartCubit,
        super(const AuthInitial());
 
   UserModel? get currentUser => _currentUser;
@@ -155,11 +159,13 @@ class AuthCubit extends Cubit<AuthState> {
       // Validate token
       final result = await _authRemoteDataSource.validateToken();
 
-      result.fold(
-        (failure) {
+      await result.fold<Future<void>>(
+        (failure) async {
           print('🔐 checkAuthStatus: Token validation failed');
-          _clearAuthData();
-          emit(const AuthUnauthenticated());
+          // A validation request can fail because the device is offline or
+          // WordPress is temporarily unavailable. Keep a valid cached session;
+          // explicit `isValid == false` below still clears an expired token.
+          await _loadCachedUser(token);
         },
         (isValid) async {
           if (isValid) {
@@ -192,20 +198,29 @@ class AuthCubit extends Cubit<AuthState> {
                 _currentUser = user;
                 _currentToken = token;
                 _saveUserData(user); // Save fresh data to cache
+                NotificationService().login(
+                  user.id.toString(),
+                  userAuthToken: token,
+                  user: user,
+                );
                 emit(AuthAuthenticated(user: user, token: token));
               },
             );
           } else {
             print('🔐 checkAuthStatus: Token invalid');
-            _clearAuthData();
+            await _clearAuthData();
             emit(const AuthUnauthenticated());
           }
         },
       );
     } catch (e) {
       print('🔐 checkAuthStatus: Exception: $e');
-      _clearAuthData();
-      emit(const AuthUnauthenticated());
+      final token = await _storageService.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _loadCachedUser(token);
+      } else {
+        emit(const AuthUnauthenticated());
+      }
     }
   }
 
@@ -232,28 +247,27 @@ class AuthCubit extends Cubit<AuthState> {
         // Fetch complete user data
         final userResult = await _authRemoteDataSource.getCurrentUser();
 
-        userResult.fold(
-          (failure) {
-            // Use basic data from login response
-            final user = UserModel(
-              id: 0,
-              email: data['user_email'] ?? '',
-              displayName: data['user_display_name'] ?? '',
-              role: 'customer',
+        await userResult.fold<Future<void>>(
+          (failure) async {
+            // A user ID of zero breaks ownership, orders, messages, follows,
+            // and notifications. Do not create a fake authenticated identity.
+            await _clearAuthData();
+            emit(
+              AuthFailure(
+                message:
+                    'تم تسجيل الدخول ولكن تعذر تحميل بيانات الحساب. حاول مرة أخرى.',
+              ),
             );
-            _currentUser = user;
-            _currentToken = token;
-            _saveUserData(user);
-            emit(AuthAuthenticated(user: user, token: token));
           },
-          (user) {
+          (user) async {
             _currentUser = user;
             _currentToken = token;
-            _saveUserData(user);
+            await _saveUserData(user);
             // Initialize OneSignal for this user
             NotificationService().login(
               user.id.toString(),
               userAuthToken: token,
+              user: user,
             );
 
             // Check for expiration (Downgrade notification)
@@ -575,11 +589,13 @@ class AuthCubit extends Cubit<AuthState> {
       (failure) {
         // Re-emit authenticated state on failure
         if (_currentUser != null && _currentToken != null) {
-          emit(AuthAuthenticated(
-            user: _currentUser!,
-            token: _currentToken!,
-            message: 'فشل في حذف الحساب: ${failure.message}',
-          ));
+          emit(
+            AuthAuthenticated(
+              user: _currentUser!,
+              token: _currentToken!,
+              message: 'فشل في حذف الحساب: ${failure.message}',
+            ),
+          );
         } else {
           emit(AuthFailure(message: failure.message));
         }
@@ -604,6 +620,7 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> _clearAuthData() async {
     _currentUser = null;
     _currentToken = null;
+    _cartCubit.clearCart();
     await _storageService.logout();
   }
 
@@ -653,8 +670,11 @@ class AuthCubit extends Cubit<AuthState> {
       );
       _currentUser = user;
       _currentToken = token;
-      // OneSignal Login
-      // OneSignal.login(user.id.toString());
+      NotificationService().login(
+        user.id.toString(),
+        userAuthToken: token,
+        user: user,
+      );
       emit(AuthAuthenticated(user: user, token: token));
     } else {
       emit(const AuthUnauthenticated());

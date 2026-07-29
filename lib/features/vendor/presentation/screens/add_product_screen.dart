@@ -56,12 +56,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
   List<CategoryModel> _categories = []; // Dynamic categories
 
   late AddProductCubit _addProductCubit;
+  late Future<AdQuota?> _quotaFuture;
 
   @override
   void initState() {
     super.initState();
     _addProductCubit = di.sl<AddProductCubit>();
     _addProductCubit.loadCategories();
+    _quotaFuture = _addProductCubit.fetchQuota();
 
     // Reset cubit to initial state
     _addProductCubit.reset();
@@ -1504,51 +1506,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildLimitInfo(bool isDark) {
-    final user = context.watch<AuthCubit>().currentUser;
-    if (user == null) return const SizedBox.shrink();
+    return FutureBuilder<AdQuota?>(
+      future: _quotaFuture,
+      builder: (context, snapshot) {
+        final quota = snapshot.data;
+        final user = context.watch<AuthCubit>().currentUser;
+        if (user == null) return const SizedBox.shrink();
 
-    final tier = user.tier.name.toLowerCase();
-    final dailyLimit = (tier == 'silver' || tier == 'gold' || tier == 'zabayeh')
-        ? 5
-        : 1;
+        final fallbackLimit = user.tier == UserTier.bronze ? 1 : 5;
+        final dailyLimit = quota?.dailyLimit ?? fallbackLimit;
+        final used = quota?.adsToday;
+        final remaining = quota?.remainingToday;
 
-    // We don't have real-time remaining_products here yet without fetching,
-    // but we can show the daily limit and a general reminder.
-    return Container(
-      padding: EdgeInsets.all(12.w),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.grey[100],
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: AppColors.primary, size: 20.sp),
-          SizedBox(width: 10.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'حد الإعلانات اليومي: $dailyLimit إعلانات',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  'سيتم التحقق من رصيد باقتك عند النشر',
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+        return Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : Colors.grey[100],
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: AppColors.border),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: AppColors.primary, size: 20.sp),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      remaining == null
+                          ? 'حد الإعلانات اليومي: $dailyLimit إعلانات'
+                          : 'المتاح اليوم: $remaining من $dailyLimit إعلانات',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.bold,
+                        color: isDark
+                            ? AppColors.textLight
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      used == null
+                          ? 'سيتم التحقق من رصيدك اليومي عند النشر'
+                          : 'تم نشر $used إعلان اليوم — يتجدد الرصيد بعد منتصف الليل',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Telr Gateway API for Hiraaj Sahm
  * Description: REST API endpoints for Telr Mobile SDK integration (V4.0.1 Compatible).
- * Version: 3.0.0
+ * Version: 3.1.1
  * Author: Hiraaj Sahm Dev
  */
 
@@ -10,10 +10,22 @@ if (!defined('ABSPATH'))
     exit;
 
 // ============ TELR CONFIGURATION ============
-define('TELR_STORE_ID', get_option('telr_store_id', '34762'));
-define('TELR_MOBILE_AUTH_KEY', get_option('telr_auth_key', 'mKnQf-HrCvD@StZK'));
+define('TELR_STORE_ID', hiraaj_telr_option_or_default('telr_store_id', '34762'));
+define('TELR_MOBILE_AUTH_KEY', hiraaj_telr_option_or_default('telr_auth_key', 'mKnQf-HrCvD@StZK'));
 define('TELR_TEST_MODE', (bool) get_option('telr_test_mode', false));
 define('TELR_API_URL', 'https://secure.telr.com/api/v1/orders'); // ✔ OK: REST API URL
+
+/**
+ * WordPress returns an existing empty option instead of the supplied default.
+ * Falling back here prevents an empty Telr credential from being sent after an
+ * administrator has saved the settings page without entering the key.
+ */
+function hiraaj_telr_option_or_default($option_name, $default)
+{
+    $value = get_option($option_name, '');
+    $value = is_string($value) ? trim($value) : '';
+    return $value !== '' ? $value : $default;
+}
 
 /**
  * 1. NUCLEAR JWT BYPASS (FOR CUSTOM NON-REST ENDPOINT)
@@ -174,35 +186,79 @@ add_action('rest_api_init', function () {
  */
 function hiraaj_telr_token(WP_REST_Request $request)
 {
-    $order_id = $request->get_param('order_id');
-    $amount = $request->get_param('amount');
-    $currency = $request->get_param('currency') ?: 'SAR';
+    // The installed app sends order_id in the query string. Accept the common
+    // camelCase spelling too, but never rely on a client-supplied amount.
+    $order_id = absint(
+        $request->get_param('order_id') ?: $request->get_param('orderId')
+    );
 
-    if (empty($order_id) || empty($amount))
-        return new WP_Error('missing_params', 'order_id and amount are required', ['status' => 400]);
+    if (empty($order_id)) {
+        return new WP_Error('missing_order_id', 'order_id is required', ['status' => 400]);
+    }
 
-    $name_parts = explode(' ', $request->get_param('customer_name') ?: 'Guest User', 2);
-    $fname = trim($name_parts[0] ?? 'Guest');
-    $sname = trim($name_parts[1] ?? 'User');
+    // The app has already created this WooCommerce order before calling us.
+    // Use its billing details and total rather than trusting the values passed
+    // from the device. Telr's Orders API requires customer.address and the
+    // previous implementation omitted it, which causes Telr to return HTTP 400.
+    $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+    if (!$order) {
+        return new WP_Error('invalid_order', 'WooCommerce order not found', ['status' => 404]);
+    }
 
-    // ✅ FIXED: Clean payload as per Rahul's instructions (PHP-2, PHP-5)
+    if ($order->is_paid()) {
+        return new WP_Error('order_already_paid', 'This order has already been paid', ['status' => 409]);
+    }
+
+    $amount = (float) $order->get_total();
+    if ($amount <= 0) {
+        return new WP_Error('invalid_order_total', 'Order total must be greater than zero', ['status' => 400]);
+    }
+
+    $currency = $order->get_currency() ?: ($request->get_param('currency') ?: 'SAR');
+    $currency = strtoupper(sanitize_text_field($currency));
+
+    $name_parts = preg_split('/\s+/', trim($request->get_param('customer_name') ?: ''), 2);
+    $first_name = trim($order->get_billing_first_name() ?: ($name_parts[0] ?? 'Customer'));
+    $last_name = trim($order->get_billing_last_name() ?: ($name_parts[1] ?? 'Customer'));
+    $email = sanitize_email($order->get_billing_email() ?: $request->get_param('customer_email'));
+    $country = strtoupper(sanitize_text_field($order->get_billing_country() ?: 'SA'));
+    $address = trim($order->get_billing_address_1());
+    $city = trim($order->get_billing_city());
+
+    if (!is_email($email)) {
+        return new WP_Error('invalid_customer_email', 'A valid billing email is required', ['status' => 400]);
+    }
+
+    if ($address === '') {
+        $address = 'Customer address';
+    }
+    if ($city === '') {
+        $city = 'Riyadh';
+    }
+
+    // Telr Orders API schema: customer.email, customer.name.firstName/
+    // lastName, and customer.address.country are required fields.
     $telr_payload = [
-        'cartId' => strval($order_id), // camelCase
+        'cartId' => (string) $order_id,
         'test' => TELR_TEST_MODE,
         'transactionType' => 'SALE',
         'amount' => [
-            'value' => number_format((double) $amount, 2, '.', ''),
+            'value' => round($amount, 2),
             'currency' => $currency
         ],
         'description' => "Order {$order_id}",
-        // 'mobile' => true, // ❌ REMOVED: (PHP-5)
-        // 'sdk' => true,    // ❌ REMOVED: (PHP-5)
         'customer' => [
-            'email' => $request->get_param('customer_email') ?: 'test@test.com',
+            'email' => $email,
             'name' => [
-                'forenames' => $fname,
-                'surname' => $sname
-            ]
+                'firstName' => $first_name,
+                'lastName' => $last_name,
+            ],
+            'address' => [
+                'line1' => $address,
+                'city' => $city,
+                'country' => substr($country, 0, 2),
+            ],
+            'phone' => sanitize_text_field($order->get_billing_phone()),
         ]
     ];
 
@@ -225,28 +281,31 @@ function hiraaj_telr_token(WP_REST_Request $request)
     $raw_body = wp_remote_retrieve_body($response);
     $body = json_decode($raw_body, true);
 
+    $status_code = wp_remote_retrieve_response_code($response);
+    $correlation_id = wp_remote_retrieve_header($response, 'x-correlation-id');
+
     if (!is_array($body)) {
-        return new WP_Error('telr_invalid_response', 'Invalid JSON response from Telr', ['status' => 502]);
+        error_log(sprintf('Telr invalid response for WooCommerce order %d (HTTP %d, correlation %s).', $order_id, $status_code, $correlation_id ?: 'n/a'));
+        return new WP_Error('telr_invalid_response', 'Invalid response from payment gateway', ['status' => 502]);
     }
 
-    $status_code = wp_remote_retrieve_response_code($response);
     $order_ref = $body['ref'] ?? null;
 
     if ($status_code !== 201 || empty($order_ref)) {
+        $errors = isset($body['errors']) && is_array($body['errors']) ? implode('; ', array_map('sanitize_text_field', $body['errors'])) : '';
+        $reason = sanitize_text_field(
+            $body['reason'] ?? $body['message'] ?? ($errors !== '' ? $errors : 'Unknown error')
+        );
+        error_log(sprintf('Telr create-order failed for WooCommerce order %d (HTTP %d, correlation %s): %s', $order_id, $status_code, $correlation_id ?: 'n/a', $reason));
         return new WP_Error(
             'telr_api_error',
-            "Telr API Error ({$status_code}): " . ($body['message'] ?? 'Unknown Error'),
+            "Telr API Error ({$status_code}): {$reason}",
             ['status' => 500]
         );
     }
 
-    if (function_exists('wc_get_order') && $order_id) {
-        $order = wc_get_order($order_id);
-        if ($order) {
-            $order->update_meta_data('_telr_order_ref', $order_ref);
-            $order->save();
-        }
-    }
+    $order->update_meta_data('_telr_order_ref', $order_ref);
+    $order->save();
 
     return new WP_REST_Response([
         'tokenUrl' => $body['_links']['auth']['href'] ?? '',

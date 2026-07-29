@@ -69,8 +69,14 @@ class UserModel extends Equatable {
         role == 'administrator' ||
         role == 'seller';
 
-    int? packId;
-    String? endDate;
+    int? packId = _tryParseInt(
+      json['product_package_id'] ??
+          json['subscription_pack_id'] ??
+          json['pack_id'],
+    );
+    String? endDate =
+        json['product_pack_enddate']?.toString() ??
+        json['subscription_end_date']?.toString();
 
     // Parse meta_data for subscription info
     if (json['meta_data'] != null) {
@@ -78,18 +84,33 @@ class UserModel extends Equatable {
 
       // Parse ID
       final packItem = meta.firstWhere(
-        (i) => i['key'] == 'product_package_id',
+        (i) =>
+            i is Map &&
+            const {
+              'product_package_id',
+              'dokan_feature_seller_package_id',
+              '_dokan_subscription_pack_id',
+            }.contains(i['key']?.toString()),
         orElse: () => null,
       );
-      if (packItem != null) packId = int.tryParse(packItem['value'].toString());
+      if (packId == null && packItem != null) {
+        packId = _tryParseInt(packItem['value']);
+      }
 
       // Parse Date
       final dateItem = meta.firstWhere(
         (i) => i['key'] == 'product_pack_enddate',
         orElse: () => null,
       );
-      if (dateItem != null) endDate = dateItem['value'].toString();
+      if ((endDate == null || endDate.isEmpty) && dateItem != null) {
+        endDate = dateItem['value'].toString();
+      }
     }
+
+    // Older Dokan accounts can be valid sellers without the package meta that
+    // newer registrations receive. They retain the free Bronze entitlement;
+    // the server still enforces the real daily quota when an ad is submitted.
+    packId ??= isVendor ? 29026 : null;
 
     // Check for Al-Zabayeh/Sacrifices verification (sacrifices_verified = yes)
     bool alZabayeh = packId == 29318;
@@ -108,13 +129,6 @@ class UserModel extends Equatable {
     if (json['billing'] != null && json['billing']['address_1'] != null) {
       address = json['billing']['address_1'];
     }
-
-    // DEBUG: Print parsed subscription info
-    print('🔍 UserModel.fromJson DEBUG:');
-    print('   role: $role');
-    print('   isVendor: $isVendor');
-    print('   packId: $packId');
-    print('   endDate: $endDate');
 
     // Parse Phone
     String? phone;
@@ -135,7 +149,7 @@ class UserModel extends Equatable {
 
     if (json['meta_data'] != null) {
       final meta = json['meta_data'] as List;
-      
+
       final cityItem = meta.firstWhere(
         (i) => i['key'] == 'region',
         orElse: () => null,
@@ -194,6 +208,11 @@ class UserModel extends Equatable {
           avatarUrls['24']?.toString();
     }
     return null;
+  }
+
+  static int? _tryParseInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '');
   }
 
   Map<String, dynamic> toJson() {
@@ -292,13 +311,8 @@ class UserModel extends Equatable {
 
   // Computed Tier
   UserTier get tier {
-    print('🎯 UserTier.tier DEBUG:');
-    print('   subscriptionPackId: $subscriptionPackId');
-    print('   subscriptionStatus: $subscriptionStatus');
-
     // Rule: If no subscription, you are BRONZE.
     if (subscriptionStatus == SubscriptionStatus.none) {
-      print('   RESULT: bronze (no subscription)');
       return UserTier.bronze;
     }
 
@@ -320,7 +334,6 @@ class UserModel extends Equatable {
       default:
         result = UserTier.bronze; // Fallback
     }
-    print('   RESULT: ${result.name}');
     return result;
   }
 

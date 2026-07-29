@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/routes/app_router.dart';
@@ -13,9 +14,11 @@ import '../widgets/customer_card.dart';
 
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/di/injection_container.dart';
 import '../cubit/profile_cubit.dart';
 import '../../../auth/presentation/screens/edit_user_profile_screen.dart';
+import '../../../messages/presentation/message_unread_controller.dart';
 
 /// Profile Screen - Customer/Vendor Dashboard
 class ProfileScreen extends StatelessWidget {
@@ -71,11 +74,10 @@ class ProfileScreen extends StatelessWidget {
             );
           } else if (authState is AuthLoading) {
             return Scaffold(
-              backgroundColor:
-                  isDark ? AppColors.backgroundDark : AppColors.background,
-              body: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              backgroundColor: isDark
+                  ? AppColors.backgroundDark
+                  : AppColors.background,
+              body: const Center(child: CircularProgressIndicator()),
             );
           }
 
@@ -252,7 +254,9 @@ class ProfileScreen extends StatelessWidget {
               SliverToBoxAdapter(child: SizedBox(height: 12.h)),
 
             // Upgrade Subscription Card (Only for Vendors, hide if already on top tier)
-            if (state.user.isVendor && !state.user.isSilverOrGold && !state.user.hasAlZabayehTier)
+            if (state.user.isVendor &&
+                !state.user.isSilverOrGold &&
+                !state.user.hasAlZabayehTier)
               SliverToBoxAdapter(
                 child: FadeInUp(
                   delay: const Duration(milliseconds: 100),
@@ -311,6 +315,34 @@ class ProfileScreen extends StatelessWidget {
                             onTap: () =>
                                 AppRouter.navigateTo(context, Routes.orders),
                           ),
+                          _MenuItem(
+                            icon: Icons.favorite_border_rounded,
+                            title: 'المفضلة',
+                            subtitle: 'الإعلانات التي حفظتها',
+                            onTap: () =>
+                                AppRouter.navigateTo(context, Routes.wishlist),
+                          ),
+                          if (!state.user.isVendor)
+                            _MenuItem(
+                              icon: Icons.chat_bubble_outline_rounded,
+                              leading: UnreadMessageIcon(
+                                dio: sl<Dio>(),
+                                icon: Icons.chat_bubble_outline_rounded,
+                                size: 22.sp,
+                                color: AppColors.primary,
+                              ),
+                              title: 'الرسائل',
+                              subtitle: 'محادثاتك مع البائعين',
+                              onTap: () async {
+                                await Navigator.pushNamed(
+                                  context,
+                                  Routes.messages,
+                                );
+                                await MessageUnreadController.instance.refresh(
+                                  sl<Dio>(),
+                                );
+                              },
+                            ),
                         ],
                         isDark: isDark,
                       ),
@@ -1019,8 +1051,15 @@ class ProfileScreen extends StatelessWidget {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 8.w),
       child: InkWell(
-        onTap: () {
-          // TODO: Implement URL launcher
+        onTap: () async {
+          final normalizedUrl =
+              url.startsWith('http://') || url.startsWith('https://')
+              ? url
+              : 'https://$url';
+          final uri = Uri.tryParse(normalizedUrl);
+          if (uri != null) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
         },
         child: Icon(icon, size: 24.sp, color: color),
       ),
@@ -1096,11 +1135,13 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         borderRadius: BorderRadius.circular(10.r),
                       ),
-                      child: Icon(
-                        item.icon,
-                        color: item.color ?? AppColors.primary,
-                        size: 22.sp,
-                      ),
+                      child:
+                          item.leading ??
+                          Icon(
+                            item.icon,
+                            color: item.color ?? AppColors.primary,
+                            size: 22.sp,
+                          ),
                     ),
                     title: Text(
                       item.title,
@@ -1225,6 +1266,7 @@ class ProfileScreen extends StatelessWidget {
 
 class _MenuItem {
   final IconData icon;
+  final Widget? leading;
   final String title;
   final String? subtitle;
   final Color? color;
@@ -1233,6 +1275,7 @@ class _MenuItem {
 
   _MenuItem({
     required this.icon,
+    this.leading,
     required this.title,
     this.subtitle,
     this.color,

@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/routes/routes.dart';
@@ -12,7 +13,6 @@ import '../cubit/zabayeh_products_cubit.dart';
 import '../cubit/categories_cubit.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/category_model.dart';
-import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/data/regions_service.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../widgets/product_card.dart';
@@ -39,6 +39,7 @@ class ShopScreen extends StatefulWidget {
 class _ShopScreenState extends State<ShopScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
   int? _selectedCategoryId;
   int? _selectedSubCategoryId;
   String _selectedRegion = 'الكل';
@@ -53,7 +54,8 @@ class _ShopScreenState extends State<ShopScreen> {
     _scrollController.addListener(_onScroll);
     // Default to Zabayeh (78) only when opened from bottom tab (no explicit args)
     _selectedCategoryId = widget.hasExplicitCategory
-        ? widget.initialCategoryId // null = all products
+        ? widget
+              .initialCategoryId // null = all products
         : 78; // bottom tab = Zabayeh
     _searchController.text = widget.initialSearch ?? '';
 
@@ -83,6 +85,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -101,24 +104,41 @@ class _ShopScreenState extends State<ShopScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      context.read<ProductsCubit>().loadMoreProducts();
+      if (_selectedCategoryId == 78) {
+        context.read<ZabayehProductsCubit>().loadMoreProducts();
+      } else {
+        context.read<ProductsCubit>().loadMoreProducts();
+      }
     }
   }
 
   void _onSearch(String query) {
-    String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) {
+        _performSearch(query.trim());
+      }
+    });
+  }
+
+  void _performSearch(String query) {
+    String? currentRegion = _selectedRegion == 'الكل'
+        ? null
+        : (_selectedRegion == 'الموقع الحالي'
+              ? context.read<AuthCubit>().currentUser?.region
+              : _selectedRegion);
 
     if (_selectedCategoryId == 78) {
       context.read<ZabayehProductsCubit>().loadProducts(
         search: query.isEmpty ? null : query,
-        categoryId: _selectedCategoryId,
+        categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
         region: currentRegion,
         city: _selectedCity == 'الكل' ? null : _selectedCity,
       );
     } else {
       context.read<ProductsCubit>().loadProducts(
         search: query.isEmpty ? null : query,
-        categoryId: _selectedCategoryId,
+        categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
         region: currentRegion,
         city: _selectedCity == 'الكل' ? null : _selectedCity,
       );
@@ -139,11 +159,11 @@ class _ShopScreenState extends State<ShopScreen> {
             duration: const Duration(milliseconds: 300),
             child: _buildSearchBar(isDark),
           ),
-          
+
           // Show main categories ONLY if this is the generic Shop Screen (not strictly Zabayeh tab)
           if (widget.hasExplicitCategory)
             _buildCategories(context, isDark, isTablet),
-            
+
           // Always show subcategories (if a parent category is selected)
           _buildSubCategories(isDark, isTablet),
 
@@ -157,7 +177,7 @@ class _ShopScreenState extends State<ShopScreen> {
           // City Filter (Cascading)
           if (_selectedRegion != 'الكل' && _selectedRegion != 'الموقع الحالي')
             _buildCityFilter(isDark),
-            
+
           Expanded(child: _buildProductsGrid(isDark, isTablet)),
         ],
       ),
@@ -305,17 +325,29 @@ class _ShopScreenState extends State<ShopScreen> {
     final slug = category.slug.toLowerCase();
     final name = category.name.toLowerCase();
 
-    if (slug.contains('camel') || name.contains('إبل') || name.contains('ابل')) {
+    if (slug.contains('camel') ||
+        name.contains('إبل') ||
+        name.contains('ابل')) {
       return Icons.pets;
-    } else if (slug.contains('sheep') || name.contains('غنم') || name.contains('ماعز')) {
+    } else if (slug.contains('sheep') ||
+        name.contains('غنم') ||
+        name.contains('ماعز')) {
       return Icons.grass;
-    } else if (slug.contains('bird') || name.contains('طيور') || name.contains('دجاج')) {
+    } else if (slug.contains('bird') ||
+        name.contains('طيور') ||
+        name.contains('دجاج')) {
       return Icons.flutter_dash;
-    } else if (slug.contains('slaughter') || name.contains('ذبائح') || name.contains('لحم')) {
+    } else if (slug.contains('slaughter') ||
+        name.contains('ذبائح') ||
+        name.contains('لحم')) {
       return Icons.restaurant;
-    } else if (slug.contains('equip') || name.contains('مستلزمات') || name.contains('أدوات')) {
+    } else if (slug.contains('equip') ||
+        name.contains('مستلزمات') ||
+        name.contains('أدوات')) {
       return Icons.construction;
-    } else if (slug.contains('service') || name.contains('خدمات') || name.contains('نقل')) {
+    } else if (slug.contains('service') ||
+        name.contains('خدمات') ||
+        name.contains('نقل')) {
       return Icons.local_shipping;
     }
     return Icons.category;
@@ -338,7 +370,11 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _onCategoryTap(CategoryModel category) {
     setState(() {
-      String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+      String? currentRegion = _selectedRegion == 'الكل'
+          ? null
+          : (_selectedRegion == 'الموقع الحالي'
+                ? context.read<AuthCubit>().currentUser?.region
+                : _selectedRegion);
 
       if (_selectedCategoryId == category.id) {
         // Toggle OFF (revert to "All")
@@ -346,7 +382,9 @@ class _ShopScreenState extends State<ShopScreen> {
         _selectedSubCategoryId = null;
         context.read<ProductsCubit>().loadProducts(
           categoryId: null,
-          search: _searchController.text.isEmpty ? null : _searchController.text,
+          search: _searchController.text.isEmpty
+              ? null
+              : _searchController.text,
           region: currentRegion,
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
@@ -355,16 +393,20 @@ class _ShopScreenState extends State<ShopScreen> {
         _selectedCategoryId = category.id;
         _selectedSubCategoryId = null;
         if (category.id == 78) {
-           context.read<ZabayehProductsCubit>().loadProducts(
+          context.read<ZabayehProductsCubit>().loadProducts(
             categoryId: category.id,
-            search: _searchController.text.isEmpty ? null : _searchController.text,
+            search: _searchController.text.isEmpty
+                ? null
+                : _searchController.text,
             region: currentRegion,
             city: _selectedCity == 'الكل' ? null : _selectedCity,
           );
         } else {
           context.read<ProductsCubit>().loadProducts(
             categoryId: category.id,
-            search: _searchController.text.isEmpty ? null : _searchController.text,
+            search: _searchController.text.isEmpty
+                ? null
+                : _searchController.text,
             region: currentRegion,
             city: _selectedCity == 'الكل' ? null : _selectedCity,
           );
@@ -375,14 +417,20 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _onSubCategoryTap(CategoryModel subCategory) {
     setState(() {
-      String? currentRegion = _selectedRegion == 'الكل' ? null : (_selectedRegion == 'الموقع الحالي' ? context.read<AuthCubit>().currentUser?.region : _selectedRegion);
+      String? currentRegion = _selectedRegion == 'الكل'
+          ? null
+          : (_selectedRegion == 'الموقع الحالي'
+                ? context.read<AuthCubit>().currentUser?.region
+                : _selectedRegion);
 
       if (_selectedSubCategoryId == subCategory.id) {
         // Toggle OFF subcategory, revert to parent
         _selectedSubCategoryId = null;
         context.read<ProductsCubit>().loadProducts(
           categoryId: _selectedCategoryId,
-          search: _searchController.text.isEmpty ? null : _searchController.text,
+          search: _searchController.text.isEmpty
+              ? null
+              : _searchController.text,
           region: currentRegion,
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
@@ -391,7 +439,9 @@ class _ShopScreenState extends State<ShopScreen> {
         _selectedSubCategoryId = subCategory.id;
         context.read<ProductsCubit>().loadProducts(
           categoryId: subCategory.id,
-          search: _searchController.text.isEmpty ? null : _searchController.text,
+          search: _searchController.text.isEmpty
+              ? null
+              : _searchController.text,
           region: currentRegion,
           city: _selectedCity == 'الكل' ? null : _selectedCity,
         );
@@ -399,7 +449,13 @@ class _ShopScreenState extends State<ShopScreen> {
     });
   }
 
-  Widget _buildCategoryItem(CategoryModel category, IconData icon, Color color, bool isDark, bool isTablet) {
+  Widget _buildCategoryItem(
+    CategoryModel category,
+    IconData icon,
+    Color color,
+    bool isDark,
+    bool isTablet,
+  ) {
     final isSelected = _selectedCategoryId == category.id;
 
     return GestureDetector(
@@ -453,7 +509,9 @@ class _ShopScreenState extends State<ShopScreen> {
       builder: (context, state) {
         if (state is! CategoriesLoaded) return const SizedBox.shrink();
 
-        final categories = state.categories.where((c) => c.parent == 0).toList();
+        final categories = state.categories
+            .where((c) => c.parent == 0)
+            .toList();
         if (categories.isEmpty) return const SizedBox.shrink();
 
         return Container(
@@ -509,7 +567,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       itemBuilder: (context, index) {
                         final subCat = subCategories[index];
                         final isSelected = _selectedSubCategoryId == subCat.id;
-                        
+
                         return GestureDetector(
                           onTap: () => _onSubCategoryTap(subCat),
                           child: Container(
@@ -518,7 +576,9 @@ class _ShopScreenState extends State<ShopScreen> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppColors.primary
-                                  : (isDark ? AppColors.surfaceDark : Colors.white),
+                                  : (isDark
+                                        ? AppColors.surfaceDark
+                                        : Colors.white),
                               borderRadius: BorderRadius.circular(20.r),
                               border: Border.all(
                                 color: isSelected
@@ -530,7 +590,9 @@ class _ShopScreenState extends State<ShopScreen> {
                               subCat.name,
                               style: TextStyle(
                                 fontSize: 13.sp,
-                                color: isSelected ? Colors.white : AppColors.primary,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.primary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -551,21 +613,27 @@ class _ShopScreenState extends State<ShopScreen> {
 
     String? filterRegion = region;
     if (region == 'الموقع الحالي') {
-        final user = context.read<AuthCubit>().currentUser;
-        if (user == null || user.region == null || user.region!.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي'),
-                    backgroundColor: AppColors.error,
-                ),
-            );
-            return;
-        }
-        filterRegion = user.region;
-        
-        // Print to console as requested by user (instead of snackbar)
-        print('📍 CURRENT LOCATION DETECTED (SHOP): Region: ${user.region}, City: ${user.city}');
-        debugPrint('📍 SELECTED LOCATION (SHOP): Region: ${user.region}, City: ${user.city}');
+      final user = context.read<AuthCubit>().currentUser;
+      if (user == null || user.region == null || user.region!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'الرجاء تسجيل الدخول أولاً أو تحديد موقعك في الملف الشخصي',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      filterRegion = user.region;
+
+      // Print to console as requested by user (instead of snackbar)
+      print(
+        '📍 CURRENT LOCATION DETECTED (SHOP): Region: ${user.region}, City: ${user.city}',
+      );
+      debugPrint(
+        '📍 SELECTED LOCATION (SHOP): Region: ${user.region}, City: ${user.city}',
+      );
     }
 
     setState(() {
@@ -599,20 +667,20 @@ class _ShopScreenState extends State<ShopScreen> {
 
     if (_selectedCategoryId == 78) {
       context.read<ZabayehProductsCubit>().loadProducts(
-            categoryId: 78,
-            search: _searchController.text,
-            region: filterRegion == 'الكل' ? null : filterRegion,
-            city: null,
-            refresh: true,
-          );
+        categoryId: 78,
+        search: _searchController.text,
+        region: filterRegion == 'الكل' ? null : filterRegion,
+        city: null,
+        refresh: true,
+      );
     } else {
       context.read<ProductsCubit>().loadProducts(
-            categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
-            search: _searchController.text,
-            region: filterRegion == 'الكل' ? null : filterRegion,
-            city: null,
-            refresh: true,
-          );
+        categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+        search: _searchController.text,
+        region: filterRegion == 'الكل' ? null : filterRegion,
+        city: null,
+        refresh: true,
+      );
     }
   }
 
@@ -625,20 +693,20 @@ class _ShopScreenState extends State<ShopScreen> {
 
     if (_selectedCategoryId == 78) {
       context.read<ZabayehProductsCubit>().loadProducts(
-            categoryId: 78,
-            search: _searchController.text,
-            region: _selectedRegion == 'الكل' ? null : _selectedRegion,
-            city: city == 'الكل' ? null : city,
-            refresh: true,
-          );
+        categoryId: 78,
+        search: _searchController.text,
+        region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+        city: city == 'الكل' ? null : city,
+        refresh: true,
+      );
     } else {
       context.read<ProductsCubit>().loadProducts(
-            categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
-            search: _searchController.text,
-            region: _selectedRegion == 'الكل' ? null : _selectedRegion,
-            city: city == 'الكل' ? null : city,
-            refresh: true,
-          );
+        categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+        search: _searchController.text,
+        region: _selectedRegion == 'الكل' ? null : _selectedRegion,
+        city: city == 'الكل' ? null : city,
+        refresh: true,
+      );
     }
   }
 
@@ -690,8 +758,8 @@ class _ShopScreenState extends State<ShopScreen> {
                       color: isSelected
                           ? AppColors.primary
                           : (isDark
-                              ? AppColors.surfaceVariantDark
-                              : Colors.grey[200]),
+                                ? AppColors.surfaceVariantDark
+                                : Colors.grey[200]),
                       borderRadius: BorderRadius.circular(20.r),
                     ),
                     child: Text(
@@ -791,16 +859,23 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget _buildProductsGrid(bool isDark, bool isTablet) {
     if (_selectedCategoryId == 78) {
       return BlocBuilder<ZabayehProductsCubit, ProductsState>(
-        builder: (context, state) => _buildGridInner(context, state, isDark, isTablet),
+        builder: (context, state) =>
+            _buildGridInner(context, state, isDark, isTablet),
       );
     } else {
       return BlocBuilder<ProductsCubit, ProductsState>(
-        builder: (context, state) => _buildGridInner(context, state, isDark, isTablet),
+        builder: (context, state) =>
+            _buildGridInner(context, state, isDark, isTablet),
       );
     }
   }
 
-  Widget _buildGridInner(BuildContext context, ProductsState state, bool isDark, bool isTablet) {
+  Widget _buildGridInner(
+    BuildContext context,
+    ProductsState state,
+    bool isDark,
+    bool isTablet,
+  ) {
     if (state is ProductsLoading) {
       return Padding(
         padding: EdgeInsets.only(top: 16.h),
@@ -834,11 +909,29 @@ class _ShopScreenState extends State<ShopScreen> {
                 onPressed: () {
                   if (_selectedCategoryId == 78) {
                     context.read<ZabayehProductsCubit>().loadProducts(
-                      categoryId: _selectedCategoryId,
+                      categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+                      search: _searchController.text.trim().isEmpty
+                          ? null
+                          : _searchController.text.trim(),
+                      region: _selectedRegion == 'الكل'
+                          ? null
+                          : (_selectedRegion == 'الموقع الحالي'
+                                ? context.read<AuthCubit>().currentUser?.region
+                                : _selectedRegion),
+                      city: _selectedCity == 'الكل' ? null : _selectedCity,
                     );
                   } else {
                     context.read<ProductsCubit>().loadProducts(
-                      categoryId: _selectedCategoryId,
+                      categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+                      search: _searchController.text.trim().isEmpty
+                          ? null
+                          : _searchController.text.trim(),
+                      region: _selectedRegion == 'الكل'
+                          ? null
+                          : (_selectedRegion == 'الموقع الحالي'
+                                ? context.read<AuthCubit>().currentUser?.region
+                                : _selectedRegion),
+                      city: _selectedCity == 'الكل' ? null : _selectedCity,
                     );
                   }
                 },
@@ -884,19 +977,35 @@ class _ShopScreenState extends State<ShopScreen> {
         onRefresh: () {
           if (_selectedCategoryId == 78) {
             return context.read<ZabayehProductsCubit>().loadProducts(
-              categoryId: _selectedCategoryId,
+              categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+              search: _searchController.text.trim().isEmpty
+                  ? null
+                  : _searchController.text.trim(),
+              region: _selectedRegion == 'الكل'
+                  ? null
+                  : (_selectedRegion == 'الموقع الحالي'
+                        ? context.read<AuthCubit>().currentUser?.region
+                        : _selectedRegion),
+              city: _selectedCity == 'الكل' ? null : _selectedCity,
               refresh: true,
             );
           } else {
             return context.read<ProductsCubit>().loadProducts(
-              categoryId: _selectedCategoryId,
+              categoryId: _selectedSubCategoryId ?? _selectedCategoryId,
+              search: _searchController.text.trim().isEmpty
+                  ? null
+                  : _searchController.text.trim(),
+              region: _selectedRegion == 'الكل'
+                  ? null
+                  : (_selectedRegion == 'الموقع الحالي'
+                        ? context.read<AuthCubit>().currentUser?.region
+                        : _selectedRegion),
+              city: _selectedCity == 'الكل' ? null : _selectedCity,
               refresh: true,
             );
           }
         },
-        color: _selectedCategoryId == 78
-            ? AppColors.error
-            : AppColors.primary,
+        color: _selectedCategoryId == 78 ? AppColors.error : AppColors.primary,
         child: GridView.builder(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -924,11 +1033,7 @@ class _ShopScreenState extends State<ShopScreen> {
             return FadeInUp(
               duration: const Duration(milliseconds: 300),
               delay: Duration(milliseconds: (index % 10) * 50),
-              child: _buildProductCard(
-                state.products[index],
-                isDark,
-                isTablet,
-              ),
+              child: _buildProductCard(state.products[index], isDark, isTablet),
             );
           },
         ),
@@ -939,18 +1044,6 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   Widget _buildProductCard(ProductModel product, bool isDark, bool isTablet) {
-    return ProductCard(
-      product: product,
-      isTablet: isTablet,
-    );
-  }
-
-  Widget _buildPlaceholderImage() {
-    return Container(
-      color: AppColors.surface,
-      child: Center(
-        child: Icon(Icons.pets, color: AppColors.textSecondary, size: 40.sp),
-      ),
-    );
+    return ProductCard(product: product, isTablet: isTablet);
   }
 }

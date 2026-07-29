@@ -715,7 +715,8 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
   Widget _buildStoreInfoCard(StoreModel store, bool isDark) {
     // Check if we are viewing the logged-in user's profile
     final authState = context.read<AuthCubit>().state;
-    final isOwnProfile = authState is AuthAuthenticated && authState.user.id == store.id;
+    final isOwnProfile =
+        authState is AuthAuthenticated && authState.user.id == store.id;
     String phone = store.phone ?? '';
     String? address = store.address?.fullAddress;
     String email = store.email ?? '';
@@ -786,17 +787,26 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                   // If it starts with 0 (like Saudi 05xxx), format to 9665xxx
                   if (waNumber.startsWith('0')) {
                     waNumber = '966${waNumber.substring(1)}';
-                  } else if (!waNumber.startsWith('966') && waNumber.length == 9) {
+                  } else if (!waNumber.startsWith('966') &&
+                      waNumber.length == 9) {
                     waNumber = '966$waNumber';
                   }
-                  
+
                   final whatsappUrl = Uri.parse('https://wa.me/$waNumber');
                   if (await canLaunchUrl(whatsappUrl)) {
-                    await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                    await launchUrl(
+                      whatsappUrl,
+                      mode: LaunchMode.externalApplication,
+                    );
                   } else {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تعذر فتح تطبيق واتساب', style: TextStyle(fontFamily: 'Cairo'))),
+                        const SnackBar(
+                          content: Text(
+                            'تعذر فتح تطبيق واتساب',
+                            style: TextStyle(fontFamily: 'Cairo'),
+                          ),
+                        ),
                       );
                     }
                   }
@@ -821,7 +831,10 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12.r),
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 8.h,
+                  ),
                 ),
               ),
             ),
@@ -894,9 +907,15 @@ class _VendorProfileViewState extends State<_VendorProfileView> {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 8.w),
       child: InkWell(
-        onTap: () {
-          // TODO: Implement URL launcher if needed,
-          // though for now we just show them
+        onTap: () async {
+          final normalizedUrl =
+              url.startsWith('http://') || url.startsWith('https://')
+              ? url
+              : 'https://$url';
+          final uri = Uri.tryParse(normalizedUrl);
+          if (uri != null) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
         },
         child: Icon(icon, size: 28.sp, color: color),
       ),

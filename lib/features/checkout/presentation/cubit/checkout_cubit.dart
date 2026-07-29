@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
@@ -111,7 +112,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     String paymentType = 'full',
     String? notes,
   }) async {
-    print(
+    debugPrint(
       '🛒 placeOrder called with method: $paymentMethod, type: $paymentType',
     );
     emit(const CheckoutProcessing());
@@ -149,8 +150,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           if (finalEmail.isEmpty) finalEmail = user.email;
         } else {
           // Fallback to StorageService logic if needed, but AuthCubit should have it
-          if (finalEmail.isEmpty)
+          if (finalEmail.isEmpty) {
             finalEmail = (await _storageService.getUserEmail()) ?? '';
+          }
         }
 
         if (finalAddress.isEmpty) finalAddress = 'Digital Subscription';
@@ -178,10 +180,46 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           .map(
             (item) => {
               'product_id': item.product.id,
-              'quantity': item.quantity,
+              'quantity': 1,
+              // Keep the WooCommerce order total identical to the amount shown
+              // in the app (including inspection/deposit orders).
+              'subtotal': item.totalPrice.toStringAsFixed(2),
+              'total': item.totalPrice.toStringAsFixed(2),
+              if (item.privateOfferMessageId != null ||
+                  item.bidCommentId != null)
+                'meta_data': [
+                  if (item.privateOfferMessageId != null) ...[
+                    {
+                      'key': '_hiraaj_private_offer_message_id',
+                      'value': item.privateOfferMessageId.toString(),
+                    },
+                    {
+                      'key': '_hiraaj_private_conversation_id',
+                      'value': item.privateConversationId.toString(),
+                    },
+                    {
+                      'key': '_hiraaj_private_offer_price',
+                      'value': item.product.price,
+                    },
+                  ],
+                  if (item.bidCommentId != null) ...[
+                    {
+                      'key': '_hiraaj_bid_comment_id',
+                      'value': item.bidCommentId.toString(),
+                    },
+                    {
+                      'key': '_hiraaj_auction_price',
+                      'value': item.product.price,
+                    },
+                  ],
+                ],
             },
           )
           .toList();
+      final isZeroTotal = cartState.total <= 0;
+      final effectivePaymentMethod = isZeroTotal
+          ? 'price_on_request'
+          : paymentMethod;
 
       // Extract vendor name if available
       String vendorName = '$finalFirstName $finalLastName'.trim();
@@ -197,10 +235,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
       // Build order payload
       final orderData = {
-        'payment_method': paymentMethod,
-        'payment_method_title': _getPaymentMethodTitle(paymentMethod),
+        'payment_method': effectivePaymentMethod,
+        'payment_method_title': _getPaymentMethodTitle(effectivePaymentMethod),
         'set_paid':
             false, // CRITICAL: Only set to true via completePayment() hook
+        if (isZeroTotal) 'status': 'on-hold',
         'customer_id': userId ?? 0, // CRITICAL: Link order to user
         'billing': {
           'first_name': finalFirstName,
@@ -223,6 +262,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'created_via': 'mobile_app',
         'meta_data': [
           {'key': '_payment_type', 'value': paymentType},
+          {'key': '_price_on_request', 'value': isZeroTotal ? 'yes' : 'no'},
           {'key': 'vendor_name', 'value': vendorName},
           {'key': '_created_via', 'value': 'mobile_app'}, // Explicit meta key
         ],
@@ -265,7 +305,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         }
 
         // If online payment, emit awaiting payment state for Telr
-        if (paymentMethod == 'online') {
+        if (paymentMethod == 'online' && !isZeroTotal) {
           // ENSURE the amount is a clean string with 2 decimal places for the SDK
           final String finalAmountString = cartState is CartLoaded
               ? cartState.total.toStringAsFixed(2)
@@ -313,6 +353,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         return 'الدفع عند الاستلام';
       case 'online':
         return 'دفع إلكتروني';
+      case 'price_on_request':
+        return 'السعر عند التواصل مع البائع';
       default:
         return method;
     }
@@ -323,7 +365,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     int orderId, {
     bool isSubscription = false,
   }) async {
-    print(
+    debugPrint(
       '✅ CheckoutCubit: completePayment starting for order #$orderId (isSubscription: $isSubscription)',
     );
     try {
@@ -337,21 +379,31 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         data: {'status': 'completed'},
         options: Options(headers: {'Authorization': basicAuth}),
       );
-      print(
+      debugPrint(
         '✅ CheckoutCubit: Order status updated to completed. Response: ${response.statusCode}',
       );
+      if (response.statusCode != 200) {
+        throw StateError('WooCommerce did not confirm the order update');
+      }
+      _cartCubit.clearCart();
+      emit(
+        CheckoutSuccess(
+          orderId: orderId,
+          orderKey: '',
+          isSubscription: isSubscription,
+        ),
+      );
     } catch (e) {
-      print('❌ CheckoutCubit: Failed to update order status to completed: $e');
+      debugPrint(
+        '❌ CheckoutCubit: Failed to update order status to completed: $e',
+      );
+      emit(
+        const CheckoutFailure(
+          message:
+              'تمت عملية الدفع ولكن تعذر تأكيد حالة الطلب. تواصل مع الدعم ولا تعاود الدفع.',
+        ),
+      );
     }
-
-    _cartCubit.clearCart();
-    emit(
-      CheckoutSuccess(
-        orderId: orderId,
-        orderKey: '',
-        isSubscription: isSubscription,
-      ),
-    );
   }
 
   /// Mark payment as failed
@@ -368,7 +420,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           options: Options(headers: {'Authorization': basicAuth}),
         );
       } catch (e) {
-        print('CheckoutCubit: Failed to update order status to cancelled: $e');
+        debugPrint(
+          'CheckoutCubit: Failed to update order status to cancelled: $e',
+        );
       }
     }
     emit(CheckoutFailure(message: message));

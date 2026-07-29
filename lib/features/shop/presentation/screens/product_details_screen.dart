@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,15 +15,19 @@ import '../../data/models/product_model.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../presentation/cubit/product_details_cubit.dart';
+import '../../presentation/cubit/products_cubit.dart';
 import '../../presentation/cubit/qna_cubit.dart';
 import '../../data/models/question_model.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../widgets/product_qr_card.dart';
 import '../widgets/service_providers_slider.dart';
 import '../cubit/service_providers_cubit.dart';
-import '../../../../core/widgets/mini_map_preview.dart';
 import '../../../../features/vendor/presentation/cubit/vendor_profile_cubit.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
+import '../../../../core/services/favorites_service.dart';
 
 /// Product Details Screen
 /// Full product view with image slider, info, and action buttons
@@ -34,8 +40,15 @@ class ProductDetailsScreen extends StatefulWidget {
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
 }
 
-class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+class _ProductDetailsScreenState extends State<ProductDetailsScreen>
+    with WidgetsBindingObserver {
   final PageController _imageController = PageController();
+  final TextEditingController _commentController = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
+  late final QnACubit _commentsCubit;
+  Timer? _commentsRefreshTimer;
+  bool _commentsRefreshInFlight = false;
+  bool _sendingComment = false;
   int _currentImageIndex = 0;
 
   VideoPlayerController? _videoController;
@@ -46,8 +59,36 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _commentsCubit = di.sl<QnACubit>()
+      ..fetchProductQuestions(widget.product.id);
+    _commentsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshComments(),
+    );
+    FavoritesService.instance.load(di.sl<Dio>());
     _initVideoPlayer();
     _resolveLocation();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshComments();
+    }
+  }
+
+  Future<void> _refreshComments() async {
+    if (_commentsRefreshInFlight) return;
+    _commentsRefreshInFlight = true;
+    try {
+      await _commentsCubit.fetchProductQuestions(
+        widget.product.id,
+        showLoading: false,
+      );
+    } finally {
+      _commentsRefreshInFlight = false;
+    }
   }
 
   void _resolveLocation() async {
@@ -102,12 +143,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               region,
             ].where((e) => e.isNotEmpty).toSet().join('، ');
 
-            if (mounted)
+            if (mounted) {
               setState(
                 () => _resolvedLocation = name.isNotEmpty
                     ? name
                     : 'محدد على الخريطة',
               );
+            }
           } else {
             if (mounted) setState(() => _resolvedLocation = 'محدد على الخريطة');
           }
@@ -142,6 +184,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _commentsRefreshTimer?.cancel();
+    _commentController.dispose();
+    _commentFocusNode.dispose();
+    _commentsCubit.close();
     _imageController.dispose();
     _chewieController?.dispose();
     _videoController?.dispose();
@@ -159,10 +206,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           create: (context) =>
               di.sl<ProductDetailsCubit>()..loadReviews(product.id),
         ),
-        BlocProvider(
-          create: (context) =>
-              di.sl<QnACubit>()..fetchProductQuestions(product.id),
-        ),
+        BlocProvider.value(value: _commentsCubit),
         BlocProvider(
           create: (context) {
             final cubit = di.sl<VendorProfileCubit>();
@@ -211,7 +255,26 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 16.sp),
                       ),
                       actions: [
-                        _buildActionButton(Icons.share_outlined, () {}),
+                        ValueListenableBuilder<Set<int>>(
+                          valueListenable: FavoritesService.instance.productIds,
+                          builder: (context, favorites, _) =>
+                              _buildActionButton(
+                                favorites.contains(product.id)
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                () => FavoritesService.instance.toggle(
+                                  di.sl<Dio>(),
+                                  product.id,
+                                ),
+                                iconColor: favorites.contains(product.id)
+                                    ? Colors.redAccent
+                                    : Colors.white,
+                              ),
+                        ),
+                        _buildActionButton(
+                          Icons.share_outlined,
+                          () => _shareProduct(product),
+                        ),
                         SizedBox(width: 16.w),
                       ],
                     ),
@@ -252,14 +315,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
                     // 2. Images Slider
 
-                    // // 3. Contact Actions (Call/Message)
-                    // SliverToBoxAdapter(
-                    //   child: FadeInUp(
-                    //     delay: const Duration(milliseconds: 150),
-                    //     duration: const Duration(milliseconds: 400),
-                    //     child: _buildContactButtons(context, product),
-                    //   ),
-                    // ),
+                    // 3. Contact Actions (private message / phone)
+                    if (product.vendorId != null)
+                      SliverToBoxAdapter(
+                        child:
+                            BlocBuilder<VendorProfileCubit, VendorProfileState>(
+                              builder: (context, state) {
+                                final contactProduct =
+                                    state is VendorProfileLoaded &&
+                                        state.store.id == product.vendorId
+                                    ? product.copyWith(
+                                        vendorPhone: state.store.phone,
+                                        vendorName: state.store.displayName,
+                                      )
+                                    : product;
+                                return _buildContactButtons(
+                                  context,
+                                  contactProduct,
+                                  isDark,
+                                );
+                              },
+                            ),
+                      ),
 
                     // 4. Vendor Info
                     if (product.vendorName != null)
@@ -445,8 +522,35 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       );
     }
 
-    // 3. Standard Action Bar (Add to Cart / Request)
-    return _buildActionBar(context, isDark);
+    // Classified listing: the deal happens directly between buyer and vendor.
+    return _buildContactActionBar(context, isDark);
+  }
+
+  Widget _buildContactActionBar(BuildContext context, bool isDark) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .08),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: FilledButton.icon(
+          onPressed: () => _openPrivateChat(context, widget.product),
+          icon: const Icon(Icons.chat_bubble_outline_rounded),
+          label: const Text('مراسلة البائع'),
+          style: FilledButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: 15.h),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildBackButton(BuildContext context) {
@@ -475,24 +579,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40.w,
-        height: 40.w,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: Icon(icon, color: AppColors.textPrimary, size: 20.sp),
-      ),
+  Widget _buildActionButton(
+    IconData icon,
+    VoidCallback onTap, {
+    Color iconColor = Colors.white,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      tooltip: icon == Icons.share_outlined ? 'مشاركة' : 'المفضلة',
+      icon: Icon(icon, color: iconColor, size: 23.sp),
     );
   }
 
@@ -607,7 +703,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  void _showFullScreenImage(BuildContext context, List<String> images, int initialIndex) {
+  void _showFullScreenImage(
+    BuildContext context,
+    List<String> images,
+    int initialIndex,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (ctx) => Scaffold(
@@ -629,7 +729,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     child: CircularProgressIndicator(color: Colors.white),
                   ),
                   errorWidget: (_, __, ___) => const Center(
-                    child: Icon(Icons.broken_image, color: Colors.white, size: 60),
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.white,
+                      size: 60,
+                    ),
                   ),
                 ),
               );
@@ -651,8 +755,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Price Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8.w,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -904,7 +1010,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           top: 10.h,
                           right: 10.w,
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8.w,
+                              vertical: 4.h,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.4),
                               borderRadius: BorderRadius.circular(4.r),
@@ -1129,6 +1238,139 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  Widget _buildContactButtons(
+    BuildContext context,
+    ProductModel product,
+    bool isDark,
+  ) {
+    final currentUserId = context.read<AuthCubit>().currentUser?.id;
+    if (currentUserId != null && currentUserId == product.vendorId) {
+      return const SizedBox.shrink();
+    }
+    final phone = product.vendorPhone?.trim() ?? '';
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.phone_outlined, size: 20.sp, color: AppColors.primary),
+              SizedBox(width: 8.w),
+              Text(
+                'رقم جوال البائع:',
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(width: 6.w),
+              Expanded(
+                child: Text(
+                  phone.isEmpty ? 'غير متوفر' : phone,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _openPrivateChat(context, product),
+                  icon: const Icon(Icons.mail_outline_rounded),
+                  label: const Text('مراسلة البائع'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 13.h),
+                  ),
+                ),
+              ),
+              if (phone.isNotEmpty) ...[
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _callVendor(context, phone),
+                    icon: const Icon(Icons.phone_outlined),
+                    label: const Text('اتصال'),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 13.h),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _callVendor(BuildContext context, String phone) async {
+    final cleaned = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri(scheme: 'tel', path: cleaned);
+    if (!await launchUrl(uri) && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تعذر فتح تطبيق الاتصال')));
+    }
+  }
+
+  Future<void> _shareProduct(ProductModel product) async {
+    final productUrl = product.permalink.trim().isNotEmpty
+        ? product.permalink.trim()
+        : 'https://hiraajsahm.com/?p=${product.id}';
+
+    try {
+      await Share.share(
+        'شاهد إعلان ${product.name} على حراج سهم\n$productUrl',
+        subject: product.name,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تعذرت مشاركة الإعلان')));
+    }
+  }
+
+  void _openPrivateChat(BuildContext context, ProductModel product) {
+    final authState = context.read<AuthCubit>().state;
+    if (authState is! AuthAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى تسجيل الدخول لمراسلة البائع')),
+      );
+      Navigator.pushNamed(context, Routes.login);
+      return;
+    }
+    if (product.vendorId == null) return;
+    Navigator.pushNamed(
+      context,
+      Routes.chat,
+      arguments: {
+        'vendorId': product.vendorId,
+        'productId': product.id,
+        'title': product.vendorName ?? 'البائع',
+        'productName': product.name,
+      },
+    );
+  }
+
   Widget _buildActionBar(BuildContext context, bool isDark) {
     return BlocBuilder<VendorProfileCubit, VendorProfileState>(
       builder: (context, state) {
@@ -1154,6 +1396,53 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           );
         }
         final isButtonDisabled = isOutOfStock || isInCart;
+
+        if (price <= 0) {
+          return Container(
+            padding: EdgeInsets.all(20.w),
+            color: isDark ? AppColors.surfaceDark : Colors.white,
+            child: SafeArea(
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isOutOfStock
+                      ? null
+                      : () {
+                          final authState = context.read<AuthCubit>().state;
+                          if (authState is! AuthAuthenticated) {
+                            AppRouter.navigateTo(context, Routes.login);
+                            return;
+                          }
+                          if (product.vendorId == null ||
+                              product.vendorId == authState.user.id) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('تعذر بدء محادثة لهذا الإعلان'),
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.pushNamed(
+                            context,
+                            Routes.chat,
+                            arguments: {
+                              'vendorId': product.vendorId,
+                              'productId': product.id,
+                              'title': product.vendorName ?? 'البائع',
+                              'productName': product.name,
+                            },
+                          );
+                        },
+                  icon: const Icon(Icons.request_quote_outlined),
+                  label: const Text('مراسلة البائع وتحديد السعر'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
 
         return Container(
           padding: EdgeInsets.all(20.w),
@@ -1336,7 +1625,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       ),
                     ),
                     if (context.read<AuthCubit>().state is AuthAuthenticated &&
-                        (context.read<AuthCubit>().state as AuthAuthenticated).user.id != widget.product.vendorId)
+                        (context.read<AuthCubit>().state as AuthAuthenticated)
+                                .user
+                                .id !=
+                            widget.product.vendorId)
                       TextButton(
                         onPressed: () => _showAddReviewDialog(context),
                         child: const Text('أضف تقييم'),
@@ -1473,7 +1765,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   child: const Text('إلغاء'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (reviewController.text.isNotEmpty) {
                       final authState = context.read<AuthCubit>().state;
                       final reviewerName =
@@ -1485,7 +1777,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           ? authState.user.email
                           : 'guest@example.com';
 
-                      cubit.submitReview(
+                      final success = await cubit.submitReview(
                         productId: widget.product.id,
                         review: reviewController.text,
                         rating: rating,
@@ -1493,9 +1785,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         reviewerEmail: reviewerEmail,
                       );
 
-                      Navigator.pop(context);
+                      if (!context.mounted) return;
+                      if (success) {
+                        Navigator.pop(context);
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تم إرسال تقييمك بنجاح')),
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? 'تم إرسال تقييمك بنجاح'
+                                : 'تعذر إرسال التقييم، حاول مرة أخرى',
+                          ),
+                        ),
                       );
                     }
                   },
@@ -1514,7 +1815,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   Widget _buildQnASection(BuildContext context, bool isDark) {
     final authState = context.read<AuthCubit>().state;
-    final isProductOwner = authState is AuthAuthenticated &&
+    final isProductOwner =
+        authState is AuthAuthenticated &&
         authState.user.id == widget.product.vendorId;
 
     return Container(
@@ -1529,23 +1831,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: AppColors.primary,
+                size: 22.sp,
+              ),
+              SizedBox(width: 8.w),
               Text(
-                'أسئلة وأجوبة',
+                'التعليقات',
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                   color: isDark ? AppColors.textLight : AppColors.textPrimary,
                 ),
               ),
-              if (!isProductOwner)
-                TextButton.icon(
-                  onPressed: () => _showAskQuestionDialog(context),
-                  icon: const Icon(Icons.add_comment_outlined, size: 18),
-                  label: const Text('اسأل البائع'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-                ),
             ],
           ),
           SizedBox(height: 16.h),
@@ -1566,7 +1866,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 20.h),
                       child: Text(
-                        'لا توجد أسئلة بعد. كن أول من يسأل!',
+                        'لا توجد تعليقات بعد. كن أول من يعلّق!',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 14.sp,
@@ -1575,141 +1875,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     ),
                   );
                 }
+                final visibleComments = state.questions
+                    .where((item) => !item.isBid)
+                    .toList();
+                if (visibleComments.isEmpty) {
+                  return const Center(child: Text('لا توجد تعليقات بعد'));
+                }
                 return ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: state.questions.length,
+                  itemCount: visibleComments.length,
                   separatorBuilder: (_, __) => Divider(height: 24.h),
                   itemBuilder: (context, index) {
-                    final qna = state.questions[index];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Question
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6.w),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                'Q',
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12.sp,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 8.w),
-                            Expanded(
-                              child: Text(
-                                qna.question,
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? AppColors.textLight
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              qna.date,
-                              style: TextStyle(
-                                  fontSize: 10.sp,
-                                  color: AppColors.textSecondary,
-                                ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8.h),
-                        // Answer
-                        Container(
-                          margin: EdgeInsets.only(right: 32.w),
-                          padding: EdgeInsets.all(12.w),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.surfaceDark
-                                : AppColors.surface,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(12.r),
-                              bottomLeft: Radius.circular(12.r),
-                              bottomRight: Radius.circular(12.r),
-                            ),
-                            border: Border.all(
-                              color: AppColors.border.withOpacity(0.5),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.store,
-                                    size: 14.sp,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  SizedBox(width: 4.w),
-                                  Text(
-                                    'رد البائع:',
-                                    style: TextStyle(
-                                      fontSize: 12.sp,
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                qna.isAnswered && qna.answer != null
-                                    ? qna.answer!
-                                    : 'بانتظار الرد...',
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  color: qna.isAnswered
-                                      ? (isDark
-                                            ? AppColors.textLight
-                                            : AppColors.textPrimary)
-                                      : AppColors.textSecondary,
-                                  fontStyle: qna.isAnswered
-                                      ? FontStyle.normal
-                                      : FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isProductOwner) ...[
-                          SizedBox(height: 8.h),
-                          Padding(
-                            padding: EdgeInsets.only(right: 32.w),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () => _showReplyDialog(context, qna),
-                                icon: const Icon(Icons.reply, size: 18),
-                                label: Text(
-                                  qna.isAnswered ? 'تعديل الرد' : 'رد على السؤال',
-                                  style: TextStyle(fontSize: 13.sp, fontFamily: 'Cairo'),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8.r),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    final qna = visibleComments[index];
+                    return _buildCommentThread(
+                      context,
+                      qna,
+                      isProductOwner: isProductOwner,
+                      isDark: isDark,
                     );
                   },
                 );
@@ -1717,9 +1900,509 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               return const SizedBox.shrink();
             },
           ),
+          SizedBox(height: 14.h),
+          Divider(color: AppColors.border, height: 1),
+          SizedBox(height: 12.h),
+          _buildInlineCommentComposer(context, isDark),
         ],
       ),
     );
+  }
+
+  Widget _buildInlineCommentComposer(BuildContext context, bool isDark) {
+    final authState = context.read<AuthCubit>().state;
+    final userName = authState is AuthAuthenticated
+        ? authState.user.displayName.trim()
+        : '';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        CircleAvatar(
+          radius: 18.r,
+          backgroundColor: AppColors.primary.withValues(alpha: .12),
+          child: userName.isEmpty
+              ? const Icon(Icons.person_outline, color: AppColors.primary)
+              : Text(
+                  userName.characters.first,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+        SizedBox(width: 9.w),
+        Expanded(
+          child: TextField(
+            controller: _commentController,
+            focusNode: _commentFocusNode,
+            minLines: 1,
+            maxLines: 4,
+            textInputAction: TextInputAction.newline,
+            onTap: () {
+              if (authState is! AuthAuthenticated) {
+                _commentFocusNode.unfocus();
+                Navigator.pushNamed(context, Routes.login);
+              }
+            },
+            decoration: InputDecoration(
+              hintText: 'اكتب تعليقاً...',
+              filled: true,
+              fillColor: isDark
+                  ? AppColors.surfaceDark
+                  : AppColors.surface.withValues(alpha: .8),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 14.w,
+                vertical: 10.h,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(22.r),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(22.r),
+                borderSide: BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(22.r),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 7.w),
+        IconButton.filled(
+          onPressed: _sendingComment ? null : () => _sendInlineComment(context),
+          tooltip: 'إرسال التعليق',
+          icon: _sendingComment
+              ? SizedBox.square(
+                  dimension: 18.sp,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.send_rounded),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _sendInlineComment(BuildContext context) async {
+    if (context.read<AuthCubit>().state is! AuthAuthenticated) {
+      Navigator.pushNamed(context, Routes.login);
+      return;
+    }
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _sendingComment) return;
+
+    setState(() => _sendingComment = true);
+    final success = await _commentsCubit.askQuestion(widget.product.id, text);
+    if (!mounted || !context.mounted) return;
+    setState(() => _sendingComment = false);
+    if (success) {
+      _commentController.clear();
+      _commentFocusNode.unfocus();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إرسال التعليق، حاول مرة أخرى')),
+      );
+    }
+  }
+
+  Widget _buildCommentThread(
+    BuildContext context,
+    QuestionModel comment, {
+    required bool isProductOwner,
+    required bool isDark,
+  }) {
+    final commentIsOwner = comment.authorId == widget.product.vendorId;
+    final authorName = commentIsOwner
+        ? (widget.product.vendorName ?? 'صاحب الإعلان')
+        : (comment.author.trim().isEmpty ? 'مستخدم' : comment.author.trim());
+    final initial = authorName.characters.first;
+    final textColor = isDark ? AppColors.textLight : AppColors.textPrimary;
+
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: commentIsOwner
+            ? AppColors.primary.withValues(alpha: isDark ? .18 : .07)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(14.r),
+        border: commentIsOwner
+            ? Border.all(color: AppColors.primary.withValues(alpha: .35))
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 19.r,
+                backgroundColor: commentIsOwner
+                    ? AppColors.primary
+                    : AppColors.primary.withValues(alpha: .12),
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    color: commentIsOwner ? Colors.white : AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 7.w,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          authorName,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        if (commentIsOwner)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 7.w,
+                              vertical: 2.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(20.r),
+                            ),
+                            child: Text(
+                              'صاحب الإعلان',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      _formatCommentDate(comment.date),
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 7.h),
+                    Text(
+                      comment.question,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        height: 1.55,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (comment.isAnswered &&
+              (comment.answer?.trim().isNotEmpty ?? false)) ...[
+            SizedBox(height: 10.h),
+            Container(
+              margin: EdgeInsetsDirectional.only(start: 46.w),
+              padding: EdgeInsets.all(11.w),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: isDark ? .2 : .08),
+                borderRadius: BorderRadius.circular(12.r),
+                border: BorderDirectional(
+                  start: BorderSide(color: AppColors.primary, width: 3.w),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 7.w,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        widget.product.vendorName ?? 'صاحب الإعلان',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.w,
+                          vertical: 1.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(20.r),
+                        ),
+                        child: Text(
+                          'صاحب الإعلان',
+                          style: TextStyle(color: Colors.white, fontSize: 8.sp),
+                        ),
+                      ),
+                      if ((comment.answerDate ?? '').isNotEmpty)
+                        Text(
+                          _formatCommentDate(comment.answerDate!),
+                          style: TextStyle(
+                            fontSize: 9.sp,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 5.h),
+                  Text(
+                    comment.answer!.trim(),
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      height: 1.5,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (isProductOwner && !commentIsOwner)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _showReplyDialog(context, comment),
+                icon: const Icon(Icons.reply_rounded, size: 17),
+                label: Text(comment.isAnswered ? 'تعديل الرد' : 'رد'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCommentDate(String value) {
+    final parsed = DateTime.tryParse(value.replaceFirst(' ', 'T'));
+    if (parsed == null) return value;
+    final local = parsed.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} • '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
+
+  Widget _buildAuctionBidCard(
+    BuildContext context,
+    QuestionModel bid, {
+    required bool isProductOwner,
+    required bool isHighestBid,
+    required bool isDark,
+  }) {
+    final authState = context.read<AuthCubit>().state;
+    final currentUserId = authState is AuthAuthenticated
+        ? authState.user.id
+        : 0;
+    final isWinningBuyer =
+        currentUserId == bid.authorId && bid.bidStatus == 'accepted';
+    final statusText = switch (bid.bidStatus) {
+      'accepted' => 'العرض الفائز',
+      'purchased' => 'تم إنشاء الطلب',
+      'superseded' => 'تم تجاوزه بمزايدة أعلى',
+      _ => isHighestBid ? 'أعلى مزايدة حالية' : 'مزايدة قائمة',
+    };
+
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: bid.bidStatus == 'accepted'
+            ? AppColors.success.withValues(alpha: .08)
+            : (isDark ? AppColors.surfaceDark : AppColors.surface),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(
+          color: bid.bidStatus == 'accepted'
+              ? AppColors.success
+              : (isHighestBid ? AppColors.secondary : AppColors.border),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18.r,
+                backgroundColor: AppColors.primary.withValues(alpha: .12),
+                child: Text(
+                  bid.author.isEmpty ? 'م' : bid.author.characters.first,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  bid.author.isEmpty ? 'مستخدم' : bid.author,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Text(
+                bid.date,
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Text(
+            '${bid.bidAmount!.toStringAsFixed(2)} ر.س',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 24.sp,
+              fontWeight: FontWeight.w800,
+              color: bid.bidStatus == 'accepted'
+                  ? AppColors.success
+                  : AppColors.secondary,
+            ),
+          ),
+          Text(
+            statusText,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11.sp, color: AppColors.textSecondary),
+          ),
+          if (bid.question.contains('\n')) ...[
+            SizedBox(height: 8.h),
+            Text(
+              bid.question.split('\n').skip(1).join('\n').trim(),
+              textAlign: TextAlign.start,
+              style: TextStyle(
+                fontSize: 12.sp,
+                color: isDark ? AppColors.textLight : AppColors.textPrimary,
+              ),
+            ),
+          ],
+          if (isProductOwner && bid.bidStatus == 'pending' && isHighestBid) ...[
+            SizedBox(height: 10.h),
+            FilledButton.icon(
+              onPressed: () => _acceptPublicBid(context, bid),
+              icon: const Icon(Icons.check_circle_outline),
+              label: const Text('اعتماد أعلى مزايدة كسعر نهائي'),
+            ),
+          ],
+          if (isWinningBuyer) ...[
+            SizedBox(height: 10.h),
+            FilledButton.icon(
+              onPressed: () => _checkoutAcceptedBid(context, bid),
+              icon: const Icon(Icons.shopping_cart_checkout),
+              label: const Text('شراء بالسعر المقبول'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBidDialog(BuildContext context) async {
+    if (context.read<AuthCubit>().state is! AuthAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('سجّل الدخول أولاً لإضافة مزايدة')),
+      );
+      Navigator.pushNamed(context, Routes.login);
+      return;
+    }
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (_) => _PublicBidDialog(
+        onSubmit: (amount, note) => context.read<QnACubit>().placeBid(
+          widget.product.id,
+          amount,
+          note: note,
+        ),
+      ),
+    );
+    if (submitted == true && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم نشر مزايدتك بنجاح')));
+    }
+  }
+
+  Future<void> _acceptPublicBid(BuildContext context, QuestionModel bid) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('اعتماد السعر النهائي'),
+        content: Text(
+          'هل تريد اعتماد مزايدة ${bid.bidAmount!.toStringAsFixed(2)} ر.س؟ '
+          'سيتم إغلاق المزايدة وإتاحة الشراء لصاحب العرض فقط.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('اعتماد'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final success = await context.read<QnACubit>().acceptBid(
+      widget.product.id,
+      bid.id,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success ? 'تم اعتماد السعر النهائي' : 'تعذر اعتماد المزايدة',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkoutAcceptedBid(
+    BuildContext context,
+    QuestionModel bid,
+  ) async {
+    final accepted = await context.read<QnACubit>().checkoutBid(bid.id);
+    if (accepted == null || !context.mounted) return;
+    final product = await di.sl<ProductsCubit>().getProductById(
+      accepted.productId,
+    );
+    if (product == null || !context.mounted) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تحميل الإعلان للدفع')),
+        );
+      }
+      return;
+    }
+
+    final cart = context.read<CartCubit>();
+    cart.replaceWithAgreement(
+      product.copyWith(price: accepted.amount.toStringAsFixed(2)),
+      bidCommentId: accepted.bidId,
+    );
+    Navigator.pushNamed(context, Routes.checkout);
   }
 
   Widget _buildServiceProvidersSection(BuildContext context, bool isDark) {
@@ -1746,7 +2429,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       // Smart check: If userCity looks like raw coordinates (lat,lng),
       // try using the region as a fallback search term if it's a name.
       final coordinatePattern = RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$');
-      if (userCity != null && coordinatePattern.hasMatch(userCity!)) {
+      if (userCity != null && coordinatePattern.hasMatch(userCity)) {
         final userRegion = authState.user.region;
         if (userRegion != null && !coordinatePattern.hasMatch(userRegion)) {
           userCity = userRegion;
@@ -1776,65 +2459,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  void _showAskQuestionDialog(BuildContext context) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('اطرح سؤالاً'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'سيظهر سؤالك للبائع وباقي العملاء بعد الرد عليه.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            SizedBox(height: 10.h),
-            CustomTextField(
-              controller: controller,
-              hint: 'اكتب سؤالك هنا...',
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                context.read<QnACubit>().askQuestion(
-                  widget.product.id,
-                  controller.text,
-                );
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم إرسال سؤالك بنجاح')),
-                );
-              }
-            },
-            child: const Text('إرسال'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showReplyDialog(BuildContext context, QuestionModel qna) {
     final controller = TextEditingController(text: qna.answer);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('الرد على السؤال', style: TextStyle(fontFamily: 'Cairo')),
+        title: const Text(
+          'الرد على التعليق',
+          style: TextStyle(fontFamily: 'Cairo'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               qna.question,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Cairo',
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1852,17 +2495,27 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (controller.text.isNotEmpty) {
-                context.read<QnACubit>().replyToQuestion(
+                final success = await context.read<QnACubit>().replyToQuestion(
                   qna.id,
                   controller.text,
+                  productId: widget.product.id,
                 );
-                Navigator.pop(ctx);
-                // Refresh the questions for this product
-                context.read<QnACubit>().fetchProductQuestions(widget.product.id);
+                if (!ctx.mounted) return;
+                if (success) {
+                  Navigator.pop(ctx);
+                }
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم إرسال الرد بنجاح', style: TextStyle(fontFamily: 'Cairo'))),
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'تم إرسال الرد بنجاح'
+                          : 'تعذر إرسال الرد، حاول مرة أخرى',
+                      style: const TextStyle(fontFamily: 'Cairo'),
+                    ),
+                  ),
                 );
               }
             },
@@ -1907,6 +2560,104 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PublicBidDialog extends StatefulWidget {
+  final Future<bool> Function(double amount, String note) onSubmit;
+
+  const _PublicBidDialog({required this.onSubmit});
+
+  @override
+  State<_PublicBidDialog> createState() => _PublicBidDialogState();
+}
+
+class _PublicBidDialogState extends State<_PublicBidDialog> {
+  final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
+  bool _submitting = false;
+  String? _validationMessage;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _validationMessage = 'أدخل قيمة مزايدة صحيحة');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _validationMessage = null;
+    });
+    final success = await widget.onSubmit(amount, _noteController.text);
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() => _submitting = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('إضافة مزايدة علنية'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'ستظهر المزايدة لجميع المستخدمين، ويجب أن تكون أعلى من المزايدة الحالية.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            SizedBox(height: 12.h),
+            TextField(
+              controller: _amountController,
+              autofocus: true,
+              enabled: !_submitting,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'قيمة المزايدة',
+                suffixText: 'ر.س',
+                errorText: _validationMessage,
+              ),
+            ),
+            SizedBox(height: 10.h),
+            TextField(
+              controller: _noteController,
+              enabled: !_submitting,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'ملاحظة اختيارية'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context, false),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('إرسال المزايدة'),
+        ),
+      ],
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:animate_do/animate_do.dart';
-import '../../core/theme/colors.dart';
 import '../../core/routes/routes.dart';
 import '../../core/routes/app_router.dart';
 import '../../core/services/storage_service.dart';
@@ -20,8 +19,10 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  static const _authTimeout = Duration(seconds: 12);
   bool _animationsComplete = false;
   bool _authCheckComplete = false;
+  bool _hasNavigated = false;
   AuthState? _authState;
 
   @override
@@ -39,6 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // 2. Start Auth Check
     context.read<AuthCubit>().checkAuthStatus();
+    Future<void>.delayed(_authTimeout, _finishWithCachedSession);
 
     // 3. Simple Timer for Splash Duration
     Future.delayed(const Duration(milliseconds: 2500), () {
@@ -62,7 +64,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _tryNavigate() {
-    if (!_animationsComplete || !_authCheckComplete || !mounted) return;
+    if (_hasNavigated ||
+        !_animationsComplete ||
+        !_authCheckComplete ||
+        !mounted) {
+      return;
+    }
+    _hasNavigated = true;
 
     final storageService = sl<StorageService>();
     final isOnboardingComplete = storageService.isOnboardingComplete();
@@ -74,6 +82,27 @@ class _SplashScreenState extends State<SplashScreen>
     } else {
       AppRouter.navigateAndRemoveUntil(context, Routes.login);
     }
+  }
+
+  Future<void> _finishWithCachedSession() async {
+    if (!mounted || _authCheckComplete || _hasNavigated) return;
+
+    // A slow/offline WordPress request must never trap the user on splash.
+    // A stored token opens the app with the cached session while AuthCubit
+    // continues its validation; without a token we use the normal guest flow.
+    final token = await sl<StorageService>().getToken();
+    if (!mounted || _authCheckComplete || _hasNavigated) return;
+    _authState = token != null && token.isNotEmpty
+        ? context.read<AuthCubit>().state
+        : const AuthUnauthenticated();
+    _authCheckComplete = true;
+
+    if (token != null && token.isNotEmpty) {
+      _hasNavigated = true;
+      AppRouter.navigateAndRemoveUntil(context, Routes.main);
+      return;
+    }
+    _tryNavigate();
   }
 
   @override

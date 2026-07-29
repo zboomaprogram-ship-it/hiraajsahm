@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../features/shop/data/models/product_model.dart';
 
 abstract class VendorProductsState extends Equatable {
@@ -37,20 +38,36 @@ class VendorProductsCubit extends Cubit<VendorProductsState> {
   Future<void> loadProducts({String status = 'any'}) async {
     emit(VendorProductsLoading());
     try {
-      final response = await _dio.get(
-        '/dokan/v1/products',
-        queryParameters: {'status': status, 'per_page': 20},
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        final products = data
-            .map((json) => ProductModel.fromJson(json))
-            .toList();
-        emit(VendorProductsLoaded(products));
-      } else {
-        emit(const VendorProductsError('Failed to load products'));
+      const perPage = 100;
+      var page = 1;
+      final products = <ProductModel>[];
+      while (true) {
+        final response = await _dio.get(
+          AppConfig.vendorProductsSecureEndpoint,
+          queryParameters: {
+            'status': status,
+            'per_page': perPage,
+            'page': page,
+          },
+        );
+        if (response.statusCode != 200 || response.data is! List) {
+          emit(const VendorProductsError('Failed to load products'));
+          return;
+        }
+        final data = response.data as List<dynamic>;
+        for (final item in data) {
+          try {
+            products.add(
+              ProductModel.fromJson(Map<String, dynamic>.from(item as Map)),
+            );
+          } catch (_) {
+            // One malformed listing must not hide the rest of the dashboard.
+          }
+        }
+        if (data.length < perPage) break;
+        page++;
       }
+      emit(VendorProductsLoaded(products));
     } on DioException catch (e) {
       emit(
         VendorProductsError(
@@ -66,7 +83,7 @@ class VendorProductsCubit extends Cubit<VendorProductsState> {
     emit(VendorProductsLoading());
     try {
       final response = await _dio.delete(
-        '/dokan/v1/products/$productId',
+        '${AppConfig.vendorProductsSecureEndpoint}/$productId',
         queryParameters: {'force': true}, // Force delete from bin as well
       );
 

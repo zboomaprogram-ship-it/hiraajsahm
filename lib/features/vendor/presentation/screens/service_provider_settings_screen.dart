@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../core/config/app_config.dart';
+import '../../../../core/di/injection_container.dart';
 
 class ServiceProviderSettingsScreen extends StatelessWidget {
   const ServiceProviderSettingsScreen({super.key});
@@ -142,9 +145,47 @@ class ServiceProviderSettingsScreen extends StatelessWidget {
     );
   }
 
-  void _registerAsProvider(BuildContext context, String type) {
-    // Placeholder logic
-    debugPrint('Selected Provider Type: $type');
+  Future<void> _registerAsProvider(BuildContext context, String type) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد التسجيل'),
+        content: Text(
+          'هل تريد التسجيل كـ ${type == 'Delivery' ? 'مندوب توصيل' : 'معاين'}؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final response = await sl<Dio>().post(
+        '${AppConfig.serviceProvidersEndpoint}/register',
+        data: {'type': type == 'Delivery' ? 'transporter' : 'inspector'},
+      );
+      if (response.statusCode != 200 || response.data?['success'] != true) {
+        throw StateError('Registration was not confirmed');
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تعذر إكمال التسجيل، حاول مرة أخرى'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -153,6 +194,5 @@ class ServiceProviderSettingsScreen extends StatelessWidget {
         backgroundColor: AppColors.success,
       ),
     );
-    // Future: Show dialog to confirm phone/region
   }
 }
