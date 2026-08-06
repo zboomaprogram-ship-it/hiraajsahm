@@ -619,13 +619,21 @@ class ProfileScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem('طلباتي', '0'),
+              _buildStatItem(
+                'طلباتي',
+                '0',
+                onTap: () => AppRouter.navigateTo(context, Routes.orders),
+              ),
               Container(
                 width: 1,
                 height: 40.h,
                 color: Colors.white.withOpacity(0.3),
               ),
-              _buildStatItem('التقييمات', '0'),
+              _buildStatItem(
+                'المفضلة',
+                '0',
+                onTap: () => AppRouter.navigateTo(context, Routes.wishlist),
+              ),
             ],
           ),
         ],
@@ -1066,25 +1074,29 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24.sp,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+  Widget _buildStatItem(String label, String value, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.sp,
-            color: Colors.white.withOpacity(0.8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.sp,
+              color: Colors.white.withOpacity(0.8),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

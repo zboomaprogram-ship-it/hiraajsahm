@@ -148,48 +148,55 @@ class NotificationService {
             ?.toString();
     final int? id = idStr != null ? int.tryParse(idStr) : null;
 
-    switch (type) {
-      case 'order_vendor':
-      case 'order_client':
-        if (id == null) return;
-        print('🚀 Navigating to Order Details: $id');
-        navigatorKey.currentState?.pushNamed(
-          Routes.orderDetails,
-          arguments: id,
-        );
-        break;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = navigatorKey.currentState;
+      if (state == null) return;
 
-      case 'product':
-      case 'qa_vendor':
-      case 'qa_client':
-      case 'review_vendor':
-      case 'followed_product':
-        if (id == null) return;
-        print('🚀 Navigating to Product Details: $id');
-        navigatorKey.currentState?.pushNamed(
-          Routes.productDetails,
-          arguments: id,
-        );
-        break;
+      switch (type) {
+        case 'order':
+        case 'order_vendor':
+        case 'order_client':
+          if (id == null) return;
+          print('🚀 Navigating to Order Details: $id');
+          state.pushNamed(
+            Routes.orderDetails,
+            arguments: id,
+          );
+          break;
 
-      case 'requests':
-        print('🚀 Navigating to Requests Screen');
-        navigatorKey.currentState?.pushNamed(Routes.requests);
-        break;
+        case 'product':
+        case 'question':
+        case 'review':
+        case 'qa_vendor':
+        case 'qa_client':
+        case 'review_vendor':
+        case 'followed_product':
+          if (id == null) return;
+          print('🚀 Navigating to Product Details: $id');
+          state.pushNamed(
+            Routes.productDetails,
+            arguments: id,
+          );
+          break;
 
-      case 'message':
-        if (id == null) return;
-        navigatorKey.currentState?.pushNamed(
-          Routes.chat,
-          arguments: {'conversationId': id},
-        );
-        break;
+        case 'requests':
+          print('🚀 Navigating to Requests Screen');
+          state.pushNamed(Routes.requests);
+          break;
 
-      default:
-        print('⚠️ Unknown notification type: $type');
-        // Fallback or generic handling if needed
-        break;
-    }
+        case 'message':
+          if (id == null) return;
+          state.pushNamed(
+            Routes.chat,
+            arguments: {'conversationId': id},
+          );
+          break;
+
+        default:
+          print('⚠️ Unknown notification type: $type');
+          break;
+      }
+    });
   }
 
   /// Open a notification that was selected from the in-app notification inbox.
@@ -278,9 +285,9 @@ class NotificationService {
       await dio.post(
         _saveTokenEndpoint,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
-        data: {'fcm_token': id}, // Backend expects 'fcm_token' key
+        data: {'fcm_token': id, 'onesignal_id': id},
       );
-      print('✅ Push subscription ID sent to backend');
+      print('✅ Push subscription ID sent to backend: $id');
     } catch (e) {
       print('⚠️ Failed to send push ID to backend: $e');
     }

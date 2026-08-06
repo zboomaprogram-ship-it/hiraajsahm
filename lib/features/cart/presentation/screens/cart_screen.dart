@@ -290,6 +290,8 @@ class CartScreen extends StatelessWidget {
     CartLoaded state,
     bool isDark,
   ) {
+    final firstItem = state.items.isNotEmpty ? state.items.first : null;
+
     return Container(
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
@@ -305,42 +307,14 @@ class CartScreen extends StatelessWidget {
       ),
       child: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Subtotal
-            _buildSummaryRow(
-              'المجموع الفرعي',
-              '${state.subtotal.toStringAsFixed(2)} ر.س',
-              isDark,
-            ),
-            SizedBox(height: 12.h),
-
-            // // Shipping
-            // _buildSummaryRow(
-            //   'الشحن',
-            //   state.shipping == 0
-            //       ? 'مجاني'
-            //       : '${state.shipping.toStringAsFixed(2)} ر.س',
-            //   isDark,
-            //   isHighlighted: state.shipping == 0,
-            // ),
-            if (state.shipping > 0) ...[
-              SizedBox(height: 8.h),
-              Text(
-                'أضف ${(500 - state.subtotal).toStringAsFixed(0)} ر.س للحصول على شحن مجاني',
-                style: TextStyle(fontSize: 12.sp, color: AppColors.info),
-              ),
-            ],
-
-            SizedBox(height: 12.h),
-            Divider(color: AppColors.border),
-            SizedBox(height: 12.h),
-
-            // Total
+            // Total (المجموع الكلي)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'الإجمالي',
+                  'المجموع الكلي',
                   style: TextStyle(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
@@ -357,6 +331,58 @@ class CartScreen extends StatelessWidget {
                 ),
               ],
             ),
+            SizedBox(height: 16.h),
+            Divider(color: AppColors.border),
+            SizedBox(height: 12.h),
+
+            // Subtotal (المجموع الفرعي - اختياري)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'المجموع الفرعي (اختياري)',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textLight : AppColors.textPrimary,
+                  ),
+                ),
+                if (firstItem != null && firstItem.customPrice != null)
+                  GestureDetector(
+                    onTap: () {
+                      context.read<CartCubit>().updateCustomPrice(
+                        firstItem.product.id,
+                        null,
+                      );
+                    },
+                    child: Text(
+                      'إلغاء التعديل',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            if (firstItem != null)
+              _CustomPriceInputField(
+                key: ValueKey(
+                  'price_field_${firstItem.product.id}_${firstItem.customPrice}',
+                ),
+                initialValue:
+                    firstItem.customPrice ??
+                    (double.tryParse(firstItem.product.price) ?? 0.0),
+                onPriceChanged: (val) {
+                  context.read<CartCubit>().updateCustomPrice(
+                    firstItem.product.id,
+                    val,
+                  );
+                },
+                isDark: isDark,
+              ),
 
             SizedBox(height: 20.h),
 
@@ -370,33 +396,6 @@ class CartScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSummaryRow(
-    String label,
-    String value,
-    bool isDark, {
-    bool isHighlighted = false,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 14.sp, color: AppColors.textSecondary),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 15.sp,
-            fontWeight: FontWeight.w600,
-            color: isHighlighted
-                ? AppColors.success
-                : (isDark ? AppColors.textLight : AppColors.textPrimary),
-          ),
-        ),
-      ],
     );
   }
 
@@ -419,6 +418,78 @@ class CartScreen extends StatelessWidget {
             child: Text('مسح', style: TextStyle(color: AppColors.error)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CustomPriceInputField extends StatefulWidget {
+  final double initialValue;
+  final ValueChanged<double?> onPriceChanged;
+  final bool isDark;
+
+  const _CustomPriceInputField({
+    super.key,
+    required this.initialValue,
+    required this.onPriceChanged,
+    required this.isDark,
+  });
+
+  @override
+  State<_CustomPriceInputField> createState() => _CustomPriceInputFieldState();
+}
+
+class _CustomPriceInputFieldState extends State<_CustomPriceInputField> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.initialValue > 0
+          ? widget.initialValue.toStringAsFixed(0)
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: widget.isDark ? AppColors.cardDark : Colors.grey[100],
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: TextField(
+        controller: _controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (val) {
+          final trimmed = val.trim();
+          if (trimmed.isEmpty) {
+            widget.onPriceChanged(null);
+          } else {
+            final price = double.tryParse(trimmed);
+            widget.onPriceChanged(price);
+          }
+        },
+        decoration: InputDecoration(
+          hintText: 'أدخل السعر المطلوب (اختياري)',
+          hintStyle: TextStyle(fontSize: 13.sp, color: AppColors.textSecondary),
+          suffixText: 'ر.س',
+          suffixStyle: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+        ),
       ),
     );
   }

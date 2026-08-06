@@ -11,6 +11,7 @@ class CartItem extends Equatable {
   final int quantity;
   final bool isDeposit;
   final double depositPercentage;
+  final double? customPrice;
   final int? privateOfferMessageId;
   final int? privateConversationId;
   final int? bidCommentId;
@@ -20,6 +21,7 @@ class CartItem extends Equatable {
     this.quantity = 1,
     this.isDeposit = false,
     double? depositPercentage,
+    this.customPrice,
     this.privateOfferMessageId,
     this.privateConversationId,
     this.bidCommentId,
@@ -30,6 +32,7 @@ class CartItem extends Equatable {
     int? quantity,
     bool? isDeposit,
     double? depositPercentage,
+    double? customPrice,
     int? privateOfferMessageId,
     int? privateConversationId,
     int? bidCommentId,
@@ -39,6 +42,7 @@ class CartItem extends Equatable {
       quantity: quantity ?? this.quantity,
       isDeposit: isDeposit ?? this.isDeposit,
       depositPercentage: depositPercentage ?? this.depositPercentage,
+      customPrice: customPrice ?? this.customPrice,
       privateOfferMessageId:
           privateOfferMessageId ?? this.privateOfferMessageId,
       privateConversationId:
@@ -47,8 +51,15 @@ class CartItem extends Equatable {
     );
   }
 
+  double get unitPrice {
+    if (customPrice != null && customPrice! > 0) {
+      return customPrice!;
+    }
+    return double.tryParse(product.price) ?? 0.0;
+  }
+
   double get totalPrice {
-    final price = double.tryParse(product.price) ?? 0;
+    final price = unitPrice;
     if (isDeposit) {
       return (price * depositPercentage) * quantity;
     }
@@ -61,6 +72,7 @@ class CartItem extends Equatable {
     quantity,
     isDeposit,
     depositPercentage,
+    customPrice,
     privateOfferMessageId,
     privateConversationId,
     bidCommentId,
@@ -153,6 +165,7 @@ class CartCubit extends Cubit<CartState> {
           depositPercentage:
               double.tryParse(data['deposit_percentage']?.toString() ?? '') ??
               product.depositPercentage,
+          customPrice: double.tryParse(data['custom_price']?.toString() ?? ''),
           privateOfferMessageId: int.tryParse(
             data['private_offer_message_id']?.toString() ?? '',
           ),
@@ -195,6 +208,7 @@ class CartCubit extends Cubit<CartState> {
           },
           'is_deposit': item.isDeposit,
           'deposit_percentage': item.depositPercentage,
+          'custom_price': item.customPrice,
           'private_offer_message_id': item.privateOfferMessageId,
           'private_conversation_id': item.privateConversationId,
           'bid_comment_id': item.bidCommentId,
@@ -361,6 +375,31 @@ class CartCubit extends Cubit<CartState> {
         return item;
       }).toList();
 
+      _emitLoaded(updatedItems);
+    }
+  }
+
+  /// Update custom entered price for a product (nullable to reset to original price)
+  void updateCustomPrice(int productId, double? price) {
+    final currentState = state;
+    if (currentState is CartLoaded) {
+      final updatedItems = currentState.items.map((item) {
+        if (item.product.id == productId) {
+          // If price is null or 0, clear customPrice override
+          final newPrice = (price != null && price > 0) ? price : null;
+          return CartItem(
+            product: item.product,
+            quantity: item.quantity,
+            isDeposit: item.isDeposit,
+            depositPercentage: item.depositPercentage,
+            customPrice: newPrice,
+            privateOfferMessageId: item.privateOfferMessageId,
+            privateConversationId: item.privateConversationId,
+            bidCommentId: item.bidCommentId,
+          );
+        }
+        return item;
+      }).toList();
       _emitLoaded(updatedItems);
     }
   }

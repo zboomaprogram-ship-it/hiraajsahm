@@ -14,6 +14,7 @@ import '../../shop/data/models/product_model.dart';
 import '../../shop/data/models/category_model.dart';
 // ✅ Import Notification Cubit
 import '../../notifications/presentation/cubit/notifications_cubit.dart';
+import '../../cart/presentation/cubit/cart_cubit.dart';
 import '../../auth/presentation/cubit/auth_cubit.dart';
 import '../../shop/presentation/widgets/product_card.dart';
 import '../../../core/di/injection_container.dart';
@@ -447,10 +448,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   SizedBox(width: 12.w),
-                  _buildHeaderIcon(
-                    Icons.favorite_border_rounded,
-                    onTap: () {
-                      AppRouter.navigateTo(context, Routes.wishlist);
+                  BlocBuilder<CartCubit, CartState>(
+                    builder: (context, cartState) {
+                      int cartCount = 0;
+                      if (cartState is CartLoaded) {
+                        cartCount = cartState.items.length;
+                      }
+
+                      return _buildHeaderIcon(
+                        Icons.shopping_cart_outlined,
+                        badge: cartCount,
+                        onTap: () {
+                          AppRouter.navigateTo(context, Routes.cart);
+                        },
+                      );
                     },
                   ),
                 ],

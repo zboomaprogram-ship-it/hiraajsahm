@@ -62,6 +62,7 @@ function handle_custom_fluent_submission($request) {
 
     // 4. Insert into Database
     try {
+        global $wpdb;
         $insertData = [
             'form_id'      => $form_id,
             'user_id'      => get_current_user_id() ?: 0,
@@ -77,18 +78,28 @@ function handle_custom_fluent_submission($request) {
             'updated_at'   => current_time('mysql'),
         ];
 
-        $submissionId = wpFluent()->table('fluentform_submissions')->insert($insertData);
-        // FIXED ACTION HOOK:
-        $form = wpFluent()->table('fluentforms')->find($form_id);
-        do_action('fluentform/submission_inserted', $submissionId, $submissionData, $form);
+        $submissionId = 0;
+        if (function_exists('wpFluent')) {
+            $submissionId = wpFluent()->table('fluentform_submissions')->insert($insertData);
+            $form = wpFluent()->table('fluentforms')->find($form_id);
+            do_action('fluentform/submission_inserted', $submissionId, $submissionData, $form);
+        } else {
+            $table_name = $wpdb->prefix . 'fluentform_submissions';
+            $wpdb->insert($table_name, $insertData);
+            $submissionId = $wpdb->insert_id;
+            do_action('fluentform/submission_inserted', $submissionId, $submissionData, (object)['id' => $form_id]);
+        }
 
         return new WP_REST_Response([
             'success' => true,
-            'message' => 'Form submitted successfully',
+            'message' => 'تم إرسال الطلب بنجاح',
             'submission_id' => $submissionId
         ], 200);
 
-    } catch (Exception $e) {
-        return new WP_Error('submission_failed', $e->getMessage(), ['status' => 500]);
+    } catch (Throwable $e) {
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => 'تعذر إكمال الطلب حالياً: ' . $e->getMessage()
+        ], 500);
     }
 }

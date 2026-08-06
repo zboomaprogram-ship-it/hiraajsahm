@@ -522,8 +522,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
       );
     }
 
-    // Classified listing: the deal happens directly between buyer and vendor.
-    return _buildContactActionBar(context, isDark);
+    // Render action bar (Buy, Inspection, Sa'ee)
+    return _buildActionBar(context, isDark);
   }
 
   Widget _buildContactActionBar(BuildContext context, bool isDark) {
@@ -1397,48 +1397,91 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
         }
         final isButtonDisabled = isOutOfStock || isInCart;
 
+        // If price is 0, allow purchasing / preview with custom price in cart
         if (price <= 0) {
           return Container(
-            padding: EdgeInsets.all(20.w),
-            color: isDark ? AppColors.surfaceDark : Colors.white,
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: isOutOfStock
-                      ? null
-                      : () {
-                          final authState = context.read<AuthCubit>().state;
-                          if (authState is! AuthAuthenticated) {
-                            AppRouter.navigateTo(context, Routes.login);
-                            return;
-                          }
-                          if (product.vendorId == null ||
-                              product.vendorId == authState.user.id) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('تعذر بدء محادثة لهذا الإعلان'),
-                              ),
-                            );
-                            return;
-                          }
-                          Navigator.pushNamed(
-                            context,
-                            Routes.chat,
-                            arguments: {
-                              'vendorId': product.vendorId,
-                              'productId': product.id,
-                              'title': product.vendorName ?? 'البائع',
-                              'productName': product.name,
-                            },
-                          );
-                        },
-                  icon: const Icon(Icons.request_quote_outlined),
-                  label: const Text('مراسلة البائع وتحديد السعر'),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16.h),
-                  ),
+            padding: EdgeInsets.all(16.w),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5),
                 ),
+              ],
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  // 1. Inspection (المعاينة)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: isButtonDisabled
+                          ? null
+                          : () {
+                              context.read<CartCubit>().addItem(
+                                product,
+                                isDeposit: true,
+                              );
+                              _showAddToCartSnackBar(
+                                context,
+                                isDeposit: true,
+                                depositPercentageOverride: depositPercentage,
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14.r),
+                        ),
+                      ),
+                      child: Text(
+                        isInCart ? 'مضاف بالسلة' : 'المعاينة',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  // 3. Buy (شراء)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: isButtonDisabled
+                          ? null
+                          : () {
+                              context.read<CartCubit>().addItem(
+                                product,
+                                isDeposit: false,
+                              );
+                              _showAddToCartSnackBar(
+                                context,
+                                isDeposit: false,
+                                depositPercentageOverride: depositPercentage,
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14.r),
+                        ),
+                      ),
+                      child: Text(
+                        isInCart ? 'مضاف بالسلة' : 'شراء',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );

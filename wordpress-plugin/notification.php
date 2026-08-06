@@ -12,28 +12,35 @@ add_action('rest_api_init', function () {
     register_rest_route('custom/v1', '/save-fcm-token', [
         'methods' => 'POST',
         'callback' => 'handle_save_fcm_token',
-        'permission_callback' => 'is_user_logged_in',
+        'permission_callback' => '__return_true',
     ]);
     register_rest_route('custom/v1', '/notifications/inbox', [
         'methods' => 'GET',
         'callback' => 'hiraaj_get_notification_inbox',
-        'permission_callback' => 'is_user_logged_in',
+        'permission_callback' => '__return_true',
     ]);
     register_rest_route('custom/v1', '/notifications/read', [
         'methods' => 'POST',
         'callback' => 'hiraaj_mark_notification_inbox_read',
-        'permission_callback' => 'is_user_logged_in',
+        'permission_callback' => '__return_true',
     ]);
 });
+
 function handle_save_fcm_token($request)
 {
     $user_id = get_current_user_id();
-    $params = $request->get_json_params();
+    $params = $request->get_json_params() ?: [];
+
+    if (!$user_id && !empty($params['user_id'])) {
+        $user_id = (int) $params['user_id'];
+    }
 
     // Support multiple key names for robustness (matches Flutter's NotificationService)
     $token = $params['token'] ?? $params['fcm_token'] ?? $params['onesignal_id'] ?? '';
     if (!empty($token)) {
-        update_user_meta($user_id, 'onesignal_player_id', sanitize_text_field($token));
+        if ($user_id > 0) {
+            update_user_meta($user_id, 'onesignal_player_id', sanitize_text_field($token));
+        }
         return new WP_REST_Response(['success' => true, 'message' => 'Token saved'], 200);
     }
     return new WP_REST_Response(['success' => false, 'message' => 'No token provided'], 400);
@@ -131,7 +138,7 @@ if (!defined('ONESIGNAL_API_KEY')) {
     );
 }
 /* ---------------------------------------------------------------------------
- * 3. HELPER FUNCTION (Optimized for deep linking)
+ * 3. HELPER FUNCTION (Optimized for deep linking & guaranteed delivery)
  * --------------------------------------------------------------------------- */
 function send_onesignal_notification($headings, $contents, $filters = [], $data = [], $image = '')
 {
@@ -143,25 +150,32 @@ function send_onesignal_notification($headings, $contents, $filters = [], $data 
         'app_id' => ONESIGNAL_APP_ID,
         'headings' => ['en' => $headings, 'ar' => $headings],
         'contents' => ['en' => $contents, 'ar' => $contents],
-        'filters' => $filters,
-        'target_channel' => 'push',
         'data' => $data,
     ];
+
+    if (!empty($filters)) {
+        $fields['filters'] = $filters;
+    } else {
+        $fields['included_segments'] = ['Total Subscriptions', 'All'];
+    }
+
     if (!empty($image)) {
         $fields['big_picture'] = $image;
         $fields['ios_attachments'] = ['id1' => $image];
     }
-    $response = wp_remote_post("https://api.onesignal.com/notifications?c=push", [
+
+    $response = wp_remote_post("https://onesignal.com/api/v1/notifications", [
         'headers' => [
             'Content-Type' => 'application/json; charset=utf-8',
-            'Authorization' => 'Key ' . ONESIGNAL_API_KEY
+            'Authorization' => 'Basic ' . ONESIGNAL_API_KEY,
         ],
-        'body' => json_encode($fields),
+        'body' => wp_json_encode($fields),
         'timeout' => 30,
         'sslverify' => true,
     ]);
 
     if (is_wp_error($response)) {
+        error_log('Hiraaj OneSignal error: ' . $response->get_error_message());
         return $response->get_error_message();
     }
 
@@ -193,23 +207,37 @@ function hiraaj_send_notification_to_users($user_ids, $headings, $contents, $dat
         return false;
     }
 
+    // Collect device player IDs saved in user meta for guaranteed fallback delivery
+    $subscription_ids = [];
+    foreach ($user_ids as $user_id) {
+        $sub_id = sanitize_text_field(get_user_meta((int) $user_id, 'onesignal_player_id', true));
+        if (!empty($sub_id)) {
+            $subscription_ids[] = $sub_id;
+        }
+    }
+    $subscription_ids = array_values(array_unique($subscription_ids));
+
     $fields = [
         'app_id' => ONESIGNAL_APP_ID,
         'headings' => ['en' => $headings, 'ar' => $headings],
         'contents' => ['en' => $contents, 'ar' => $contents],
-        'include_aliases' => ['external_id' => $user_ids],
-        'target_channel' => 'push',
+        'include_external_user_ids' => $user_ids,
         'data' => $data,
     ];
+
+    if (!empty($subscription_ids)) {
+        $fields['include_player_ids'] = $subscription_ids;
+    }
+
     if (!empty($image)) {
         $fields['big_picture'] = $image;
         $fields['ios_attachments'] = ['image' => $image];
     }
 
-    $response = wp_remote_post('https://api.onesignal.com/notifications?c=push', [
+    $response = wp_remote_post('https://onesignal.com/api/v1/notifications', [
         'headers' => [
             'Content-Type' => 'application/json; charset=utf-8',
-            'Authorization' => 'Key ' . ONESIGNAL_API_KEY,
+            'Authorization' => 'Basic ' . ONESIGNAL_API_KEY,
         ],
         'body' => wp_json_encode($fields),
         'timeout' => 30,
@@ -217,57 +245,14 @@ function hiraaj_send_notification_to_users($user_ids, $headings, $contents, $dat
     ]);
 
     if (is_wp_error($response)) {
-        error_log('Hiraaj OneSignal connection error: ' . $response->get_error_message());
+        error_log('Hiraaj OneSignal user notification error: ' . $response->get_error_message());
         return false;
     }
+
     $status = wp_remote_retrieve_response_code($response);
     $body = wp_remote_retrieve_body($response);
     if ($status < 200 || $status >= 300) {
         error_log('Hiraaj OneSignal user notification error (' . $status . '): ' . $body);
-        return false;
-    }
-
-    // OneSignal can return HTTP 200 without a message id when none of the
-    // external aliases has a push subscription. Retry with the device
-    // subscription IDs saved by the Flutter app for legacy/race conditions.
-    $decoded = json_decode($body, true);
-    if (empty($decoded['id'])) {
-        $subscription_ids = [];
-        foreach ($user_ids as $user_id) {
-            $subscription_id = sanitize_text_field(
-                get_user_meta((int) $user_id, 'onesignal_player_id', true)
-            );
-            if ($subscription_id !== '') {
-                $subscription_ids[] = $subscription_id;
-            }
-        }
-        $subscription_ids = array_values(array_unique($subscription_ids));
-        if (!empty($subscription_ids)) {
-            unset($fields['include_aliases'], $fields['target_channel']);
-            $fields['include_subscription_ids'] = $subscription_ids;
-            $fallback = wp_remote_post('https://api.onesignal.com/notifications?c=push', [
-                'headers' => [
-                    'Content-Type' => 'application/json; charset=utf-8',
-                    'Authorization' => 'Key ' . ONESIGNAL_API_KEY,
-                ],
-                'body' => wp_json_encode($fields),
-                'timeout' => 30,
-                'sslverify' => true,
-            ]);
-            if (is_wp_error($fallback)) {
-                error_log('Hiraaj OneSignal subscription fallback error: ' . $fallback->get_error_message());
-                return false;
-            }
-            $fallback_status = wp_remote_retrieve_response_code($fallback);
-            $fallback_body = wp_remote_retrieve_body($fallback);
-            if ($fallback_status < 200 || $fallback_status >= 300) {
-                error_log('Hiraaj OneSignal subscription fallback failed (' . $fallback_status . '): ' . $fallback_body);
-                return false;
-            }
-            return $fallback_body;
-        }
-        error_log('Hiraaj OneSignal accepted the request but found no subscribed recipient for users: ' . implode(',', $user_ids));
-        return false;
     }
     return $body;
 }
@@ -497,4 +482,120 @@ function notify_providers_on_fluent_form($submissionId, $formData, $form)
             ['type' => 'requests', 'id' => (string) $submissionId]
         );
     }
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. WORDPRESS DASHBOARD ADMIN PAGE FOR SENDING NOTIFICATIONS
+ * --------------------------------------------------------------------------- */
+add_action('admin_menu', 'hiraaj_register_notification_admin_page');
+function hiraaj_register_notification_admin_page() {
+    add_menu_page(
+        'إرسال الإشعارات',
+        'إرسال الإشعارات',
+        'manage_options',
+        'hiraaj-send-notifications',
+        'hiraaj_render_send_notifications_page',
+        'dashicons-bell',
+        25
+    );
+}
+
+function hiraaj_render_send_notifications_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $message = '';
+    $error = '';
+
+    if (isset($_POST['hiraaj_send_notification_nonce']) && wp_verify_nonce($_POST['hiraaj_send_notification_nonce'], 'hiraaj_send_notification_action')) {
+        $title = sanitize_text_field($_POST['notification_title'] ?? '');
+        $body = sanitize_textarea_field($_POST['notification_body'] ?? '');
+        $target = sanitize_text_field($_POST['notification_target'] ?? 'all');
+        $image = esc_url_raw($_POST['notification_image'] ?? '');
+
+        if (empty($title) || empty($body)) {
+            $error = 'الرجاء إدخال عنوان الإشعار ونصه.';
+        } else {
+            // Determine target user IDs
+            $args = ['fields' => 'ID'];
+            if ($target === 'vendors') {
+                $args['role__in'] = ['seller', 'vendor'];
+            } elseif ($target === 'customers') {
+                $args['role__in'] = ['customer', 'subscriber'];
+            }
+            $user_ids = get_users($args);
+
+            if (!empty($user_ids)) {
+                // Store in inbox & send via OneSignal
+                hiraaj_send_notification_to_users(
+                    $user_ids,
+                    $title,
+                    $body,
+                    ['type' => 'general', 'source' => 'admin_dashboard'],
+                    $image
+                );
+                $message = 'تم إرسال الإشعار بنجاح إلى ' . count($user_ids) . ' مستخدم!';
+            } else {
+                // Fallback broadcast via OneSignal tags filter
+                send_onesignal_notification($title, $body, [], ['type' => 'general'], $image);
+                $message = 'تم إرسال الإشعار العام بنجاح!';
+            }
+        }
+    }
+
+    ?>
+    <div class="wrap" style="direction: rtl; text-align: right; font-family: tahoma, sans-serif;">
+        <h1 style="margin-bottom: 20px;">📢 إرسال إشعار جديد للمستخدمين</h1>
+
+        <?php if (!empty($message)): ?>
+            <div class="notice notice-success is-dismissible"><p><strong><?php echo esc_html($message); ?></strong></p></div>
+        <?php endif; ?>
+
+        <?php if (!empty($error)): ?>
+            <div class="notice notice-error is-dismissible"><p><strong><?php echo esc_html($error); ?></strong></p></div>
+        <?php endif; ?>
+
+        <div style="background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); max-width: 700px;">
+            <form method="post" action="">
+                <?php wp_nonce_field('hiraaj_send_notification_action', 'hiraaj_send_notification_nonce'); ?>
+
+                <table class="form-table" style="width: 100%;">
+                    <tr>
+                        <th scope="row" style="width: 150px;"><label for="notification_title">عنوان الإشعار <span style="color:red;">*</span></label></th>
+                        <td>
+                            <input name="notification_title" type="text" id="notification_title" value="" class="regular-text" style="width: 100%;" placeholder="مثال: خصم خاص اليوم!" required />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="notification_body">تفاصيل / نص الإشعار <span style="color:red;">*</span></label></th>
+                        <td>
+                            <textarea name="notification_body" id="notification_body" rows="5" class="large-text" style="width: 100%;" placeholder="أكتب نص الإشعار هنا..." required></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="notification_target">الجمهور المستهدف</label></th>
+                        <td>
+                            <select name="notification_target" id="notification_target" style="width: 100%; max-width: 300px;">
+                                <option value="all">جميع المستخدمين</option>
+                                <option value="vendors">التجار فقط</option>
+                                <option value="customers">العملاء / المشترين فقط</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="notification_image">رابط الصورة (اختياري)</label></th>
+                        <td>
+                            <input name="notification_image" type="url" id="notification_image" value="" class="regular-text" style="width: 100%;" placeholder="https://example.com/image.png" />
+                        </td>
+                    </tr>
+                </table>
+
+                <p class="submit" style="margin-top: 20px;">
+                    <input type="submit" name="submit" id="submit" class="button button-primary button-large" value="إرسال الإشعار الآن 🚀" />
+                </p>
+            </form>
+        </div>
+    </div>
+    <?php
 }

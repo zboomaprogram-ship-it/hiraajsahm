@@ -105,10 +105,15 @@ class RequestsService {
 
       final responseData = response.data;
       if (responseData is Map && responseData['success'] == false) {
-        throw responseData['message'] ?? 'Submission failed';
+        throw responseData['message'] ?? 'فشل إرسال الطلب';
       }
+    } on DioException catch (e) {
+      if (e.response?.data is Map && e.response?.data['message'] != null) {
+        throw e.response!.data['message'].toString();
+      }
+      throw 'حدث خطأ في الاتصال بالخادم، يرجى المحاولة لاحقاً';
     } catch (e) {
-      throw e.toString();
+      throw 'حدث خطأ أثناء إرسال الطلب: $e';
     }
   }
 
